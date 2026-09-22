@@ -1,0 +1,14 @@
+/** @type {import('prettier').Config} */
+export default {
+  semi: true,
+  singleQuote: true,
+  tabWidth: 2,
+  printWidth: 100,
+  trailingComma: 'all',
+  plugins: ['prettier-plugin-astro'],
+  overrides: [
+    { files: '**/*.astro', options: { parser: 'astro' } },
+    { files: '**/*.mdx', options: { parser: 'mdx' } },
+  ],
+  astroAllowShorthand: false,
+};

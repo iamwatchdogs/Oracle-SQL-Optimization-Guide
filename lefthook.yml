@@ -1,0 +1,27 @@
+# Lefthook: git hooks for the Astro guidebook.
+# Install once per clone:  bunx lefthook install
+# Full type-check runs on pre-push (astro check always checks the whole
+# project, so it must not run per staged file).
+
+pre-commit:
+  parallel: true
+  commands:
+    oxlint:
+      glob: '*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,astro}'
+      run: bunx oxlint --fix --deny-warnings {staged_files}
+      stage_fixed: true
+    prettier:
+      glob: '*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,md,mdx,astro,css,yml,yaml}'
+      run: bunx prettier --write {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    lint:
+      run: bun run lint
+    format-check:
+      run: bun run format:check
+    astro-check:
+      run: bun run check
+    tsgo-check:
+      run: bun run check:tsgo

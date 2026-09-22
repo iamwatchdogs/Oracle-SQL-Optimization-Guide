@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "import", "jsx-a11y", "oxc", "promise", "node"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "pedantic": "error",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "env": { "browser": true, "node": true, "builtin": true, "astro": true },
+  "rules": {
+    "no-console": "error",
+    "no-debugger": "error",
+    "no-eval": "error",
+    "no-alert": "error",
+    "eqeqeq": "error",
+    "curly": "error",
+    "no-else-return": "error",
+    "prefer-const": "error",
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "import/no-self-import": "error",
+    "import/no-absolute-path": "error",
+    "import/no-named-as-default": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unused-vars": "error",
+    "typescript/no-non-null-assertion": "error",
+    "unicorn/prefer-node-protocol": "error",
+    "unicorn/no-array-callback-reference": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.astro"],
+      "rules": {
+        "no-unused-vars": "off",
+        "typescript/no-unused-vars": "off",
+        "import/no-unassigned-import": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["dist/**", ".astro/**", "node_modules/**", "coverage/**", "out/**"]
+}
