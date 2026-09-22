@@ -12,6 +12,7 @@ export default defineConfig({
   // Replace with the real production URL so sitemap.xml and canonical URLs are correct.
   site: 'https://example.com',
   output: 'static',
+  trailingSlash: 'always',
   integrations: [
     // Mermaid first: registers its markdown transform before the other
     // markdown-processing integrations (see astro-mermaid README).
