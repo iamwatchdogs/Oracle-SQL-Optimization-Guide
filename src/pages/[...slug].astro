@@ -3,19 +3,42 @@ import { type CollectionEntry, getCollection, render } from 'astro:content';
 
 type Props = {
   entry: CollectionEntry<'notebook'>;
+  prevEntry?: CollectionEntry<'notebook'>;
+  nextEntry?: CollectionEntry<'notebook'>;
 };
 
-export async function getStaticPaths() {
-  const entries = await getCollection('notebook', ({ data }) => !data.draft);
+function toUrl(id: string): string {
+  if (id === 'index') {
+    return '/';
+  }
+  const clean = id.replace(/\.mdx?$/u, '').replace(/\/index$/u, '');
+  return `/${clean}/`;
+}
 
-  return entries.map((entry) => ({
+export async function getStaticPaths() {
+  const all = (await getCollection('notebook', ({ data }) => !data.draft)).toSorted(
+    (a, b) => (a.data.order ?? 9999) - (b.data.order ?? 9999),
+  );
+
+  return all.map((entry, idx) => ({
     params: { slug: entry.id === 'index' ? undefined : entry.id },
-    props: { entry },
+    props: {
+      entry,
+      prevEntry: idx > 0 ? all[idx - 1] : undefined,
+      nextEntry: idx < all.length - 1 ? all[idx + 1] : undefined,
+    },
   }));
 }
 
-const { entry } = Astro.props;
+const { entry, prevEntry, nextEntry } = Astro.props;
 const { Content } = await render(entry);
+const parts =
+  entry.id === 'index'
+    ? []
+    : entry.id
+        .replace(/\.mdx?$/u, '')
+        .replace(/\/index$/u, '')
+        .split('/');
 ---
 
 <!doctype html>
@@ -27,8 +50,40 @@ const { Content } = await render(entry);
   </head>
   <body>
     <main>
+      <nav aria-label="Breadcrumb">
+        <a href="/">Home</a>
+        {parts.map((part, i) => {
+          const url = `/${parts.slice(0, i + 1).join('/')}/`;
+          const isLast = i === parts.length - 1;
+          return (
+            <span>
+              {' / '}
+              {isLast ? <span>{part}</span> : <a href={url}>{part}</a>}
+            </span>
+          );
+        })}
+      </nav>
       <h1>{entry.data.title}</h1>
       <Content />
+      <nav aria-label="Book navigation">
+        {prevEntry ? (
+          <a href={toUrl(prevEntry.id)} rel="prev">
+            ← {prevEntry.data.title}
+          </a>
+        ) : (
+          <span />
+        )}{' '}
+        {nextEntry ? (
+          <a href={toUrl(nextEntry.id)} rel="next">
+            {nextEntry.data.title} →
+          </a>
+        ) : (
+          <span />
+        )}
+      </nav>
+      <p>
+        <a href="/">Back to book home</a>
+      </p>
     </main>
   </body>
 </html>
