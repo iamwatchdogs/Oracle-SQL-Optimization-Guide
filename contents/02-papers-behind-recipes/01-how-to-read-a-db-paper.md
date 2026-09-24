@@ -5,57 +5,54 @@ order: 21
 draft: false
 ---
 
-A junior finds a fast Postgres trick on a blog. The blog cites a paper. The junior pastes the trick into Oracle. Nothing speeds up. The manager asks why. The junior has no answer. The missing step was a 4-step read. System first. Year and venue next. Read depth next. Evidence class last.
+Start with the tested system. Venue, year, read depth, and evidence class come after it. A paper’s methods and results must name the system before you let its headline travel to Oracle.
 
-Reading a paper is like checking a medicine label, except you check which database it was tested on instead of dose.
+This research pass executed no Oracle workload. That fact belongs in the citation, not in a footnote you hope nobody reads.
 
-Start with the test system. Then check year and venue. Finally split full reads from snippets and name the evidence class. First you run the check on P1. Next you run it on Bao. Then you apply it to every new paper you meet.
+## 1. Name the tested system
 
-## 1. Name the test system before you cite the win
+The first question is concrete: what database did the paper actually exercise?
 
-Claim: the test system decides if a result can move to Oracle.
+- P1 is Oracle-authored/specific. PVLDB 19(12):4169–4181, 2026, DOI 10.14778/3827998.3828024, https://arxiv.org/html/2608.27758v1, [read firsthand]. The paper describes Oracle releases from 11g through 26ai.
+- Bao P9 is a PostgreSQL prototype. SIGMOD 2021, DOI 10.1145/3448016.3452838, arXiv:2004.03814. Its per-query hints, tree models, and Thompson sampling do not establish an Oracle mapping.
+- AutoSteer P8 is [snippet-verified] and names five systems: PostgreSQL, Presto, Spark, MySQL, and DuckDB. PVLDB 16:3515, 2023, DOI 10.14778/3611540.3611544.
+- OtterTune P10 names PostgreSQL and MySQL. SIGMOD 2017, DOI 10.1145/3035918.3064029, https://github.com/cmu-db/ottertune.
 
-Example: run the 4-step demo on P1 versus Bao. Step 1 asks for the system.
-
-- P1 [P1] PVLDB 19(12):4169–4181, 2026, DOI 10.14778/3827998.3828024, https://arxiv.org/html/2608.27758v1, [read firsthand], is Oracle engineers on Oracle. It details 11g manual capture, 12c Auto SPM Evolve Advisor, 19c Auto SPM with Auto STS, and 26ai Real-Time SPM.
-- Bao [P9] SIGMOD 2021, DOI 10.1145/3448016.3452838, arXiv:2004.03814, is a PostgreSQL prototype. It steers a classic optimizer with per-query hints, tree models, and Thompson sampling. Oracle hint mapping is unverified in our pass. Mark Bao CANDIDATE for Oracle.
-
-Why it matters: hints are engine-specific. A Postgres hint set has no direct Oracle match. You save days by stopping at Step 1 when Oracle is absent.
-
-Number: AutoSteer [P8] PVLDB 16:3515, 2023, [snippet-verified], lists 5 non-Oracle systems: PostgreSQL, Presto, Spark, MySQL, DuckDB. OtterTune [P10] SIGMOD 2017 lists 2: PostgreSQL and MySQL. Zero list Oracle.
+If Oracle is absent from the methods/results, keep the result CANDIDATE for Oracle. The loop shape may travel. The measured win does not travel by citation.
 
 ## 2. Check year, venue, and evidence class
 
-Claim: year and venue tell you how much weight to give a claim.
+A venue tells you how the work entered the record. It does not replace reading the system under test.
 
-Example: continue the demo with Steps 2 and 4. Step 2 reads year and venue.
+- P1 is PVLDB 2026. P2 is PVLDB 2025. P4 is SIGMOD 2022, pp. 94–107, with a third-party reproducibility report B2.
+- P11 is an arXiv preprint. IEEE ICDE 2026 is listed, but the proceedings status is unconfirmed. Keep the preprint/listing caveat attached.
+- W5 is an Oracle whitepaper from 2007, https://www.oracle.com/technetwork/database/performance/spa-white-paper-ow07-132047.pdf. It can define the historical SQL Performance Analyzer concept; it cannot describe current 19c behavior. Use the current package and guide sources S06 and S13.
+- W1 and W3 are catalogued Oracle briefs. The six briefs W1–W6 are not all discussed in this walkthrough; W2, W4, W5, and W6 are the selected examples here.
 
-- P1 is PVLDB 2026. P2 [P2] is PVLDB 2025. P4 [P4] is SIGMOD 2022, pp. 94–107, with a third-party repro report [B2].
-- W5 is an Oracle whitepaper from 2007, https://www.oracle.com/technetwork/database/performance/spa-white-paper-ow07-132047.pdf. A 2007 brief can define SQL Performance Analyzer. It cannot describe 19c conduct. Current SPA conduct comes from 19c docs [S06][S13].
+Read the evidence class too. B1 is a paper. B2 is a reproducibility artifact. A2 is an Oracle-authored brief, such as W4, SQL Plan Management in Oracle Database 19c, https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf. A class is not an Oracle test result.
 
-Step 4 reads evidence class. B1 means peer-reviewed paper. A2 means Oracle-authored brief such as W4 SQL Plan Management in Oracle Database 19c, https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf. B2 means repro artifact.
+## 3. Keep read depth attached to the claim
 
-Why it matters: old vendor briefs still rank high in search. Juniors cite W6 from 2012 for stats practice. W2 from 19c supersedes it. Year check blocks that error.
+Read depth limits what you can say. P1 is the one paper marked [read firsthand] in this chapter. P2 and P3 are [snippet-verified]. The selected snippet-verified examples below are not a complete inventory of the research catalog.
 
-Number: access date for all entries is 2026-09-22. Four key entries in our set were [snippet-verified]: P2, P3, P5, P8. One was [read firsthand]: P1.
+- P2 reports about 15% performance improvement and up to 60% space-reclamation potential on customer workloads. Write “the abstract reports” and “vendor-reported,” not “we measured.”
+- P3, Automatic SQL Error Mitigation in Oracle, is [snippet-verified]. PVLDB 16:3835, 2023, https://www.vldb.org/pvldb/vol16/p3835-pasupuleti.pdf.
+- P5, SQLSolver, proves 346 of 359 equivalent query pairs derived from Calcite and Spark SQL rewrite rules. SIGMOD 2024, DOI 10.1145/3626768, https://github.com/SJTU-IPADS/SQLSolver, [snippet-verified]. It remains CANDIDATE for Oracle.
+- P8 is [snippet-verified] and its five named systems are non-Oracle systems. P20 (S80) discusses an Oracle connector, but its experiments do not validate Oracle dialect or performance. Keep P20 CANDIDATE.
 
-## 3. Never quote a snippet as a test you ran
+A snippet can support a sentence about what the paper claims. It cannot support a sentence about what your Oracle database did. This pass executed no Oracle workload, so the second sentence does not exist here.
 
-Claim: read depth limits what you can claim.
+## 4. Translate the evidence, do not inflate it
 
-Example: finish the demo with Step 3 on Bao and P2.
+After the first three checks, write one of two labels:
 
-- Bao full text shows a Postgres loop. It does not show an Oracle run. So you write CANDIDATE, Oracle mapping unverified.
-- P2 abstract reports about 15% speed gain and up to 60% space-reclamation potential on customer load. Our source flags both as [snippet-verified, abstract-level figures]. So you write vendor-reported, test locally.
-- SQLSolver [P5] SIGMOD 2024, DOI 10.1145/3626768, https://github.com/SJTU-IPADS/SQLSolver, proves 346 of 359 pairs from Calcite and Spark SQL rules, [snippet-verified]. Still CANDIDATE. No Oracle dialect proof in our pass.
-- WeTune [P4] checked rules on queries from the 20 most popular open-source projects. Strong method. Still no Oracle dialect proof in our pass.
+- **Oracle-authored/specific:** the paper or brief is about Oracle, even if the result is not a claim about your workload.
+- **CANDIDATE for Oracle:** the idea is relevant, but Oracle dialect, optimizer, or performance evidence is unverified.
 
-Why it matters: precise labels keep you honest. Teammates can then plan a real Oracle test instead of trusting a snippet.
+P1, P2, and P3 belong in the first group as Oracle-authored/specific evidence. P1 is [read firsthand]; P2 and P3 are [snippet-verified]. P8, P9, P10, P11, P13, P14, P15, P16, P17, P18, and P20 remain candidates unless an Oracle test supplies the missing evidence.
 
-Number: 346 of 359 proved. 20 projects sampled. 2026-09-22 access date. Those three numbers belong in any cite of P5 and P4.
+PVLDB is a peer-reviewed database systems venue. It gives the paper a venue, volume, pages, year, and DOI. It does not by itself tell you which database or release was measured. The paper’s methods/results name the tested system. For P1, those methods and results name Oracle and trace 11g manual capture through 19c Auto SPM to 26ai Real-Time SPM. See P1 at https://arxiv.org/html/2608.27758v1.
 
-<details><summary>In case you don't know about PVLDB, it's a database research venue where papers pass peer review before publication.</summary>PVLDB is the Proceedings of the VLDB Endowment, a peer venue for database systems work. It gives volume, pages, year, and DOI. Check it in two steps. Copy a DOI such as 10.14778/3827998.3828024 for P1. Open the DOI or arXiv link and confirm the Oracle test system. Engineers facing plan flips need P1 first. It drives one decision: cite as an Oracle run or mark CANDIDATE. Do not swap in a survey or preprint alone. They lack the same systems review weight and cost overclaim. Sharp line: PVLDB tells you which Oracle release was measured, not just that an idea sounds good. Example: P1 tracks 11g manual capture to 26ai Real-Time SPM foreground verify. See https://arxiv.org/html/2608.27758v1 [P1].</details>
+<details><summary>What does snippet-verified mean?</summary>Snippet-verified means the claim came from an abstract, snippet, or metadata rather than a full paper read and a reproduced experiment. P1 is the exception recorded here: it is [read firsthand]. Selected examples of snippet-verified claims include P2, P3, P5, P8, P11, and P20. Keep the label beside the number, especially when the number is a performance figure. P2’s roughly 15% improvement and 60% space-reclamation potential are abstract-level vendor-reported figures, not results from this research pass. See P2.</details>
 
-<details><summary>In case you don't know about snippet-verified, it's a flag that means we saw the abstract only, not the full test.</summary>Snippet-verified means we saw the abstract or metadata only, not the full test. Read firsthand means the full text was read. Our set has one full read: P1. Four key entries are snippet-verified: P2, P3, P5, P8. Keep the label attached to the number. Never drop it when you copy. Devs writing docs need it. It drives one decision: claim a win, or write vendor-reported, test locally. Do not treat a snippet as run proof. That swap costs a false ship with no Oracle check. Sharp line: snippet-verified stops a Postgres number from becoming an Oracle promise. Example: P2 reports about 15% gain and up to 60% space save as abstract figures, so cite them as snippet-verified. See [P2].</details>
-
-**Keep this: Never cite a result without naming the tested system and year.**
+**Keep this: name the tested system, keep the read-depth label, and never turn a candidate into an Oracle claim without a new Oracle run.**

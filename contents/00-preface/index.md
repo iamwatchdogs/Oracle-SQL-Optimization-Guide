@@ -1,62 +1,83 @@
 ---
 title: Preface - Trust Runs, Not Rumors
-description: How this book grades evidence and proves every Oracle SQL win.
+description: How this book grades evidence and turns documented techniques into reproducible tests.
 order: 1
 draft: false
 ---
 
-Your JOIN runs fast on your laptop. It times out in prod. A blog told you to add a hint. You did. Nothing changed.
+A query can be fast in one environment and slow in another. The difference is usually not magic. It is a different estimate, access path, workload, or release behavior.
 
-This book teaches fixes you can prove on your own database. Nothing else counts.
+This preface gives you two rules:
 
-You write SELECT, JOIN, and WHERE. You trust tips when stuck. Start there. Grade the tip. Prove the win.
+1. Grade the claim before you spend database time on it.
+2. Run a reproducible check before you call it a win.
 
-An evidence grade is a food label, except it lists the tester and the rerun steps instead of calories.
+The rules sound obvious. Most broken tuning processes skip them anyway.
 
-One aside: I have trusted a tip that failed at scale. Back to grades.
+## Evidence is a filter, not a compliment
 
-## 1. Grades decide before runs start
+A source grade tells you what kind of support a claim has. It does not turn a blog post into a benchmark.
 
-Claim: Grades tell you what to trust before you test.
+| Grade  | Meaning                                                     | How to use it                                                                      |
+| ------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **A1** | Oracle versioned product documentation                      | Primary behavior and release scope                                                 |
+| **A2** | Oracle technical brief or whitepaper                        | Vendor explanation and guidance                                                    |
+| **B1** | Paper or preprint                                           | Evidence for the mechanism or system studied; state whether the venue is confirmed |
+| **B2** | Reproducibility report or artifact                          | Independent support, not automatic Oracle proof                                    |
+| **C1** | Deterministic tool with documented output                   | Evidence about what ran, not proof of a universal speedup                          |
+| **C2** | Maintained open-source project with a verifiable repository | Supporting implementation or test harness                                          |
+| **D**  | Blog, forum, or secondary commentary                        | Context and leads only                                                             |
 
-Example: A blog says avoid bind variables for speed. Grade it D. Check the 19c Tuning Guide E96095-19 April 2025 [S01] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/ . That is A1. D plus A1 is not PROVEN. PROVEN needs 2 sources, or 1 strong source plus a repeatable check. File it as D and demand a rerun.
+A claim supported by D can point you toward A1. It cannot carry the claim by itself.
 
-Why it matters: You argue from sources, not volume. Juniors can push back on bad tips with calm facts.
+## The catalog bar is about evidence and procedure
 
-Number: 68 entries passed. D alone passed zero. Classes are A1/A2/B1/B2/C1/C2/D.
+The research uses this definition:
 
-Progression 1: tip to D tag to A1 page to rerun gate.
-Progression 2: guess from EXPLAIN PLAN to fact from DISPLAY_CURSOR to trace from SQL Monitor.
+> **PROVEN** means a technique has documented authoritative evidence or at least two independent verified sources, **and** a deterministic, reproducible verification procedure is stated.
 
-## 2. Wins need the same workload twice
+That is the whole bar. It is not a claim that the technique ran in this research pass. A procedure is a set of steps someone with a live Oracle database can execute. A result is the measurements that come back afterward. Do not write one in place of the other.
 
-Claim: A win is the same workload, two runs, one change.
+The catalog has 68 entries: 67 meet that PROVEN bar. T-08, the SQLd360/SQLdb360 community diagnostic collector, is **CONDITIONAL**. It can produce a useful evidence bundle, but its bundle still needs cross-checking against Oracle's own `DBMS_XPLAN` and SQL Monitoring output.
 
-Example: Use tiny employees and departments. Freeze that JOIN in a Tuning Set. Run V0. Step 1: save the set. Step 2: DBMS_SQLPA test execute for before [S06] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html . Step 3: change one thing. Step 4: test execute for after, compare on elapsed_time and buffer_gets. Step 5: repeat and keep medians per Hoefler and Belli SC15 [S58] https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf . Step 6: keep DISPLAY_CURSOR for both, as covered in [S01]. Unverified: sqlcl and sqlplus were missing, so no runs here. Run V0 on your DB.
+## The proof loop
 
-Why it matters: Frozen input stops false wins. Medians stop lucky wins.
+A fair check has six decisions:
 
-Number: 33 tools support V0. DBMS_SQLPA and DBMS_XPLAN are C1. C1 means deterministic tool with readable output.
+1. **Freeze the workload.** Put the representative SQL and binds in a SQL Tuning Set. [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
+2. **Measure the incumbent.** Run the workload before changing anything. Save elapsed time, `buffer_gets`, and the executed plan.
+3. **Measure the noise.** Repeat the unchanged workload. The spread tells you how large a difference must be before it means something. Repetition and variability are the point. [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf)
+4. **Change one thing.** One statistics preference, one index, one rewrite, one plan control.
+5. **Run the same workload again.** Use `DBMS_SQLPA` to compare before and after. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
+6. **Decide and file the evidence.** Keep the plan pair, metric summary, source IDs, and rollback command. If the evidence fails, roll back and record why.
 
-## 3. Citations you can open
+A fast first run is a lead. A repeatable improvement is a decision.
 
-Claim: Every proof points to a page you can open.
+## The tools have different jobs
 
-Example: Read [S06] — Oracle. DBMS_SQLPA, 19c. https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html . S06 is the ID. A1 is the class. Do the same for [S01] and [S58]. Each [S##] maps to a full record. Learn that once. Use it for all 19 papers and 6 briefs.
+Do not ask AWR to answer a single-statement question, and do not ask an index suggestion to prove correctness.
 
-Why it matters: You check version scope fast. 19c vs 26ai stops mattering once you see the date.
+- AWR frames a workload window.
+- ASH samples active sessions and events.
+- SQL Monitor and `DBMS_XPLAN` show execution-level plan evidence.
+- SQL Trace and TKPROF split parse, execute, fetch, and wait behavior.
+- A SQL Tuning Set makes a before/after workload repeatable.
+- SQL Performance Analyzer compares the two runs.
 
-Number: 19 papers, 6 Oracle briefs, 33 tools. PROVEN = 2 sources or 1 strong source plus a rerun.
+The tooling ledger counts **18 Oracle built-in tool rows, 3 client rows, and 12 external rows**: **33 tool entries**. SQL Quarantine is a separate guardrail row, so the rendered inventory has **34 displayed rows**. External tools can be useful candidates without becoming Oracle-proven fixes.
 
-<details><summary>In case you don't know about an execution plan, it's Oracle's chosen steps to run your query.</summary>It is the step list Oracle chose for your SELECT and JOIN. It names join order and how each table was read, plus row guesses and cost per line. You get it after you run the query with `SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR());`. `EXPLAIN PLAN FOR` only shows a compile guess and can miss binds. Devs and DBAs pull it when a query slows with no code change. It drives one decision. Same plan hash means look at data or load. New hash means the optimizer picked a new path. Do not use wall time alone. Wall time hides which line moved. Sharp line: it is the only proof of what ran, line by line. Example: save the hash before and after a stats job. Different hash means the job picked a new path. See [T-04][S05] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html</details>
+<details><summary>If you are new to plans and workload history</summary>
 
-<details><summary>In case you don't know about AWR, it's Oracle's built-in history of database activity.</summary>AWR is the Automatic Workload Repository. It stores timed snapshots of load by SQL and event. ADDM reads that history and names suspects. Steps are fixed. Pull the AWR report for the bad hour. Sort SQL by elapsed and buffer gets. Pick one SQL ID. Teams with a slow hour need it first. It drives one decision: which statement deserves tune time. Do not start from single-run feel. Single runs miss the window and tune the wrong SQL. Sharp line: AWR frames the workload, single timing does not. Example: the bad hour shows one join top by elapsed. You tune that ID only. Needs STATISTICS_LEVEL TYPICAL or ALL. Confirm per statement after ADDM triage. See https://docs.oracle.com/en/database/oracle/oracle-database/19/tdppt/automatic-database-performance-monitoring.html [T-01].</details>
+An execution plan is Oracle's chosen operation sequence for a statement. AWR stores timed workload history. ASH samples active sessions. Together they help you move from “the app feels slow” to “this SQL ID consumed this wait in this window.” The next step is a statement-level plan and a controlled comparison, not a blind index. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html) [S03](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/)
+</details>
 
-Compiled 2026-09-22. No live DB was open. `sqlcl` and `sqlplus` were not on PATH. Nothing here claims we ran it.
+No live Oracle database was available for the research pass. `sqlcl` and `sqlplus` were not on `PATH`. The examples here are procedures and illustrations, not executed results.
 
 In this chapter:
 
 - [Why Evidence Grades Decide What You Trust](/00-preface/01-why-evidence-grades/)
 - [How to Prove a Win](/00-preface/02-how-to-prove-a-win/)
 
-**Keep this: If you did not measure it twice, you did not fix it.**
+Source IDs and technique IDs resolve in `.agents/research/07-sources-bibliography.md` and `.agents/research/01-proven-techniques-catalog.md`.
+
+**Decision: a claim without a source is a hypothesis; a claim without a reproducible procedure is not ready to ship.**

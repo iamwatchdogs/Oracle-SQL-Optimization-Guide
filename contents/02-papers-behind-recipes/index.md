@@ -5,25 +5,40 @@ order: 20
 draft: false
 ---
 
-Most juniors make the same error in week one. They cite a Postgres blog to justify an Oracle change. The blog looks solid. The chart goes up. Then the change flops on Oracle. The optimizer differs. The hints differ. The storage layer differs. That gap is the whole point of this chapter.
+A paper is not Oracle evidence because it is peer reviewed. It becomes Oracle-specific evidence when the paper is Oracle-authored/specific or its methods and results name Oracle as the tested system. This catalog contains 19 papers: P1–P18 plus P20. P19 was never assigned.
 
-A paper stack is like a parts shelf, except half the parts were built for a different engine.
+That is the boundary of this research pass. It read and catalogued papers; it executed no Oracle workload. The Oracle-authored/specific papers describe Oracle behavior and design history. They do not become an Oracle benchmark just because they sit beside the recipes.
 
-Start with Oracle-built proof. Then sort the rest as candidates. Finally ship only what Oracle tests confirm. First you learn a 4-step read method. Next you meet the 3 Oracle papers from 2023 to 2026. Then you learn what stays candidate.
+## 1. Start with Oracle-authored/specific evidence
 
-## 1. Start with Oracle-built proof
+Three papers get the close treatment here because they describe Oracle’s own systems:
 
-Claim: only 3 papers in this set were written by Oracle engineers about Oracle itself. Example: P1 Real-Time SQL Plan Management [P1] PVLDB 19(12):4169–4181, 2026, DOI 10.14778/3827998.3828024, https://arxiv.org/html/2608.27758v1, [read firsthand]. It traces manual capture to background checks to foreground checks. P2 Automatic Indexing [P2] PVLDB 18(12):4924, 2025, DOI 10.14778/3750601.3750616, [snippet-verified]. P3 error mitigation [P3] PVLDB 16:3835, 2023, https://www.vldb.org/pvldb/vol16/p3835-pasupuleti.pdf, [snippet-verified]. Why it matters: these 3 describe code that runs on Oracle. The rest describe ideas that ran elsewhere. Number: 3 Oracle-engineer papers out of 19 papers in the shelf. All sources checked 2026-09-22.
+- P1, [Real-time SQL Plan Management in Oracle](/02-papers-behind-recipes/02-oracles-own-papers/), is [P1] PVLDB 19(12):4169–4181, 2026, DOI 10.14778/3827998.3828024, https://arxiv.org/html/2608.27758v1, [read firsthand]. It traces plan capture, automatic plan management, Auto STS, and Real-Time SPM.
+- P2, Automatic Indexing, is [P2] PVLDB 18(12):4924, 2025, DOI 10.14778/3750601.3750616, [snippet-verified]. The paper’s lifecycle is the useful part: propose, validate, deploy, and remove.
+- P3, Automatic SQL Error Mitigation in Oracle, is [P3] PVLDB 16:3835, 2023, https://www.vldb.org/pvldb/vol16/p3835-pasupuleti.pdf, [snippet-verified]. It describes mitigation during query compilation, including failover to alternative plans.
 
-## 2. Sort the rest as candidates
+P1 was read firsthand. P2 and P3 were snippet-verified. That distinction matters. P1’s paper reports Oracle production deployment, but this research pass did not reproduce that workload. The correct label is Oracle-authored/specific evidence, not Oracle-tested proof from this pass.
 
-Claim: learned, rewrite, and agentic results stay CANDIDATE for Oracle until tested on Oracle. Example: Bao [P9] SIGMOD 2021, DOI 10.1145/3448016.3452838, arXiv:2004.03814, is a PostgreSQL prototype with per-query hints. AutoSteer [P8] PVLDB 16:3515, 2023, DOI 10.14778/3611540.3611544, [snippet-verified], names PostgreSQL, Presto, Spark, MySQL, DuckDB. OtterTune [P10] SIGMOD 2017, DOI 10.1145/3035918.3064029, https://github.com/cmu-db/ottertune, names PostgreSQL and MySQL. None map Oracle hints in our pass. Mark all three CANDIDATE. Why it matters: a steering trick that wins on Postgres can still lose on Oracle. Hints differ. Cost models differ. Number: OtterTune repo archived 2020-11-13 with 1233 stars. Old code. No Oracle run. Candidate only.
+## 2. Sort the rest by the Oracle gap
 
-## 3. Read honestly: full read versus snippet
+Learned and adaptive systems show how to steer an optimizer. They do not show that Oracle will accept the same controls.
 
-Claim: a snippet is not a test you ran. Example: P2 reports about 15% speed gain and up to 60% space-reclamation potential, but our source marks those figures [snippet-verified, abstract-level figures]. Quote them as vendor-reported. Do not present them as your own test. P1 is the opposite. It was [read firsthand]. You can cite its foreground verify step with care. Why it matters: juniors lose trust when they oversell an abstract. Name the read depth each time. Number: P4 WeTune [P4] SIGMOD 2022, pp. 94–107, DOI 10.1145/3514221.3526125, ships with a third-party repro report. That is stronger than a lone abstract. SQLSolver [P5] proves 346 of 359 pairs from Calcite and Spark SQL rules, [snippet-verified]. Still CANDIDATE for Oracle. No Oracle dialect proof in our pass.
+- Bao [P9] is a PostgreSQL prototype that uses per-query hints, tree models, and Thompson sampling. DOI 10.1145/3448016.3452838, arXiv:2004.03814. Oracle hint mapping remains unverified in this pass.
+- AutoSteer [P8] is [snippet-verified] and names five non-Oracle systems: PostgreSQL, Presto, Spark, MySQL, and DuckDB. DOI 10.14778/3611540.3611544.
+- OtterTune [P10] names PostgreSQL and MySQL. Its repository is archived, with 1,233 stars and a last push on 2020-11-13. https://github.com/cmu-db/ottertune
+- QueryBooster [P20] [S80] discusses an Oracle connector, but its experiments do not validate Oracle dialect or performance. Keep it CANDIDATE for Oracle. DOI 10.14778/3611479.3611497.
 
-<details><summary>In case you don't know about peer review, it's independent checks by other researchers before a paper is published.</summary>Peer review means independent researchers checked methods before publish. It covers venues such as PVLDB, SIGMOD, OOPSLA, ICML, NeurIPS, ICLR. Check it in three steps. Read venue and year. Read evidence class B1 for paper, B2 for repro report. Read test system. Junior devs need it before they copy a trick. It drives one decision: trust as design lead or demand an Oracle rerun. Do not swap in blog praise. Blogs are class D and cost false wins with no method check. Sharp line: peer review proves method was read, not that Oracle will go fast. Example: P4 WeTune SIGMOD 2022 has B1 plus a B2 repro, yet stays CANDIDATE for Oracle with no dialect proof. See [S48][P4].</details>
+P11 has a different boundary. It is an arXiv preprint, while an ICDE 2026 venue is listed but unconfirmed. Preserve the preprint/listing caveat; do not turn an index entry into a confirmed proceedings claim.
+
+The bibliography also catalogues W1 and W3. The six Oracle briefs W1–W6 are not all discussed here; this chapter uses selected entries, including W2, W4, W5, and W6.
+
+## 3. Read depth changes the sentence you can publish
+
+P2 reports about 15% performance improvement and up to 60% space-reclamation potential on customer workloads. Those are abstract-level, vendor-reported figures, not measurements from this project.
+
+P5, SQLSolver, proves 346 of 359 equivalent query pairs derived from Calcite and Spark SQL rewrite rules. P4, WeTune, includes a third-party reproducibility report and evaluates rules on queries from 20 open-source projects. Both are useful design evidence. Neither establishes Oracle dialect support in this pass.
+
+These are selected examples, not a complete inventory. Keep the read-depth label attached to the claim: P1 is [read firsthand]; selected snippet-verified examples include P2, P3, P5, P8, P11, and P20. P14 is metadata-verified in the paper ledger; its substantive CHESS claim is snippet-verified in S55. A snippet is not a test you ran.
 
 In this chapter:
 
@@ -31,4 +46,4 @@ In this chapter:
 - [Oracle's Own Papers](/02-papers-behind-recipes/02-oracles-own-papers/)
 - [What Doesn't Transfer to Oracle](/02-papers-behind-recipes/03-what-doesnt-transfer-to-oracle/)
 
-**Keep this: Trust Oracle-tested proof first, and mark everything else as candidate.**
+**Keep this: Oracle-authored/specific is a source classification. Oracle-tested is a workload claim. This catalog makes the first claim, not the second.**

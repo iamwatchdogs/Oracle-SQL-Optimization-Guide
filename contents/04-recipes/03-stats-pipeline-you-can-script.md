@@ -5,76 +5,155 @@ order: 43
 draft: false
 ---
 
-Last quarter new stats fixed one query and broke three others. The gather ran at night. Nobody logged prefs. Morning brought new plans. Nobody knew which table tipped it. Rollback took hours.
+Statistics are inputs to plan choice, not a harmless housekeeping task. The safe pipeline is: record the current preferences, gather one object, make pending statistics visible to a controlled test, measure, then either publish or throw the draft away.
 
-You know basic SQL. You write DML each day. You fear Friday deploys because stats ship as invisible code. This file makes stats visible, testable, and reversible.
+> **Execution boundary:** this is a 19c runbook, not a live statistics test. Verify the exact signatures, privileges, retention setting, and licensing on a test or staging database.
 
-A stats pipeline is like a thermostat, except it sets sample rules plus publish rules for the optimizer.
+## 1. Record the current policy
 
-<details><summary>In case you don't know about pending stats, it's gathered stats held aside until you publish them.</summary>Pending stats are fresh numbers stored aside with PUBLISH FALSE. Old published stats still drive plans. You test with pending, then publish or discard. Steps: `SET_TABLE_PREFS` PUBLISH FALSE on HOT_TAB, gather, test with pending in session, then `PUBLISH_PENDING_STATS` or discard. Unverified — run on your test DB. Schema owners use it for risky refreshes on hot tables. It drives one decision: publish this gather or throw it away. Do not gather direct with PUBLISH TRUE on critical SQL. That flips plans at gather end with no trial, and the cost is a Monday regression with no quick undo. Sharp line: it turns stats from a blind flip into a draft you can grade. Example: gather HOT_TAB pending, run SPA on buffer_gets, see clean, publish at low traffic. If dirty, discard pending and keep old plans. See [T-21] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/controlling-the-use-of-optimizer-statistics.html</details>
+Statistics preferences are part of the change. Before editing them, record the current values for the target object:
 
-<details><summary>In case you don't know about RESTORE_TABLE_STATS, it's the call that brings back stats from 1 day ago.</summary>RESTORE_TABLE_STATS brings back table, column, and index stats as of a timestamp. It is the rollback for a bad gather. Shape: restore HOT_TAB to yesterday via `SYSDATE - 1` (docs idiom; `SYSTIMESTAMP - INTERVAL '1' DAY` also type-checks but reads odd — use `SYSDATE - 1`). Check retention covers that point. Test restore once in sandbox and record the text. Unverified — run on your test DB. On-call DBAs use it right after a stats-driven regression. It drives one decision: return to last known-good numbers now. Do not re-gather hoping for better numbers. Fresh gather adds new variance, and the cost is a second plan flip during an incident. Sharp line: it undoes the numbers change without touching data rows. Example: publish at 10am, two queries regress by 11am, restore to yesterday, confirm the old plan hash returns in DISPLAY_CURSOR plus a clean SPA re-run. See [T-22] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html</details>
+- `PUBLISH`
+- `STALE_PERCENT`
+- `INCREMENTAL`
+- `ESTIMATE_PERCENT`
+- `GRANULARITY`
+- `CASCADE`
+- `DEGREE`
 
-## 1. Set prefs in script, then gather
+A value such as `STALE_PERCENT = 5` is an example policy, not a universal Oracle recommendation. Use the documented guidance for the object, volatility, partitioning, and maintenance window. Record whether each value is local or inherited before changing it. After the test, restore the prior local value or use the documented `NULL` reset for an inherited value, then verify the effective result with `DBMS_STATS.GET_PREFS`.
 
-Plain claim: prefs as text stop silent drift.
+## 2. Gather the candidate statistics
 
-Use these exact lines for the base path:
+For a partitioned table, the following is a starting shape:
 
 ```sql
-EXEC DBMS_STATS.SET_TABLE_PREFS(USER, 'BIG_PART_TAB', 'INCREMENTAL', 'TRUE');
-EXEC DBMS_STATS.SET_TABLE_PREFS(USER, 'BIG_PART_TAB', 'STALE_PERCENT', '5');
-EXEC DBMS_STATS.GATHER_TABLE_STATS(USER, 'BIG_PART_TAB', degree => DBMS_STATS.DEFAULT_DEGREE, cascade => TRUE);
+EXEC DBMS_STATS.SET_TABLE_PREFS(
+  USER, 'BIG_PART_TAB', 'INCREMENTAL', 'TRUE'
+);
+
+EXEC DBMS_STATS.SET_TABLE_PREFS(
+  USER, 'BIG_PART_TAB', 'STALE_PERCENT', '5'
+);
+
+EXEC DBMS_STATS.GATHER_TABLE_STATS(
+  ownname => USER,
+  tabname => 'BIG_PART_TAB',
+  degree => DBMS_STATS.DEFAULT_DEGREE,
+  cascade => TRUE
+);
 ```
 
-Line by line: first SET_TABLE_PREFS sets INCREMENTAL TRUE on BIG_PART_TAB for partitioned objects. Second sets STALE_PERCENT 5 so gather triggers at 5% change. Third GATHER_TABLE_STATS collects with DEFAULT_DEGREE and cascade TRUE for indexes too. Each value lives in a script. Each run repeats. Call shapes follow DBMS_STATS docs. Unverified — run on your test DB.
+The `GATHER_TABLE_STATS` call is the important mutation. If you change `PUBLISH` to `FALSE` but skip the gather, there are no new pending statistics to test.
 
-How to read success: prefs query shows TRUE and 5 stored. Gather log shows degree used and cascade done. Plans stay stable unless data truly moved.
+Use a maintenance window appropriate to the object. `CASCADE` and degree choices have resource and DML consequences; record them instead of copying a global script blindly.
 
-Rollback line: prefs are just rows. Reset them to prior values in script. Re-gather if needed. No data rows changed.
+## 3. Gather as pending statistics
 
-Worked progression A — prefs to gather to check: set INCREMENTAL TRUE. Set STALE_PERCENT 5. Gather BIG_PART_TAB. Query prefs to confirm. Run SPA on your STS. Only a measured win moves forward.
-
-Worked progression B — stale gate in action: small daily loads stay under 5%. No gather fires. A big backfill crosses 5%. Gather fires once. You get one plan shift to review, not daily noise.
-
-## 2. Test with pending stats before publish
-
-Plain claim: PUBLISH FALSE turns a scary gather into a safe draft.
-
-Use these exact lines for test and rollback:
+For a risky refresh on a hot table:
 
 ```sql
-EXEC DBMS_STATS.SET_TABLE_PREFS(USER, 'HOT_TAB', 'PUBLISH', 'FALSE');
+EXEC DBMS_STATS.SET_TABLE_PREFS(
+  USER, 'HOT_TAB', 'PUBLISH', 'FALSE'
+);
+
+EXEC DBMS_STATS.GATHER_TABLE_STATS(
+  ownname => USER,
+  tabname => 'HOT_TAB',
+  degree => DBMS_STATS.DEFAULT_DEGREE,
+  cascade => TRUE
+);
+```
+
+After this sequence, the new statistics are pending. The old published statistics still drive ordinary optimizer sessions. Gathering pending statistics does not automatically make them visible to every test path.
+
+## 4. Make the candidate visible to the test
+
+For a direct test session, turn on pending-statistics visibility explicitly:
+
+```sql
+ALTER SESSION SET optimizer_use_pending_statistics = TRUE;
+```
+
+Run the controlled SQL workload in that session and capture the plan and trial metrics. For SPA, use the release-supported Optimizer Statistics workflow and verify that the task is using the pending-statistics set. Do not assume an ordinary SPA task sees unpublished statistics merely because the gather ran.
+
+The visibility switch is a test condition, not a production setting to leave enabled. Reset the session or close it after the test.
+
+## 5. Measure before committing
+
+Use the frozen STS and the SPA sequence from the previous recipe. Keep the candidate statistics visible for the after trial, then compare:
+
+- the plan hash and operations;
+- `E-Rows` and `A-Rows`;
+- selectivity and rows examined;
+- `buffer_gets` and elapsed time;
+- per-statement regressions;
+- the aggregate workload result.
+
+Use **K>=5 trials per side**, with **10–15 preferred** for noisy metrics, plus a full-workload SPA pass per side. The book’s harness calculates medians and bootstrap confidence intervals. SQLPA supplies the comparison trials, not those book-level statistics. SC15 supports the variability and repetition method; it does not prescribe this K floor.
+
+A full scan is not a verdict. A statistics change can make a full scan correct by improving selectivity estimates, or make it wrong by changing the cost model. Read the measured deltas.
+
+## 6. Choose one of three endings
+
+### Discard
+
+Use discard when the candidate regresses or the result is inconclusive and the old published statistics are still the approved state:
+
+```sql
+EXEC DBMS_STATS.DELETE_PENDING_STATS(USER, 'HOT_TAB');
+```
+
+Discard removes the unpublished candidate. It does not restore an already published bad gather. Restore the prior `PUBLISH` preference value recorded in step 1.
+
+### Publish
+
+Use publish when the test passes and a human approves the commit point:
+
+```sql
 EXEC DBMS_STATS.PUBLISH_PENDING_STATS(USER, 'HOT_TAB');
-EXEC DBMS_STATS.RESTORE_TABLE_STATS(USER, 'HOT_TAB', SYSDATE - 1);
 ```
 
-Line by line: first line sets PUBLISH FALSE on HOT_TAB so new stats stay pending. Middle line publishes pending stats only after a win. Last line restores stats from 1 day ago if the publish hurts. Gather step between line one and line two is the same GATHER_TABLE_STATS call shape above. Publish is the commit point. Reference: https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html Unverified — run on your test DB.
+Publishing makes the pending statistics part of the normal optimizer input. Restore the recorded `PUBLISH` preference after the commit. If it was inherited rather than local, use the documented `NULL` reset; then verify it with `DBMS_STATS.GET_PREFS`. Publishing pending statistics does not replace the workflow’s preference-reset step. After publication, re-run the representative workload and monitor for late plan changes.
 
-How to read success: pending views hold the new numbers. Published views still show old numbers until publish. SPA compare with pending in place shows no regression. You publish. If it regresses, you restore and the old plans return.
+### Restore
 
-Rollback line: before publish, run DELETE_PENDING_STATS to discard. After publish, run RESTORE_TABLE_STATS with the timestamp above. Test the restore once in sandbox before you need it.
+Use restore when a published statistics change causes a regression and history covers the prior point:
 
-Worked progression A — prefs to gather to pending test to publish-or-restore: set PUBLISH FALSE on HOT_TAB. Gather HOT_TAB. Run SPA before and after on buffer_gets. If clean, run PUBLISH_PENDING_STATS. If dirty, discard pending and walk away. One script holds all four steps.
+```sql
+EXEC DBMS_STATS.RESTORE_TABLE_STATS(
+  ownname => USER,
+  tabname => 'HOT_TAB',
+  as_of_timestamp => SYSTIMESTAMP - INTERVAL '1' DAY
+);
+```
 
-Worked progression B — publish then regret: you published at 10am. At 11am two queries regressed. You run RESTORE_TABLE_STATS to yesterday. You confirm old plan hashes return. You log the lesson. Total harm is one hour, not one week.
+Restore brings back the retained historical statistics. It is different from discard: discard removes an unpublished candidate, while restore changes the published state back to a history point. Check `DBMS_STATS.GET_STATS_HISTORY_AVAILABILITY` before relying on a timestamp.
 
-## 3. Let the advisor propose, you dispose
+## 7. Let the advisor propose, not decide
 
-Plain claim: advisor output is a proposal, never an accepted change.
+Optimizer Statistics Advisor can produce findings, recommendations, and a script. Review the script, map each action to an object, and run it through the same pending-statistics and SPA gates. An advisor report is a proposal. It is not evidence that a gather improved the workload.
 
-Optimizer Statistics Advisor returns a script of fixes. You review it. You apply it in test. You measure it with SPA. You never publish blind on critical tables. Test DB first. Pending in prod. Human gate for risky publishes.
+Keep the generated script, the gathered object list, the publication decision, and the restore command in the run record.
 
-No new code here. The two blocks above are the code. The advisor adds judgment, not new calls.
+## Output checklist
 
-Line by line for the flow: advisor suggests prefs or gather choices. You copy them into your script. You run the pending-stats path above. SPA decides. Human approves publish on critical tables.
+- [ ] Existing preferences and history availability recorded
+- [ ] `PUBLISH=FALSE` set before the candidate gather
+- [ ] `DBMS_STATS.GATHER_TABLE_STATS` actually called
+- [ ] Direct test uses `OPTIMIZER_USE_PENDING_STATISTICS=TRUE`
+- [ ] SPA path uses the release-supported Optimizer Statistics workflow
+- [ ] K>=5 trials per side, 10–15 preferred
+- [ ] Full-workload SPA pass completed
+- [ ] Discard, publish, or restore chosen explicitly
+- [ ] Rollback tested in a sandbox
 
-How to read success: advisor script is short and specific. Each suggestion maps to one table. SPA shows no regressed statement. Publish log names who approved.
+## References
 
-Rollback line: same as section 2. Discard pending or restore published. Keep the advisor script in git so the retry is exact.
+- [DBMS_STATS, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html)
+- [Controlling the Use of Optimizer Statistics, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/controlling-the-use-of-optimizer-statistics.html)
+- [Best Practices for Gathering Optimizer Statistics, 19c](https://www.oracle.com/docs/tech/database/technical-brief-bp-for-stats-gather-19c.pdf)
+- [DBMS_SQLPA, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
+- [Hoefler and Belli, SC15 benchmarking methodology](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf)
 
-Worked progression A — advisor to test to verdict: advisor suggests a histogram change. You stage it with PUBLISH FALSE. SPA shows one win and zero losses. You publish with a note.
-
-Worked progression B — advisor to reject: advisor suggests a broad gather. SPA shows three regressions on buffer_gets. You discard pending. You keep old stats. You log why the suggestion failed on your data.
-
-**Keep this: Prefs in script, gather in test, pending before publish, restore tested before need.**
+**Keep this: pending statistics are a draft; publish is the commit; restore is the rollback.**

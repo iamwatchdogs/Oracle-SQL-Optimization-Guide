@@ -5,44 +5,55 @@ order: 63
 draft: false
 ---
 
-A team tried to swap SPA with a script that diffed plans by eye. It missed bind effects. It missed load effects. Parallel query regressed on an overused box. T-68 warns about that exact mode. A HammerDB run would have shown it in an hour.
+Most proven Oracle fixes do not have a verified OSS replacement. That is the finding, not a failure to fill a table. Oracle owns the state, semantics, or decision that makes the change safe. OSS can prepare inputs, collect outputs, and run load around it.
 
-You want one OSS swap for each Oracle feature. That swap does not exist for most proven fixes. The annex says None found for a reason. None found means no actively kept OSS implements that step. It does not mean no code exists. It means nothing passed the vet.
+The matrix uses `None found` for a narrow reason: no actively maintained OSS implementation of that exact intervention was verified in the **2026-09-22 UTC** pass. It is not a universal claim about every repository, paper, private tool, or future release.
 
-Prescription meds from one maker are more like these built-ins, where only Oracle fills the order.
+## What the built-ins own
 
-## 1. Measurement and stats stay inside Oracle
+| Technique family                                      | Oracle implementation                                                                                                                               | What OSS can do instead                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01–T-08: measurement and diagnosis                  | AWR, ASH, SQL Monitor, `DBMS_XPLAN`, SQL Trace/TKPROF, SQL Tuning Sets, and SQL Test Case Builder                                                   | SQLdb360/SQLd360 can package output. T-08 is **CONDITIONAL**, and the bundle still needs an Oracle cross-check. [S67](https://github.com/sqldb360/sqldb360)                                                                                                                                        |
+| T-09–T-23: optimizer statistics                       | `DBMS_STATS`, histograms, extended/expression statistics, plan directives, pending statistics, and Optimizer Statistics Advisor                     | No maintained OSS implementation was verified in this pass. Script the calls; do not invent a second stats authority. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)                                                                                                  |
+| T-24–T-33, T-67–T-68: access, layout, and parallelism | Access paths, partitioning, materialized views, caches, In-Memory, Exadata, Automatic Indexing, compression, and the optimizer's parallel decisions | HammerDB and Swingbench can add load. They do not choose the structure or certify the result. [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html) [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html) |
+| T-34–T-44: transformations                            | The documented optimizer transformations and their eligibility rules                                                                                | sqlglot and Calcite can generate candidates. VeriEQL, SQLSolver, and WeTune remain research candidates for Oracle coverage. [S48](https://dl.acm.org/doi/10.1145/3514221.3526125) [S50](https://github.com/VeriEQL/VeriEQL)                                                                        |
+| T-45–T-57: plan controls and advisors                 | Hints, profiles, patches, SPM, adaptive plans, SQL Tuning Advisor, and SPA                                                                          | A driver can call the APIs and save reports. It cannot become the plan-control policy. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S07](https://docs.oracle.com/en/database/oracle/oracle-database/18/arpls/DBMS_SPM.html)                         |
+| T-62–T-66: safe change and guardrails                 | `DBMS_REDEFINITION`, EBR, Resource Manager, SQL Quarantine, automatic error mitigation, and SQL Repair Advisor                                      | CI can sequence these controls. It cannot replace their release-specific state transitions. [S41](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html) [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)            |
 
-Plain claim: T-01 to T-08 and T-09 to T-23 have no OSS replacement, only bundlers.
+This is why the OSS matrix has a thin replacement column for several rows. A text parser can see a predicate. Only Oracle can know whether the executed plan, statistics, binds, and workload make the predicate cheaper.
 
-Worked example: map SPM, stats, and SPA to None found. First measurement Group 1. T-01 AWR, T-02 ASH, T-03 SQL Monitor, T-04 DBMS_XPLAN, T-05 Trace with TKPROF, T-06 Tuning Sets, T-07 Test Case Builder. Verdict None found. SQLd360 with 65 stars Dormant and SQLdb360 with 123 stars Low activity only bundle output offline, both no license declared, see S67. They do not replace the source. Then stats Group 2. T-09 to T-23, DBMS_STATS, histograms, extended stats, directives, pending stats, restore. Verdict None found. No OSS from this pass gathers stats safely. First pass you list the technique ID. Second pass you write None found or the bundler name next to it. You script around Oracle after.
+## The difference between a script and a replacement
 
-Why it matters: stats drive every plan. Bad stats mean bad plans. Only DBMS_STATS plus Advisor checks keep that path safe.
+Use `python-oracledb` when you need to connect, run a frozen statement, collect timings, and call a release-supported package procedure. That is a harness. [S64](https://github.com/oracle/python-oracledb)
 
-Sourced number: SQLd360 65 stars push 2018-01-14 Dormant. SQLdb360 123 stars push 2024-12-03 Low activity. Both NOASSERTION no license declared. Core stats guide is S01 Tuning Guide 19c E96095-19 Apr 2025, stats brief S08 19c.
+Use SPA when you need the before trial, the after trial, the comparison metric, and the per-statement report. That is Oracle's measurement spine. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
 
-## 2. Controls and advisors stay inside Oracle, OSS only scripts the edge
+Use `DBMS_STATS` when the change is statistics. A script that gathers data without Oracle's statistics semantics is not a safer substitute. Use a pending-statistics workflow when the release and environment support it, then publish or discard from measured evidence. [S29](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)
 
-Plain claim: profiles, patches, baselines, SPM, advisors, and SPA logic have no verified OSS clone.
+Use `DBMS_SPM` when the question is which plan is allowed to survive a change. Parsing a hint or comparing plan hashes does not answer that question. [S07](https://docs.oracle.com/en/database/oracle/oracle-database/18/arpls/DBMS_SPM.html)
 
-Worked example: map three control points. First T-48 SPM baselines. Verdict None found. You load from cursor cache and evolve with DBMS_SPM. sqlglot at MIT 9,628 stars can parse hint text for T-45, but it cannot bless hint safety. Then T-46 profiles and T-47 patches. Verdict None found. Same rule. Then T-56 SPA. Verdict None found as logic. python-oracledb at 452 stars with UPL-1.0 OR Apache-2.0 can script task calls, the math stays in Oracle, see S64 and S06 DBMS_SQLPA. First pass you parse text outside Oracle. Second pass you enforce the plan inside Oracle. Do not present parsing as control.
+## The load boundary is real, but not magical
 
-Why it matters: plan control decides which plan runs in prod. A text diff cannot verify elapsed_time or buffer_gets. SPA can, with test execute or compare performance.
+HammerDB is GPL-3.0 in the dated snapshot: 786 stars, last push 2026-09-18, and active under the pass's label. [S65](https://github.com/TPC-Council/HammerDB) It can generate a workload that exposes contention, I/O pressure, or resource exhaustion.
 
-Sourced number: sqlglot MIT 9,628 push 2026-09-21 Active. python-oracledb UPL-1.0 OR Apache-2.0 452 push 2026-09-19 Active. S06 DBMS_SQLPA read firsthand with comparison_metric default elapsed_time. S07 DBMS_SPM for baselines.
+Swingbench's dated snapshot recorded 80 stars, a 2026-05-26 push, and no declared license. [S66](https://github.com/domgiles/swingbench-public) Use it only after checking rights and the workload's fit. The research corpus does not establish a universal install history or a universal result.
 
-## 3. Load is the one place OSS helps at scale
+Neither tool promises a fixed detection window. Run duration depends on the data, session count, hardware, and stop criteria. The important question is whether the test represents the failure mode you care about. Oracle's 19c parallel-execution guidance warns that parallelism can reduce performance on an overutilized system. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html)
 
-Plain claim: for T-24, T-25, and T-68, OSS adds concurrency Oracle alone does not fake well.
+## The gap list is part of the answer
 
-Worked example: validate an index and a parallel setting under load. First T-24 B-tree paths and T-25 bitmap with IOT. Built-ins design the index, Advisor input guides it. Then HammerDB GPL-3.0 786 stars push 2026-09-18 Active, see S65, drives TPROC-C concurrency while you watch waits. Then T-68 parallel execution. S77 Parallel Execution Concepts lists when to use and when not to use parallel, with overuse warning. Swingbench 80 stars push 2026-05-26 Active license null, see S66, drives Oracle-specific load. First pass you test one session for logic. Second pass you test many sessions for contention. The second pass exposes the overused-system regress.
+The pass did not triage the `oracle-samples/db-sample-schemas` HR/OE/SH schemas or the `opentelemetry-instrumentation-oracledb` instrumentation. It also did not compare migration CI coverage for Liquibase and Flyway on Oracle. It did not establish code, license, or Oracle coverage for SLER [S68] and the survey [S69], QueryBooster [S80], or QED [S51].
 
-Why it matters: single-session speed hides latch and IO queue effects. Load shows them. T-26 partitioning, T-28 MV rewrite, T-29 result cache, T-30 In-Memory, T-31 Exadata Smart Scan, T-32 Automatic Indexing still read None found for logic. Safe-change Group 8 with T-62 redefinition, T-63 EBR, T-64 Quarantine plus Resource Manager also reads None found.
+Those are **untriaged or candidate** entries, not evidence against the projects. Keep them out of the proven OSS set until the repository, license, version, and Oracle integration are checked. [S68](https://arxiv.org/abs/2603.04169) [S69](https://ieeexplore.ieee.org/iel8/11629178/11629165/11629242.pdf) [S80](https://doi.org/10.14778/3611479.3611497) [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf)
 
-Sourced number: HammerDB GPL-3.0 786 push 2026-09-18 Active. Swingbench 80 push 2026-05-26 Active license null. T-68 gate per S77. T-67 compression per S76 where relevant.
+## Release-sensitive controls are not “None found” excuses
 
-<details><summary>In case you don't know about SPA, it's SQL Performance Analyzer that tests SQL before and after a change.</summary>SPA builds two versions of one frozen tuning set and grades each statement. You create the task, run test execute before, apply one change, run test execute after, set the comparison metric, run compare performance, and read the report. It needs ADVISOR privilege. Every change owner uses it. It drives the ship-or-stop verdict. Do not use explain plan only. That skips execution and ships a pretty plan with bad runtime. Sharp line: it turns hope into per-statement improved, regressed, unchanged. Example: an index cuts aggregate buffer_gets 12% with zero regressed rows. Ship. See [S06] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html</details>
+SQL Quarantine and its API names are release-sensitive. The research corpus marks names such as `CREATE_QUARANTINE_BY_SQL_ID` and `CREATE_QUARANTINE_BY_SQL_TEXT` as sketches to verify against the installed release. [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html) Do not paste a signature from another version and call the guardrail implemented.
 
-<details><summary>In case you don't know about None found, it's the annex verdict that no kept OSS implements that step.</summary>None found means no kept OSS implements that step. The annex in file 06 section 6.4 assigns it per technique from T-01 to T-68. Setup is a lookup: find the technique ID, read the OSS column, and if it says None found, use Oracle built-ins. Teams use it for SPM, stats, and SPA, scripting around DBMS_SPM, DBMS_STATS, and DBMS_SQLPA. It drives one decision: build a thin script, never a swap. A swap misses binds and load, and that miss costs a regress on an overused box. Sharp line: None found means script around Oracle, never replace Oracle. Example: T-48 SPM, T-09 stats, and T-56 SPA all read None found, while python-oracledb 452 UPL-1.0 OR Apache-2.0 push 2026-09-19 only orchestrates calls [S64]. Unverified — check the repo docs for harness paths. See annex 6.4, verified 2026-09-22.</details>
+The same rule applies to `DBMS_XPLAN.COMPARE_PLANS`: the side-by-side `DISPLAY_*` facilities are documented for 19c, while the named comparison API is release-checked for 23ai+. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) The 26ai guide documents features introduced across releases; it is not proof that every feature belongs to 26ai. The version boundary belongs in the runbook.
 
-**Keep this: If the annex says None found, script around Oracle — do not swap Oracle out.**
+## The artifact
+
+For a candidate with `None found`, save the thin script, the Oracle package call, the release reference, the before/after report, and the rollback command. That packet shows what automation did and what Oracle decided.
+
+**If the matrix says `None found`, script around Oracle. Do not swap Oracle out.**

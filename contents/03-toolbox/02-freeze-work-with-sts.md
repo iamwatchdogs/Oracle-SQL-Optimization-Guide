@@ -5,88 +5,119 @@ order: 32
 draft: false
 ---
 
-"My fix helped on my laptop, but the team runs 200 queries, not one."
+A tuning set is a workload contract. It carries the SQL workload, binds, and recorded context. It does not force the same optimizer statistics or execution plan after a change. Without that boundary, “before” and “after” are two anecdotes wearing the same name.
 
-One query fast means nothing. The workload is the grade.
+> **Execution boundary:** this is a 19c runbook, not a live measurement. Confirm the exact capture API, privileges, licensing, and workload window on a test or staging database.
 
-You can run SELECT. You have tuned one statement and watched another one slip. This page freezes the set so before and after test the same SQL.
+## 1. Choose a representative window
 
-Freezing work is like bagging evidence, except you store SQL text and binds so the next run tests the same case.
+Do not hand-pick three statements because they are convenient. Capture the window that represents the decision you need to make: peak traffic, the batch job, the problematic bind family, or the full application slice.
 
-<details><summary>In case you don't know about SQL Tuning Sets, it's a stored copy of SQL text, binds, and stats you can replay and move.</summary>A tuning set freezes statements plus binds plus metrics for replay. `DBMS_SQLSET` is the newer interface in 19c. License unverified here — transport and advisor use can need Tuning Pack, so check the Licensing guide before prod. You create a set such as SALES_JAN, load the top SQL from cache or AWR into it, and move it to test for isolation. Test leads use it before any claim. It drives one decision: is this the exact workload both runs graded. Do not compare live cache to live cache. Live traffic shifts binds and order, and the cost is a void verdict. Sharp line: same set in, fair compare out. Example: load the top sales SQL into SALES_JAN, then query `TABLE(DBMS_SQLSET.SELECT_SQLSET('SALES_JAN'))` for SQL_ID, ELAPSED_TIME, and BUFFER_GETS. See [T-06] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html</details>
+Record:
 
-## 1. Freeze the top SQL first
+- database and application version;
+- schema and service boundary;
+- capture start and end time;
+- module and action filters;
+- bind distributions and execution counts;
+- whether recursive SQL is included;
+- the STS name and owner.
 
-Plain claim: without a frozen set, each run tests a new case.
+A hand-curated STS is useful for isolation, but it has sampling bias. It can omit rare plans, skew, short statements, and workload interactions. If the goal is a production claim, validate the hand-curated set against a broader cursor-cache or AWR-derived workload.
 
-Worked example A — capture last hour from cache into one set:
+## 2. Create and capture the set
+
+For 19c, use the release-documented `DBMS_SQLSET.CAPTURE_CURSOR_CACHE` interface. Do not combine the package prefix with the capture suffix from another API. Confirm the overload, argument names, and capture window in the installed release reference. The important invariant is the named STS and its recorded capture window, not the suffix on a procedure name.
+
+## 3. Inspect before you freeze
+
+A capture is not successful because the name exists. Inspect its contents:
 
 ```sql
-BEGIN
-  DBMS_SQLSET.CREATE_SQLSET(sqlset_name => 'SALES_JAN', description => 'Top sales SQL Jan');
-END;
-/
-
-DECLARE
-  c DBMS_SQLSET.SQLSET_CURSOR;
-BEGIN
-  OPEN c FOR SELECT VALUE(p) FROM TABLE(
-    DBMS_SQLSET.SELECT_CURSOR_CACHE('parsing_schema_name = ''SALES''')
-  ) p;
-  DBMS_SQLSET.LOAD_SQLSET(sqlset_name => 'SALES_JAN', populate_cursor => c);
-END;
-/
+SELECT sql_id, plan_hash_value, elapsed_time, buffer_gets,
+       executions, parsing_schema_name, module, action
+FROM   TABLE(DBMS_SQLSET.SELECT_SQLSET('SALES_JAN'))
+ORDER  BY buffer_gets DESC FETCH FIRST 20 ROWS ONLY;
 ```
 
-Shapes from the STS guide ch.24. SELECT_CURSOR_CACHE filters cache rows. LOAD_SQLSET takes INSERT, UPDATE, or MERGE. CAPTURE_CURSOR_CACHE polls over time for a fuller catch. Your filter will differ. Unverified — test on your schema for your module names.
+Check the count, SQL IDs, bind coverage, plans, and execution context. If the set contains only the statements a DBA already suspected, record that as a hand-curated subset and do not call it representative.
 
-How to read it: query TABLE(DBMS_SQLSET.SELECT_SQLSET('SALES_JAN')) for SQL_ID, SQL_TEXT, ELAPSED_TIME, BUFFER_GETS. Check statement count in USER_SQLSET. If the count is 3 when you expected 200, your filter was too tight.
+A useful set has more than one bind shape when the application has skew, more than one plan when the workload legitimately uses them, and the right module/action boundary. Rare statements still matter; one execution does not necessarily make a statement unimportant.
 
-Decision it drives: low count means widen the filter. Right count means lock it and stop adding. Every later test reads this set, not the live cache.
+## 4. Use the set on both sides
 
-## 2. Test twice, grade once
-
-Plain claim: SQL Performance Analyzer runs the same set twice and grades each statement.
-
-Worked example B — before change, after change, compare:
+Create one SPA task from the frozen set. Use named executions for the before and after trials:
 
 ```sql
 VARIABLE tname VARCHAR2(64);
 EXEC :tname := DBMS_SQLPA.CREATE_ANALYSIS_TASK(sqlset_name => 'SALES_JAN');
 
-EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(task_name => :tname, execution_type => 'test execute', execution_name => 'before_change');
-
--- make your change: index, stats, rewrite, patch
-
-EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(task_name => :tname, execution_type => 'test execute', execution_name => 'after_change');
-
-EXEC DBMS_SQLPA.SET_ANALYSIS_TASK_PARAMETER(:tname, 'comparison_metric', 'buffer_gets');
-
-EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(task_name => :tname, execution_type => 'compare performance', execution_name => 'compare_1');
-
-SELECT DBMS_SQLPA.REPORT_ANALYSIS_TASK(:tname, 'TEXT', 'TYPICAL', 'SUMMARY') FROM DUAL;
+EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
+  task_name => :tname,
+  execution_type => 'test execute',
+  execution_name => 'before_01'
+);
 ```
 
-Call shapes from Oracle DBMS_SQLPA 19c docs (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html). Execution types are `test execute`, `explain plan`, `compare performance`, `convert sqlset`. Metric defaults to elapsed_time. This book runs `buffer_gets` primary, elapsed_time second — same standard as `04-recipes/02`. Lower variance is a design bet, confirm it on your A/A run.
+Apply exactly one candidate change, then run the after trial against the same STS:
 
-How to read it: the report lists improved, regressed, unchanged, plus errors and timeouts. Level TYPICAL shows each statement. Level CHANGED_PLANS shows only plan moves. Order by SQL_IMPACT or WORKLOAD_IMPACT to see what moves the total. A statement can improve while the workload regresses. The workload grade wins.
+```sql
+EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
+  task_name => :tname,
+  execution_type => 'test execute',
+  execution_name => 'after_01'
+);
 
-Decision it drives: any regressed high-impact SQL means stop and revert. All unchanged plus one improved means keep the change and test under load. Errors mean fix binds or privileges, not the plan.
+EXEC DBMS_SQLPA.SET_ANALYSIS_TASK_PARAMETER(
+  :tname, 'comparison_metric', 'buffer_gets'
+);
 
-One aside: a solo win that breaks payroll is still a loss. Back to the set.
+EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
+  task_name => :tname,
+  execution_type => 'compare performance',
+  execution_name => 'compare_01',
+  execution_params => DBMS_ADVISOR.ARGLIST(
+    'execution_name1', 'before_01',
+    'execution_name2', 'after_01',
+    'comparison_metric', 'buffer_gets'
+  )
+);
 
-## 3. Repeat runs, judge the workload
+SELECT DBMS_SQLPA.REPORT_ANALYSIS_TASK(
+  :tname, 'TEXT', 'TYPICAL', 'ALL'
+) FROM dual;
+```
 
-Plain claim: one fast run is noise. Medians across repeats plus matched windows are proof.
+Use `section => 'ALL'` when you want per-statement rows. `SUMMARY` is only the workload summary. The report is evidence for the trial; it is not the statistical gate by itself.
 
-Worked example C — harden the verdict. Set DISABLE_MULTI_EXEC to FALSE so each SQL runs more than once and stats average out. Set TIME_LIMIT and LOCAL_TIME_LIMIT so one bad SQL cannot eat the night. Run test execute three times before and three times after. Keep medians, not bests. Hoefler and Belli ask for repeats, variability checks, and runs long enough to split noise from effect.
+## 5. Repeat the workload, do not repeat the anecdote
 
-Then pair the set grade with AWR deltas over matched windows. Same hour, same weekday, same load mix. Compare DB time, top SQL by elapsed, waits. If SPA says improved but AWR DB time is flat, trust the window and dig into load.
+The book’s policy is **K>=5 trials per side**, with **10–15 preferred** for noisy or high-impact measurements. Add one full-workload SPA pass per side for the aggregate verdict. SC15 supports repetition, variability, and confidence reporting as benchmarking principles; it does not supply this exact K floor.
 
-How to read it: SPA report gives per-statement verdicts. AWR gives workload truth. If both point the same way, you have a case. If they split, the set missed live traffic — recapture with CAPTURE_CURSOR_CACHE over a longer poll.
+SQLPA supplies the comparison trials. The harness calculates medians and bootstrap 95% confidence intervals from the comparable metrics. SQLPA does not calculate the book’s medians or bootstrap intervals. Keep the raw trial samples, the task name, the STS name, and the comparison metric together.
 
-Decision it drives: SPA green plus AWR green means ship with a revert note. SPA green plus AWR flat means recapture and rerun. Any red means stop.
+A repeat is invalid if any of these changed:
 
-<details><summary>In case you don't know about SQL Performance Analyzer, it's Oracle's task runner that tests the same workload twice and grades each statement.</summary>SPA builds two versions of one frozen tuning set and grades each statement. You create the task, run test execute before, apply one change, run test execute after, set the comparison metric, run compare performance, and read the report. It needs ADVISOR privilege plus Real Application Testing license in practice — check before prod. Every change owner uses it. It drives the ship-or-stop verdict. Do not use explain plan only. That skips execution and ships a pretty plan with bad runtime. Sharp line: it turns hope into per-statement improved, regressed, unchanged. Example: an index cuts aggregate buffer_gets 12% with zero regressed rows. Ship. Report levels TYPICAL and CHANGED_PLANS plus SQL_IMPACT ordering come from the same call. See [T-56] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html</details>
+- SQL text or bind values;
+- STS membership or statement attributes;
+- host, service, or database state;
+- statistics, indexes, hints, profiles, patches, or baselines;
+- the measurement window or cache state.
 
-**Keep this: Test the same frozen set twice and keep the graded report.**
+## Decision table
+
+| Result                                                               | Action                       |
+| -------------------------------------------------------------------- | ---------------------------- |
+| Aggregate and key statements improve beyond the measured noise floor | Move to load testing         |
+| One statement regresses beyond the threshold                         | Reject or isolate the change |
+| Only a plan hash changes                                             | Keep investigating           |
+| Trial counts or workload context differ                              | Void the comparison          |
+
+## References
+
+- [Managing SQL Tuning Sets, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
+- [DBMS_SQLSET, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLSET.html)
+- [DBMS_SQLPA, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
+- [Hoefler and Belli, SC15 benchmarking methodology](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf)
+
+**Keep this: same STS in, fair comparison out.**

@@ -5,83 +5,67 @@ order: 11
 draft: false
 ---
 
-"Where do I start? Just add an index? Not yet."
+Do not add an index to a feeling. First name the statement, the window, the wait, and the plan line that consumed the time.
 
-Your report on `employees(id,name,dept_id,salary)` and `departments(id,name)` ran in 2 seconds last week. Today it runs 40 seconds. Same SQL. No code change. You want to add an index. Stop. Measure first. Change second.
+That sounds obvious until the same SQL text behaves differently at 2 a.m., at 9 a.m., and after a statistics job. Measurement turns a vague slowdown into a testable target.
 
-Measuring is like checking which tap floods the flat, except you use snapshots and plan lines in place of wet floors. Then drop the plumbing. You need IDs, counts, and plans.
+## 1. Start with the workload window
 
-<details><summary>In case you don't know about AWR, it's Oracle's timed snapshots of DB activity.</summary>AWR is the Automatic Workload Repository. It stores timed snapshots of load by SQL and event. ADDM reads that history and names suspects. Steps are fixed. Pull the AWR report for the bad hour. Sort SQL by elapsed and buffer gets. Pick one SQL ID. Teams with a slow hour need it first. It drives one decision: which statement deserves tune time. Do not start from single-run feel. Single runs miss the window and tune the wrong SQL. Sharp line: AWR frames the workload, single timing does not. Example: the bad hour shows one join top by elapsed. You tune that ID only. Needs STATISTICS_LEVEL TYPICAL or ALL. License check first: AWR/ADDM need Diagnostics Pack, full findings can need Tuning Pack — check the Licensing guide before you rely on this in prod. See [T-01] https://docs.oracle.com/en/database/oracle/oracle-database/19/tdppt/automatic-database-performance-monitoring.html</details>
+Use **AWR** to frame the period and rank SQL by elapsed time, CPU, and work done. Use **ASH** to sample active sessions and events in that same window. ADDM can summarize findings from AWR data, but a finding is triage, not proof that a proposed change will help.
 
-<details><summary>In case you don't know about ASH, it's a sampler of who was active and when.</summary>ASH is Active Session History. It samples who was active and when, showing which SQL and wait ate time. Steps are fixed. Check ASH top SQL for the same AWR window. Check top event next. Pick one SQL ID. Teams with spikes need it with AWR. It drives one decision: which wait plus SQL to chase. Do not use it alone for short statements. Short ones slip past the sampler and hide the root cause. Sharp line: ASH names active pain, not full history. Example: a long join shows clear in ASH while a 10ms lookup slips past, so pair ASH with Monitor. Needs STATISTICS_LEVEL TYPICAL or ALL. Same license check as AWR — Diagnostics Pack. See [T-02].</details>
+A practical sequence is:
 
-### 1. Start wide: AWR frames the window, ASH names the SQL
+1. Pull the AWR report for the bad interval.
+2. Rank SQL by elapsed time and by `buffer_gets`.
+3. Check ASH for active SQL, event, and module deltas in that interval.
+4. Choose one SQL ID for statement-level diagnosis.
 
-Plain claim: workload proof beats single-run hunches.
+ASH is sampled. It can miss short statements, so pair it with SQL Monitor or a trace for the specific execution you care about. AWR retention and snapshot interval also matter. If the bad event fell outside the retained window, the absence of evidence is not evidence of absence. [S03](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/) [S04](https://docs.oracle.com/en/database/oracle/oracle-database/19/tdppt/automatic-database-performance-monitoring.html)
 
-Naive progression:
+AWR, ASH, and full diagnostic features have licensing implications in some editions. Check the current Oracle licensing guide before making a production plan depend on them.
 
-```sql
--- Naive: you feel the app is slow, so you tune this join
-SELECT d.name, COUNT(*)
-FROM employees e JOIN departments d ON d.id = e.dept_id
-GROUP BY d.name;
-```
+## 2. Zoom to the executed plan
 
-No window. No ID. You tune the wrong statement. Fixed:
-
-1. Pull the AWR report for the bad hour. Look at SQL ordered by elapsed and by buffer gets.
-2. Check ASH top SQL and top event for the same window.
-3. Pick one SQL ID.
-
-What the plan shows at this stage: nothing yet. That is the point. AWR plus ASH give you the target. ADDM quantifies findings from the same AWR data for triage [T-57]. Docs: Database Performance Tuning Guide 19c E96347-06, 2 Day + Performance Tuning (https://docs.oracle.com/en/database/oracle/oracle-database/19/tdppt/automatic-database-performance-monitoring.html).
-
-Why it matters: a 20% app claim needs workload evidence, not one run. Single-statement proof comes next. Skip this and you speed up a query nobody runs.
-
-### 2. Zoom to one run: Monitor plus XPLAN shows guess vs truth
-
-Plain claim: the optimizer guesses row counts. The gap between guess and truth drives half the fixes.
-
-Naive progression:
+`EXPLAIN PLAN` is a compile-time explanation. It can miss the bind values and runtime decisions that matter. Run the statement, then inspect the cursor that actually executed:
 
 ```sql
--- Naive: EXPLAIN PLAN says INDEX RANGE SCAN, you ship it
-EXPLAIN PLAN FOR SELECT * FROM employees WHERE dept_id = 10;
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY());
+SELECT * FROM employees WHERE dept_id = :dept_id;
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR(format => 'ALLSTATS LAST +PEEKED_BINDS'));
 ```
 
-`EXPLAIN PLAN` is compile-time. It can miss binds and runtime choices. Fixed:
+Read three fields before proposing a fix:
 
-```sql
-SELECT * FROM employees WHERE dept_id = 10;
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR(sql_id => NULL, cursor_child_no => NULL, format => 'ALLSTATS LAST'));
-```
+- **Plan hash value:** identifies the plan shape, but a hash change alone is not a speedup.
+- **Estimated rows versus actual rows:** a large gap points to a cardinality problem on that line.
+- **Access and filter predicates:** shows where Oracle expected to find rows and where it actually found them.
 
-What the plan shows: `TABLE ACCESS BY INDEX ROWID BATCHED` + `INDEX RANGE SCAN` on the dept index, with E-Rows=500 vs A-Rows=2M. That 4000x miss is cardinality error. For long or parallel SQL, open the SQL Monitor report (`V$SQL_MONITOR` / `DBMS_SQL_MONITOR`). It lists per-line actual rows and time. Docs: TGSQL ch.21 Monitoring Database Operations [T-03], `DBMS_XPLAN` ref (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) and TGSQL ch.6 (https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html) [T-04].
+For long-running, parallel, or monitored statements, open SQL Monitor and the relevant `V$SQL_MONITOR` or `DBMS_SQL_MONITOR` output. It adds execution-level row and timing information that a single `EXPLAIN PLAN` cannot provide. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
 
-Why it matters: E-Rows vs A-Rows tells you which line to fix. No gap reading, no tuning. (One aside: this part is boring and it saves you. Back to work.)
+If you need a plan comparison API, treat `COMPARE_PLANS` as a **23ai+ release-checked API**. It is not a 19c guarantee. On 19c, use the documented side-by-side display facilities and save both outputs. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html) [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
 
-### 3. Freeze it: Trace for time splits, Tuning Set for reruns
+## 3. Split elapsed time
 
-Plain claim: elapsed time splits into parse, execute, fetch, waits. You need the split.
+Wall-clock time tells you that something was slow. It does not tell you whether the statement spent its time parsing, executing, fetching, or waiting.
 
-Naive progression:
+For a focused test, enable SQL Trace for the session or statement, collect the trace, and summarize it with TKPROF. Read parse, execute, and fetch counts; buffer and disk gets; and wait behavior. The tracing guide also documents traps around argument transformation, read consistency, schema interpretation, and time accounting. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)
 
-```sql
--- Naive: wall clock only
-SET TIMING ON
-SELECT d.name, AVG(e.salary)
-FROM employees e JOIN departments d ON d.id = e.dept_id
-WHERE e.salary > 50000 GROUP BY d.name;
--- 12 seconds. Why? Unknown.
-```
+The next artifact is not just a faster number. It is a line in the trace or plan that explains where the work went.
 
-Fixed: run SQL Trace for the session, format with TKPROF, read parse/exec/fetch counts plus disk vs buffer gets. Watch the four documented traps in TGSQL ch.23: argument, read-consistency, schema, time [T-05]. For waits you cannot explain, `TRCSESS` merges traces by session or SQL.
+## 4. Freeze the workload for the rerun
 
-What the plan shows after the fix: same `HASH JOIN` + `TABLE ACCESS FULL`, but TKPROF shows 2M fetches and direct-path waits on one line. You now know the line, not just the total.
+A SQL Tuning Set gives the before and after runs a shared input. Capture the representative SQL, binds, and relevant execution metadata with `DBMS_SQLTUNE` or `DBMS_SQLSET`. Use the same set for SQL Tuning Advisor, SQL Access Advisor, and SQL Performance Analyzer. [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
 
-Then lock the input. Create a SQL Tuning Set with `DBMS_SQLTUNE` or `DBMS_SQLSET`, load the statement, use it as the before/after input for every later change [T-06]. For a portable repro, run SQL Test Case Builder (`DBMS_SQLDIAG`) to pack SQL, plan, stats, DDL samples [T-07]. For a fast offline bundle around one SQL ID, run SQLdb360. It pulls plans, stats, ASH, binds into one zip. The older SQLd360 (2018, 65 stars) is dormant. Use SQLdb360 (2024). Both repos show no declared license as of 2026-09-22, so check use rights first. Cross-check its claims against Monitor and XPLAN [T-08]. Unverified on your schema — test on your schema.
+For a reproducible incident, package the statement, plan, statistics, and DDL context with SQL Test Case Builder. For a portable offline bundle around a SQL ID, SQLdb360 can collect plans, statistics, ASH, and bind context. Treat that bundle as a collection artifact, not proof by itself. T-08 is CONDITIONAL, the repositories declare no clear license in the research pass, and the output still needs cross-checking against `DBMS_XPLAN` and SQL Monitor. [S67](https://github.com/mauropagano/sqld360)
 
-Why it matters: the Tuning Set makes V0 possible. Same workload, test execute, change, test execute, compare on `buffer_gets`. Docs: `DBMS_SQLPA` ref (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [T-56].
+The tooling inventory counts **18 Oracle built-in tool rows, 3 client rows, and 12 external rows**: **33 tool entries**. SQL Quarantine is a separate guardrail row, so the rendered inventory has **34 displayed rows**. The taxonomy matters more than the headline count because candidates, clients, and Oracle built-ins prove different things.
 
-**Keep this: Save the plan and counts before you touch SQL. No DISPLAY_CURSOR pair, no change.**
+<details><summary>How the measurement tools divide the work</summary>
+
+AWR answers “what happened during this window?” ASH answers “where were active sessions sampled?” SQL Monitor answers “what happened in this execution?” `DBMS_XPLAN` answers “which plan and row estimates are attached to the statement?” A Tuning Set answers “can both runs receive the same workload?” None of those tools replaces the others. [S03](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/) [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
+</details>
+
+No live Oracle database was available for the research pass. `sqlcl` and `sqlplus` were not on `PATH`. The plans and timings described here are procedures or illustrative conditions, not measurements taken by this page.
+
+Source IDs and technique IDs resolve in `.agents/research/07-sources-bibliography.md` and `.agents/research/01-proven-techniques-catalog.md`.
+
+**Artifact: a SQL ID, a retained workload set, a noise baseline, and a saved before plan are the only valid starting point for a tuning change.**

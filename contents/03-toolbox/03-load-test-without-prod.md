@@ -5,54 +5,83 @@ order: 33
 draft: false
 ---
 
-Picture a fix that wins solo at midnight and locks 30 sessions at 10 a.m.
+A statement that wins alone can lose when thirty sessions compete for the same buffer cache, locks, CPU, and I/O. Load testing is not a second stopwatch. It is a controlled workload with a rollback decision attached.
 
-Solo speed is not safety. Parallel work is the test.
+> **Execution boundary:** no load run was executed for this editorial pass. Use a disposable test copy or a staging environment with representative data and capacity. Never point a new load script at production without an approved test plan.
 
-You can run SELECT. You have seen a query pass alone and watch it fail in the rush. This page proves a change holds when users pile on.
+## 1. Build a realistic mix
 
-Load testing is like a fire drill, except you run fake users against a copy so real users never feel the fault.
+Use the application’s real shape: concurrency, think time, bind distribution, DML versus queries, and the statements that dominate the incident. HammerDB TPROC-C or TPROC-H-style workloads are useful generic drivers. Swingbench provides Oracle-specific mixes such as Order Entry, SH, and call-style workloads. Neither is automatically representative of your application.
 
-<details><summary>In case you don't know about HammerDB, it's a free load runner with TPROC-C and TPROC-H style work for Oracle and other systems.</summary>HammerDB is an open-source database benchmark for load proof. It runs TPROC-C and TPROC-H style work for Oracle and more. Install via .deb, .rpm, or tar.gz per docs, then check libs with `./hammerdbcli` plus `librarycheck`, which needs the Oracle client `libclntsh.so` or `OCI.DLL`. Teams use it on a test copy after a rewrite passes unit tests. They run the same Tcl script before and after with the same users and time. It drives one decision: reject on mix regress or move to guardrails. Solo timing hides locks, and that hide costs a 10 a.m. stall. Sharp line: HammerDB proves concurrency, never logic. Example: build a TPROC-C schema, ramp users, hold peak, and compare throughput and waits, keeping medians. Unverified — check the repo docs for script paths. See https://www.hammerdb.com/ GPL-3.0, 786 stars, push 2026-09-18, hosted by the TPC Council [S65].</details>
+Keep the script fixed across the before and after runs:
 
-## 1. One loader, one realistic mix
+1. Prepare a test database with representative volume and statistics.
+2. Warm the system in the same way on both sides.
+3. Ramp users, hold a defined peak, and cool down.
+4. Record throughput, errors, latency distribution, waits, CPU, I/O, and guardrail events.
+5. Run at least K>=5 trials per side when the load metric is the acceptance evidence. Use 10–15 preferred for noisy environments, and add a full-workload SPA pass on each side for the controlled SQL comparison.
 
-Plain claim: test the mix prod runs, not one hero query.
+The K policy is a book rule, not a SQLPA feature. SC15 supports the need to quantify variability; it does not prescribe this exact floor. SQLPA supplies controlled SQL comparison trials. The harness calculates medians and bootstrap confidence intervals.
 
-Worked example A — HammerDB guardrail run. Build a TPROC-C style schema on a test copy with fresh stats. Write one Tcl script that ramps users, holds peak, then cools down. Run it from hammerdbcli before your change. Save throughput, error count, and top waits. Apply your index or rewrite. Run the same script again with the same user counts and same length.
+Illustrative scenario: a new index lowers one query’s buffer gets but increases lock waits across the order-entry mix. The hero query improved; the workload did not. Reject the change.
 
-How to read it: same script twice gives two numbers you can trust. Throughput up with errors flat is good. Throughput up with lock waits up is not good. One run is noise — run twice per side and keep medians.
+## 2. Put guardrails in place before the run
 
-Worked example B — Swingbench check for Oracle mixes. Swingbench ships Order Entry plus SH plus Call-Circle style mixes, with charbench for headless runs, oewizard for data gen, plus a Docker image. 80 stars, last push 2026-05-26, no license declared in the repo. Vendor page calls it a free load generator. Check rights before you ship it in CI. Pick one mix that looks like your app. Run it the same way: before change, after change, same users, same time. Unverified — test on your schema for exact Docker tags and data sizes.
+The two guardrails solve different problems:
 
-Decision it drives: faster solo plus slower mix means reject. Faster on both means move to guardrails.
+| Mechanism        | Action                                                       | Evidence                                    |
+| ---------------- | ------------------------------------------------------------ | ------------------------------------------- |
+| Resource Manager | Kills or switches runaway work under configured directives   | Resource Manager views and session outcomes |
+| SQL Quarantine   | Blocks a configured execution plan when its threshold is met | Quarantine configuration or event metadata  |
 
-## 2. Guardrails first, repro without prod
+The SQL Quarantine creation names `DBMS_SQLQ.CREATE_QUARANTINE_BY_SQL_ID` and `DBMS_SQLQ.CREATE_QUARANTINE_BY_SQL_TEXT` are **SKETCH** names in this runbook. Verify the exact 19c/current signatures, threshold parameters, and dictionary view names in the release reference. A Resource Manager kill is not a quarantine block. Record them separately.
 
-Plain claim: caps stop the bleed. A packaged case lets you repro without prod data.
+A zero-kill run is not automatically a healthy run. It can mean the caps were too loose. A zero-quarantine run is not automatically a performance win either. It means the tested mix stayed below the configured block conditions.
 
-Worked example C — set caps before the load run. Use DBMS_RESOURCE_MANAGER to cap runaway work by CPU or calls or elapsed time. Use SQL Quarantine via DBMS_SQLQ to block a known-bad plan from running again. Two separate tools. Manager kills. Quarantine blocks. Check kills in V$RSRC views, blocks in DBA_SQL_QUARANTINE. If your after-change run trips quarantine, the plan is bad even if one timing looked good.
+## 3. Know what tracing costs
 
-How to read guardrail output: zero quarantine hits plus zero Resource Manager kills means the mix stayed inside bounds. One quarantine hit means that SQL ID plus plan hash is now blocked — read which line tripped it and why. Caps that fire on the before run too mean your caps are too tight, not that your change failed.
+SQL Trace and `tkprof` can explain waits, recursive SQL, parse/execute counts, and fetch behavior under load. They also add overhead. Use the required `ALTER SESSION`, `DBMS_MONITOR`, or equivalent privileges, keep the trace narrow and time-bounded, and measure whether the trace changed the workload.
 
-Worked example D — pack the failure for isolation. SQL Test Case Builder via DBMS_SQLDIAG packages DDL, stats, plan, and data samples into a test case. That bundle moves to an isolated DB. You repro the bad plan there, not on prod. Docs: Performance Tuning Guide ch.22 plus DBMS_SQLDIAG ref (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html). Exact export paths vary by release. Unverified — test on your schema for your directory objects.
+Do not enable broad tracing as a permanent production observability strategy. Save the trace file, protect its contents, and include the trace overhead in the test record.
 
-One aside: midnight wins love morning locks. Back to the mix.
+## 4. Use SQL Test Case Builder for reproduction, not capacity
 
-Decision it drives: quarantine hit means fix the plan or drop the change. Clean run plus clean repro case means you can defend the change in review.
+SQL Test Case Builder packages a SQL problem with relevant DDL, statistics, plans, samples, and execution context. It is useful for reproducing an error or plan on an isolated database.
 
-## 3. Close the loop on revert
+It does not reproduce the full production-data volume boundary. A test case that reproduces the plan does not prove throughput, cache behavior, or concurrency behavior at production scale. Use it to reproduce first, then use SPA and a realistic load run to measure performance.
 
-Plain claim: every change needs a one-command way back.
+## 5. Close the rollback loop
 
-Worked example E — stats restore check. Before you gather new stats on test, export or keep history via DBMS_STATS. After the load run, restore, then confirm plan hash returns to the before value with DISPLAY_CURSOR. If the hash does not return, your revert missed a patch, profile, or baseline.
+Before the run, record the rollback for the change class:
 
-Worked example F — patch and baseline drop check. If you used a SQL patch (DBMS_SQLDIAG) or a profile or a baseline (DBMS_SPM), drop or disable that one object, then rerun the hero query plus the mix sampler. Same hash as before means the revert worked. New hash means something else still pins the plan — check fixed plans and evolve reports.
+- statistics: discard pending statistics or restore a retained history point;
+- index: drop the candidate index;
+- SQL patch or profile: drop or disable the object;
+- SPM baseline: disable, drop, or evolve back to the accepted plan;
+- DDL: abort redefinition before its commit point, or switch the application edition back.
 
-How to read it: plan hash is the revert receipt. A-Rows vs E-Rows confirms the estimate path is back. Load errors at zero confirms users see no scar.
+After a rejected run, restore the prior state, run a small verification query, and repeat the load sample. A rollback command that has never been executed in a sandbox is a note, not a rollback.
 
-Decision it drives: hash back plus mix clean means the revert is safe to document. Hash stuck means keep digging before you call it reverted.
+## Acceptance checklist
 
-<details><summary>In case you don't know about SQL Quarantine, it's Oracle's block that stops a known-bad plan from running again.</summary>SQL quarantine blocks a plan that exceeded resource limits from running again. Resource Manager kills the runaway per plan directives, and DBMS_SQLQ records the block in DBA_SQL_QUARANTINE. You check `DBA_SQL_QUARANTINE` after promote and treat any event as a hard fail. Unverified — run on your test DB. SRE and loop owners use it as the guardrail after each promote. It drives one decision: roll back now and blacklist this shape. Do not rely on app timeouts alone. Timeouts hide the plan and let it retry, and the cost is repeated blowups under traffic. Sharp line: it remembers the bad plan so the DB refuses to repeat it. Example: a new plan runs 40x over limit, Resource Manager kills it, quarantine logs the SQL ID, the loop halts, and the old baseline returns. See [T-64] https://oracle-base.com/articles/19c/sql-quarantine-19c</details>
+- [ ] Test environment has representative volume and workload shape
+- [ ] Script, users, binds, duration, and warm-up are identical on both sides
+- [ ] K>=5 trials per side; 10–15 preferred for noisy metrics
+- [ ] Full-workload SPA pass completed for the controlled SQL comparison
+- [ ] Throughput, errors, latency, waits, and resource use recorded
+- [ ] Resource Manager kills separated from quarantine blocks
+- [ ] Trace privileges and overhead recorded
+- [ ] Test Case Builder reproduction treated as functional evidence, not capacity evidence
+- [ ] Rollback executed and verified before promotion
 
-**Keep this: Pass a parallel run with zero quarantine hits before you call it safe.**
+## References
+
+- [HammerDB](https://www.hammerdb.com/)
+- [Swingbench](https://www.dominicgiles.com/swingbench/)
+- [SQL Test Case Builder, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/gathering-diagnostic-data-with-sql-test-case-builder.html)
+- [DBMS_SQLDIAG, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html)
+- [DBMS_RESOURCE_MANAGER, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_RESOURCE_MANAGER.html)
+- [DBMS_SQLQ, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)
+- [Database Performance Tuning Guide, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/)
+
+**Keep this: a parallel run with clean guardrails is a safety check, not a performance claim by itself.**

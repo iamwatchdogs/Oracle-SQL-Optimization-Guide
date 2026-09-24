@@ -5,44 +5,93 @@ order: 62
 draft: false
 ---
 
-A junior shipped a rewrite with clean lint and no unit test. Lint was happy. Rows dropped from 400 to 380. A 30-second unit test would have caught it. SPA would have caught the plan shift next. Two gates were skipped to save a minute. Debug took a day.
+Parse, lint, and test are three different claims. Parse says the text has structure. Lint says the text follows selected mechanical rules. Test says the database returns the expected meaning. None of them says the plan is faster.
 
-You know basic SQL and you trust a green check. Green from a linter means clean text. Green from prod means same rows and fast plan. This page shows three cheap gates that run before you touch the DB, plus the harness that calls the DB when you are ready.
+Keep that separation and the review loop gets shorter. A failure should tell you which layer failed instead of hiding inside one green CI badge.
 
-Three gates at an airport are more like ticket plus bag plus ID, where each gate blocks a different risk.
+## 1. Parse before you rewrite
 
-## 1. Parse proves structure, never speed
+Use an Oracle-aware parser to turn the before and after statements into comparable trees. The useful output is the diff: a removed predicate, a changed join key, a hint moved across a boundary, or a rewritten expression.
 
-Plain claim: sqlglot turns Oracle text into a tree you can diff and normalize.
+A small starting shape is:
 
-Worked example: parse v1 and v2 of a join rewrite. First you run parse_one on v1 with Oracle dialect. You get a tree. You print it back to text. Syntax holds. Then you run parse_one on v2 and diff the two trees. You spot a dropped predicate in seconds. Output A: parse OK, 2 tables, 1 join key. Output B: parse OK, 2 tables, 0 join keys, full cross product flagged by eye on the diff. First pass you parse one file to learn the shape. Second pass you diff two files to catch the rewrite fault. You never claim speed from this step.
+```python
+from sqlglot import parse_one
 
-Why it matters: structure faults are cheap to find in text. In prod they read as timeouts. Parse moves the find earlier.
+before = parse_one(sql_before, read="oracle")
+after = parse_one(sql_after, read="oracle")
+```
 
-Sourced number: sqlglot MIT 9,628 stars push 2026-09-21 Active, Oracle among 30+ dialects, see S60. Apache Calcite Apache-2.0 5,186 stars push 2026-09-21 Active with OracleSqlDialect, see S62, for rule-based normalization in the T-34 to T-44 lane. sqlglot also parses hint text for T-45 but does not bless hint safety.
+The parser gives you a mechanical representation. It does not know whether your application intended outer-join semantics, duplicate elimination, null handling, or bind behavior. A successful parse is a structural checkpoint, not an equivalence proof.
 
-## 2. Lint blocks style faults in CI in seconds
+sqlglot's dated repository snapshot was MIT, 9,628 stars, last pushed 2026-09-21, and active under this pass's rule. Oracle is documented as a dialect. [S60](https://github.com/tobymao/sqlglot) [S60](https://sqlglot.com/sqlglot/dialects.html) Apache Calcite's dated snapshot was Apache-2.0, 5,186 stars, last pushed 2026-09-21, with `OracleSqlDialect`. Use it when you need a rule framework, not as a claim that Oracle will choose the resulting plan. [S62](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/dialect/OracleSqlDialect.html)
 
-Plain claim: SQLFluff with Oracle dialect stops bad patterns before review.
+Parsing hint text is also not hint validation. Confirm hint use through the release-supported `DBMS_XPLAN` hint report. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
 
-Worked example: gate a pull request with two files. First good.sql. SQLFluff with Oracle dialect returns exit 0, 0 violations. Pull request proceeds. Then bad.sql with mixed case keywords and a trailing comma fault. SQLFluff returns exit 1, 3 violations, lines flagged. CI blocks merge. First pass you lint one file locally to learn rule IDs. Second pass you gate the full pull request in CI for T-58. You still need EXPLAIN PLAN after. Lint never replaces the optimizer.
+## 2. Lint the rules, not the whole problem
 
-Why it matters: style faults create noise in diffs and hide logic faults. A seconds-fast gate keeps main clean. Review time drops.
+SQLFluff is a mechanical gate. Start with the documented Oracle dialect:
 
-Sourced number: SQLFluff MIT 9,883 stars push 2026-09-21 Active, Oracle dialect documented, see S61. Use as CI gate for T-58 methodology checks. Cost is seconds. Verdict stays with Oracle.
+```bash
+sqlfluff lint --dialect oracle path/to/query.sql
+```
 
-## 3. Test asserts meaning, harness connects the DB
+The same file can pass lint and still return the wrong rows. A linter does not understand the domain meaning of a billing predicate, a regional partition, or a bind-sensitive join. It also does not know whether the chosen plan is cheaper.
 
-Plain claim: utPLSQL asserts rows, python-oracledb runs the calls.
+The dated SQLFluff snapshot was MIT, 9,883 stars, last pushed 2026-09-21, and active under the pass's rule. [S61](https://github.com/sqlfluff/sqlfluff) [S61](https://docs.sqlfluff.com/en/stable/reference/dialects.html)
 
-Worked example: test the same rewrite end to end. First utPLSQL. Apache-2.0, 624 stars, push 2026-09-18, Active, needs 19c or newer, see S63. You write a package with one test: expect 400 rows, expect sum 1,204,500. Run. Output: FAIL, got 380 rows. Stop. No SPA run needed yet. Fix the predicate, rerun. Output: PASS. Then python-oracledb. UPL-1.0 OR Apache-2.0, 452 stars, push 2026-09-19, Active, see S64. You connect, run before and after timing, and script DBMS_SQLPA calls for T-56. First pass you assert meaning inside Oracle. Second pass you script measurement around Oracle. VeriEQL 27 stars no license declared push 2026-03-26, see S50, and SQLSolver Apache-2.0 70 stars push 2025-11-22, see S49, stay candidates only with unverified Oracle cover.
+Use lint for the work it owns: formatting, naming rules, configured mechanical checks, and consistent review noise. Keep the rule set in the repository. A tool's default rules are not an Oracle performance policy.
 
-Why it matters: a green lint plus a red unit test still means stop. Meaning beats style. Measurement beats both.
+## 3. Test behavior where it matters
 
-Sourced number: utPLSQL Apache-2.0 624 push 2026-09-18 Active needs 19c or newer. python-oracledb UPL-1.0 OR Apache-2.0 452 push 2026-09-19 Active. VeriEQL 27 Low no license. SQLSolver Apache-2.0 70 Low.
+Parsing and linting happen before the database. Behavior tests happen inside a disposable Oracle database or schema.
 
-<details><summary>In case you don't know about AST parsing, it's turning SQL text into a tree the machine can walk.</summary>AST parsing turns SQL text into a tree. Each clause becomes a node, and columns, tables, and filters become walkable objects. Install with `pip3 install sqlglot` per the README. Run `parse_one("SELECT a FROM t", read="oracle")` then inspect nodes. Devs use it before rewrites: compare v1 and v2 trees to spot a lost join key. It drives one decision: structure held or rewrite broke scope. Regex cannot track nesting and misses scope, costing a cross product. Tree walk costs seconds. Sharp line: AST parsing proves structure, never speed. Example: diff two trees where output A shows 2 tables with 1 join key and output B shows 2 tables with 0 keys, flagging the fault. Unverified — check the repo docs for dialect edge cases. See https://github.com/tobymao/sqlglot MIT 9628 stars push 2026-09-21 Active [S60].</details>
+With utPLSQL, a fixture should assert more than “the command ran.” Depending on the change, check:
 
-<details><summary>In case you don't know about utPLSQL, it's a unit-test framework that lives inside Oracle DB.</summary>utPLSQL is a unit-test framework inside Oracle DB. Tests are PL/SQL packages that assert expected versus actual rows. It needs Oracle 19c or newer per the README. Install from source with `sqlplus` as SYSDBA per docs, or headless with `install_headless.sql`. Run tests with `ut.run` and serveroutput on. Teams use it after lint, before SPA. It drives one decision: stop the rewrite or book SPA time. Lint alone passes while rows drop from 400 to 380, and that gap costs a day of debug. A test costs 30 seconds. Sharp line: utPLSQL locks meaning, lint only checks shape. Example: expect 400 rows and a fixed sum, get FAIL at 380, fix the predicate, get PASS. CLI is `utPLSQL-cli` for CI. Unverified — check the repo docs for hook paths. See https://github.com/utplsql/utplsql Apache-2.0, 624 stars, push 2026-09-18 [S63].</details>
+- returned row count;
+- a known aggregate or checksum;
+- duplicate and null behavior;
+- error behavior for invalid input;
+- the result for a bind value at the edge of the distribution.
 
-**Keep this: Parse the text, lint the style, test the meaning — then measure in Oracle.**
+The dated utPLSQL snapshot was Apache-2.0, 624 stars, last pushed 2026-09-18, and active. Its current README names Oracle Database 19c or newer. [S63](https://github.com/utplsql/utplsql) [S63](https://www.utplsql.org/)
+
+Keep fixtures small enough to diagnose. A test that asserts a vague business rule without a concrete expected result is documentation, not a gate. A test that asserts exact rows, aggregates, and error cases can stop a rewrite before it reaches a performance run.
+
+## 4. Measure with Oracle, then script the edges
+
+python-oracledb is the harness boundary. It can connect, execute statements, collect measurements, and call release-supported Oracle package procedures. [S64](https://github.com/oracle/python-oracledb)
+
+The measurement decision still belongs to Oracle:
+
+1. Freeze the workload in a SQL Tuning Set.
+2. Capture the executed plan with `DBMS_XPLAN`.
+3. Run the before trial.
+4. Apply one change.
+5. Run the after trial.
+6. Compare the workload and inspect per-statement regressions.
+
+`DBMS_SQLPA` supplies the before/after comparison. python-oracledb supplies a way to orchestrate the call. That distinction matters because a Python script with a `compare` function is not SQL Performance Analyzer. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
+
+Package names, signatures, and client assumptions change by release. If you use SQL*Plus in the procedure, cite the 19c SQL*Plus guide [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/) and verify the installed client. If a script uses SQL Quarantine or another newer API, verify the current package reference before writing the call. [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)
+
+## Where the candidates fit
+
+VeriEQL, SQLSolver, WeTune, and QED are research candidates for equivalence or rewrite verification. Their papers and repositories do not establish Oracle dialect coverage in this pass. Keep them labeled as candidates. [S48](https://dl.acm.org/doi/10.1145/3514221.3526125) [S49](https://github.com/SJTU-IPADS/SQLSolver) [S50](https://github.com/VeriEQL/VeriEQL) [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf)
+
+QueryBooster is also a candidate: its paper is in the corpus, but Oracle support was not verified. [S80](https://doi.org/10.14778/3611479.3611497)
+
+## The technique map matters
+
+- **T-58**, application design and SQL performance methodology, belongs in the measurement and proof chapters, not in a generic “tools” appendix.
+- **T-59**, bind variables and cursor reuse, belongs in the stabilization chapter.
+- **T-60**, test-environment deployment before production, belongs in the safe-DDL/CI and accept-or-rollback chapters.
+- **T-61**, the automatic SQL Transpiler, belongs in the rewrite and control chapters. It is release-sensitive and applies only to eligible PL/SQL constructs. [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf)
+
+The full source ledger remains in `.agents/research/07-sources-bibliography.md`; this published page gives the compact map and the links needed to use it.
+
+## The artifact
+
+A useful pipeline leaves four receipts: an AST or parse result, a lint result, a behavior-test result, and an Oracle before/after report. The first three stop bad text. The fourth decides whether the change earned its place.
+
+**Parse the text. Lint the rules. Test the meaning. Let Oracle measure the claim.**

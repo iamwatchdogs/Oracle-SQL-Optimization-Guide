@@ -5,61 +5,45 @@ order: 22
 draft: false
 ---
 
-Picture an Oracle engineer watching a new plan fail during a live user run. The user waits. The old plan was fine. The new plan hangs. The engineer needs a rule that swaps back fast. That rule is the core of all 3 Oracle papers.
+Oracle’s own papers answer a narrower question than “Will this make my query fast?” They show what Oracle has built, documented, and chosen to automate. P1 is [read firsthand]. P2 and P3 are [snippet-verified]. This research pass executed no Oracle workload, so these papers are Oracle-authored/specific evidence, not an Oracle benchmark produced here.
 
-A new plan is like a replacement brake pad, except you test it while the car is moving.
+## 1. Verify a plan before trusting it
 
-Start with plan control. Then add auto indexes. Finally add error cover. First you trace the timeline from 11g to 26ai. Next you run the index lifecycle. Then you state the vendor rule in plain words.
+P1, Real-time SQL Plan Management in Oracle, is PVLDB 19(12):4169–4181, 2026, DOI 10.14778/3827998.3828024, https://arxiv.org/html/2608.27758v1, [read firsthand]. Its timeline is a design history, not one feature with one release label:
 
-## 1. Verify each plan before you trust it
+- **11g:** manual plan capture.
+- **12c:** Auto SPM Evolve Advisor moves plan checks into the background.
+- **19c:** Auto SPM uses Auto STS and a regression threshold on plan metrics. This is Auto SPM in 19c.
+- **26ai:** Real-Time SPM evaluates a candidate during the regressing user execution. If it regresses, the candidate is rejected at the end of that execution and a prior known plan is used for subsequent executions. The statement already running is not rewritten retroactively. This is Real-Time SPM in 26ai, not a relabeling of 19c Auto SPM.
 
-Claim: Oracle uses only known or verified plans, and reinstates the last good plan on regression.
+Auto STS supplies the captured workload SQL to automatic plan-management checks. The release boundary stays explicit: 19c Auto SPM and 26ai Real-Time SPM are not the same feature.
 
-Example: run the timeline demo from P1 [P1] PVLDB 19(12):4169–4181, 2026, DOI 10.14778/3827998.3828024, https://arxiv.org/html/2608.27758v1, [read firsthand].
+The paper reports deployment in Oracle production and argues that background verification can be too slow for cloud systems with constrained resources. Those are paper findings. They are not measurements from this project.
 
-- Step 1: 11g manual capture. DBAs capture plans by hand.
-- Step 2: 12c Auto SPM Evolve Advisor. Checks move to the background.
-- Step 3: 19c Auto SPM with Auto STS. Auto STS grabs real load SQL. A regression threshold on plan metrics gates accept.
-- Step 4: 26ai Real-Time SPM. Checks move into the foreground user run. A new plan is verified during execution. On regression the prior accepted plan returns at once.
+The transferable rule is narrow: propose a plan, measure it, and keep the prior accepted plan available when the candidate loses. W4 states the vendor policy in plain words: only known or verified plans are used, and a new plan is not used until it is verified to perform better. Source: [S12](https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf).
 
-The paper reports production deployment. It states background checks ran too slow for cloud systems with tight resources.
+Number: PVLDB 19(12):4169–4181. The page range identifies a full systems paper; it does not turn a paper citation into a local Oracle test.
 
-Why it matters: this is the model for any safe change loop. Propose. Verify with measures. Revert fast on loss. No revert path means no ship.
+## 2. Let automatic indexes prove their value
 
-Number: PVLDB 19(12):4169–4181. That page range marks a full systems paper, not a brief. W4 states the vendor rule in plain words: only known or verified plans are used, and a new plan will not be used until verified to perform better. Source: https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf [S12].
+P2, Automatic Indexing, is PVLDB 18(12):4924, 2025, DOI 10.14778/3750601.3750616, [snippet-verified]. The paper describes an automatic index lifecycle: create a candidate, validate it, deploy a winner, and remove an index that does not earn its place. The feature is documented as available since 19c and in Autonomous Database, and the paper covers expression indexes.
 
-## 2. Let indexes prove value, then keep or drop them
+The lifecycle matters because an index is not free. It can improve reads and tax writes. A feature that only creates indexes stops before the interesting part. The interesting part is deciding which ones survive the measured workload.
 
-Claim: automatic indexes follow the same propose, verify, accept or drop path.
+The abstract reports about 15% performance improvement and up to 60% space-reclamation potential on customer workloads. Those are snippet-verified, abstract-level, vendor-reported figures. Treat them as a reason to test, not as a result to paste into your own performance claim.
 
-Example: run the lifecycle demo from P2 [P2] PVLDB 18(12):4924, 2025, DOI 10.14778/3750601.3750616, [snippet-verified].
+## 3. Cover compile-time failure
 
-- The feature ships since 19c and in Autonomous Database.
-- It creates candidate indexes. It validates them on real load. It deploys winners. It removes losers. It covers expression indexes.
+P3, Automatic SQL Error Mitigation in Oracle, is PVLDB 16:3835, 2023, https://www.vldb.org/pvldb/vol16/p3835-pasupuleti.pdf, [snippet-verified]. It describes mitigation during query compilation, including failover to alternative plans.
 
-Juniors often stop at create. Oracle does not. Validate and drop are the parts that save space and write cost.
+That is a different boundary from plan performance. A query can compile into a plan that runs badly, or it can fail while a plan is being selected. A safe change loop needs both a measured acceptance gate and a documented fallback. W4 supplies the known-or-verified plan policy; W2 supplies the 19c statistics policy that feeds plan choices. W2, Best Practices for Gathering Optimizer Statistics with Oracle Database 19c, is [S08](https://www.oracle.com/docs/tech/database/technical-brief-bp-for-stats-gather-19c.pdf).
 
-Why it matters: an index speeds reads and taxes writes. Auto drop removes dead weight. That trade is why space numbers matter as much as speed numbers.
+The evidence supports a design shape. It does not prove the shape will behave the same way on your schema, data distribution, release, or workload.
 
-Number: abstract reports about 15% speed gain and up to 60% space-reclamation potential on customer load, [snippet-verified, abstract-level figures]. Treat both as vendor-reported until you test on your schema and load.
+## The brief shelf is selective
 
-## 3. Cover compile errors with a fallback plan
+The bibliography catalogues six Oracle technical briefs, W1–W6. W1, Optimizer with Oracle Database 18c, and W3, Understanding Optimizer Statistics with Oracle Database 19c, are catalogued, but this page does not discuss all six briefs. It uses W2 for current statistics policy, W4 for SQL Plan Management, W5 as historical SPA context, and W6 as the superseded 2012 statistics baseline. A catalog entry is not a claim that every brief was read or reproduced in this chapter.
 
-Claim: a safe system also handles plans that fail to build.
+<details><summary>What is SQL Plan Management?</summary>SQL Plan Management is a control for plan baselines. Capture stores plans, selection uses accepted baselines, and evolution verifies a candidate before it joins the accepted set. W4 states the verify-before-commit policy: only known or verified plans are used. The 19c overview is [T-48](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html).</details>
 
-Example: read P3 [P3] PVLDB 16:3835, 2023, https://www.vldb.org/pvldb/vol16/p3835-pasupuleti.pdf, [snippet-verified], next to W4.
-
-- P3 adds mitigation during compile with failover to other plans.
-- W4 adds the policy line that only known or verified plans run.
-
-Together they form a full guard: check at compile, check at run, keep a fallback ready. A junior loop can copy that shape. Test the SQL shape first. Test the runtime next. Keep the last good plan ID in the log.
-
-Why it matters: most rewrite guides skip failure paths. Oracle papers do not. A loop without a fallback will strand users on a bad plan.
-
-Number: P3 is PVLDB 16:3835, 2023. W4 is the 19c SPM brief [S12]. W2 Best Practices for Gathering Optimizer Statistics 19c, https://www.oracle.com/docs/tech/database/technical-brief-bp-for-stats-gather-19c.pdf [S08], sets stat policy that feeds those plan choices.
-
-<details><summary>In case you don't know about SQL Plan Management, it's Oracle's control that keeps only accepted plans in use.</summary>SQL Plan Management has three parts: capture, selection, evolution. Capture stores plans in the SQL Management Base. Selection picks only from accepted baselines. Evolution verifies new plans before they join. You control it with `OPTIMIZER_CAPTURE_SQL_PLAN_BASELINES` and `OPTIMIZER_USE_SQL_PLAN_BASELINES` plus `DBMS_SPM` load and evolve calls. Unverified — run on your test DB. Platform owners use it to protect upgrades and stats jobs. It drives one decision: which set of plans is legal to run tonight. Do not rely on hints or profiles alone. Those fix one statement with no history or fallback, and the cost is silent drift on the next refresh. Sharp line: it makes plan change explicit, tested, and reversible across the fleet. Example: an upgrade adds ten candidate plans. SPM keeps serving accepted plans until each candidate proves faster. See [T-48] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html</details>
-
-<details><summary>In case you don't know about Auto STS, it's an automatic capture of real workload SQL that Oracle uses to drive plan checks.</summary>Auto STS is Oracle-managed capture of real production SQL. Auto SPM reads it, compares best against worst plan metrics, and gates evolve when the gap crosses a regression threshold. Real-Time SPM in 26ai then checks in the foreground during user runs. Setup is vendor-managed background capture plus evolve task config. Ops teams use it when manual capture misses peak shapes. It drives one decision: which statements deserve automatic verification now. Do not hand-build a tiny STS instead. Hand sets miss binds and skew, and the cost is a clean lab win that fails at noon peak. Sharp line: it feeds the verifier with the load users truly run. Example: checkout SQL runs 10,000 times at noon with skewed binds. Auto STS holds those binds, Auto SPM flags the regression, and the prior accepted plan returns. See [T-49] https://arxiv.org/html/2608.27758v1</details>
-
-**Keep this: Accept no plan without a measured win, and keep the last good plan ready.**
+**Keep this: verify before acceptance, reject a regressing candidate at the execution boundary, and keep the last known plan ready.**

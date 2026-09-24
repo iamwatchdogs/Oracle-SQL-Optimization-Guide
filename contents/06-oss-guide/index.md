@@ -5,45 +5,63 @@ order: 60
 draft: false
 ---
 
-A junior on a billing team saw a slow report query last quarter. He pip-installed the highest-star SQL package he found. He reformatted the query to please the linter. Prod still timed out after 40 seconds. Stars had told him nothing about Oracle fit. The license file would have. The push date would have. The dialect list would have.
+Open source is the prep crew. It can parse, lint, test, collect, and generate load. It does not decide whether an Oracle workload is safe, eligible, or better after the change. Keep that boundary sharp.
 
-You start from the same baseline. You know SELECT, JOIN, WHERE, GROUP BY. You trust stars because stars feel safe. You pip-install and move on. This chapter breaks that habit and replaces it with a 2-minute check you can run every time.
+## The matrix has a date and a scope
 
-OSS here is more like a metal detector on a beach that beeps on shape but never digs.
+The OSS matrix is a **scoped pass dated 2026-09-22 UTC**. Its GitHub API facts—stars, last push, license metadata, and `archived`—are snapshots from that date. They are not live guarantees and do not describe what a repository will do tomorrow.
 
-## 1. No repo fixes a slow query, it only preps the text
+`None found` means no actively maintained OSS implementation of that exact intervention was verified in this pass. It does not mean that no code, paper, private tool, or future project exists. It is a bounded search result, not a universal claim.
 
-Plain claim: the fix lives inside Oracle, OSS only cleans text before it gets there.
+## The useful OSS lanes
 
-Worked example: take three repos and vet them in 2 minutes. First sqlglot. MIT, 9,628 stars, push 2026-09-21, Active. Oracle listed among 30+ dialects, see S60. Second SQLFluff. MIT, 9,883 stars, push 2026-09-21, Active. Docs list an Oracle dialect, see S61. Third OtterTune. 1,233 stars, push 2020-11-13, Archived read-only, no license declared, see S54. First pass you read stars. Second pass you read license plus push plus archived flag. OtterTune fails the second pass even with high stars.
+| Lane                | Tool                                                                                                                            | What it can do                                                           | What it cannot prove                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Parse and normalize | [sqlglot](https://github.com/tobymao/sqlglot) [S60]                                                                             | Read Oracle SQL, expose an AST, and diff or generate rewrite candidates. | It does not prove the rewrite is equivalent or faster in your database.            |
+| Lint                | [SQLFluff](https://github.com/sqlfluff/sqlfluff) [S61]                                                                          | Apply documented Oracle-dialect rules in CI.                             | A clean lint is not a correct result or a good plan.                               |
+| Behavior tests      | [utPLSQL](https://github.com/utplsql/utplsql) [S63]                                                                             | Assert rows, aggregates, and errors inside an Oracle test database.      | A passing test does not establish performance under production load.               |
+| Measurement harness | [python-oracledb](https://github.com/oracle/python-oracledb) [S64]                                                              | Connect, execute, collect metrics, and orchestrate Oracle calls.         | The driver is not an optimizer, advisor, or before/after judge.                    |
+| Load                | [HammerDB](https://github.com/TPC-Council/HammerDB) [S65] and [Swingbench](https://github.com/domgiles/swingbench-public) [S66] | Exercise representative concurrency and resource pressure.               | A run has no guaranteed duration and cannot diagnose every regression by itself.   |
+| Evidence bundles    | [SQLdb360](https://github.com/sqldb360/sqldb360) and [SQLd360](https://github.com/mauropagano/sqld360) [S67]                    | Package diagnostic output for later review.                              | A bundle is not proof by itself; cross-check it with `DBMS_XPLAN` and SQL Monitor. |
+| Candidate rewrites  | [Apache Calcite](https://calcite.apache.org) [S62]                                                                              | Apply dialect-aware rules and generate candidates.                       | `OracleSqlDialect` is not an Oracle runtime or a correctness proof.                |
 
-Why it matters: you stop installing dead code. You stop citing archived design notes as runnable tools. You save the lost afternoon.
+The useful workflow is deliberately boring: use OSS to make a candidate cheaper to inspect, then use Oracle to decide whether the candidate is valid, legal, and faster.
 
-Sourced number: sqlglot MIT 9,628 push 2026-09-21 Active. SQLFluff MIT 9,883 push 2026-09-21 Active. OtterTune 1,233 Archived 2020-11-13. Rules used: Active means push within 6 months, Low activity means within 24 months, Dormant means over 24 months, Archived means read-only. All facts checked 2026-09-22 via GitHub API.
+## Three checks before a rewrite touches the database
 
-## 2. Three gates are safe, each gate does one job
+1. **Parse.** Use an Oracle-aware parser to compare the before and after text. A dropped predicate is a text failure before it becomes a timeout.
+2. **Lint.** Run the repository's documented rules. This removes mechanical noise; it does not settle semantics.
+3. **Test.** Run a behavior fixture against a disposable database or schema. Check rows, aggregates, duplicate behavior, and error cases.
 
-Plain claim: parse, lint, test. Parse reads structure. Lint flags style. Test asserts meaning.
+Then measure with `DBMS_XPLAN`, SQL Performance Analyzer, and a representative workload. `python-oracledb` can script that measurement. It cannot replace the Oracle package doing the measurement. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S64](https://github.com/oracle/python-oracledb)
 
-Worked example: run the trio on one bad rewrite. First sqlglot parses Oracle text into a tree and prints it back. You diff v1 and v2 and catch a dropped filter in seconds. Then SQLFluff lints the same file with the Oracle dialect and blocks the pull request on style. Then utPLSQL runs inside the DB and asserts row counts. First pass you check text without a DB. Second pass you check meaning with a DB. Lint can pass while the unit test fails. That split is the point.
+## The swap you should not make
 
-Why it matters: text checks cost seconds. Meaning checks catch lost rows. You need both before you measure plans.
+For statistics, SQL Plan Management, SQL Tuning Advisor, SQL Performance Analyzer, and the core guardrails, the maintained implementation is Oracle's. A thin Python script can schedule, call, collect, and report those APIs. That is orchestration, not a replacement.
 
-Sourced number: sqlglot MIT 9,628 push 2026-09-21 Active. SQLFluff MIT 9,883 push 2026-09-21 Active Oracle dialect. utPLSQL Apache-2.0 624 stars push 2026-09-18 Active, README needs 19c or newer, see S63. Apache Calcite Apache-2.0 5,186 stars push 2026-09-21 Active with OracleSqlDialect, see S62, for rule-based rewrites.
+For example, use `python-oracledb` to call a release-supported `DBMS_SQLPA` workflow and save the report. The comparison logic still belongs to Oracle. Use `sqlglot` to generate a candidate rewrite. The result still needs an Oracle plan, a semantic test, and a before/after comparison. Parsing text is not plan control.
 
-## 3. Most proven fixes have no OSS swap
+Load tools occupy a narrower lane. HammerDB and Swingbench can expose contention or resource pressure that a single-session test misses. Oracle's parallel-execution guidance specifically warns about overutilized systems and limited I/O, so a concurrency-realistic run is part of the evidence. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html) No tool promises a fixed detection window. The run takes as long as the workload and environment require.
 
-Plain claim: for SPM, stats, and SPA, the annex says None found. Use built-ins.
+## Archived code is a source, not a shortcut
 
-Worked example: map three controls. First SPM baselines T-48. No verified OSS implements it. You script around DBMS_SPM, you do not replace it. Then stats T-09 to T-23. No OSS gathers optimizer stats safely. You use DBMS_STATS. Then SPA T-56. No OSS repeats compare-performance logic. You call DBMS_SQLPA and you can orchestrate calls with python-oracledb UPL-1.0 OR Apache-2.0 452 stars push 2026-09-19 Active, see S64. First pass you accept None found as a verdict. Second pass you build a thin script around Oracle instead of a swap.
+OtterTune is a good example of why stars are the wrong first filter. The repository snapshot recorded 1,233 stars, a last push on **2020-11-13**, and an **archived/read-only** state. The research pass did not establish an install history, and this page does not invent one. Treat OtterTune as design evidence for a tuning loop, not as runnable Oracle tooling. [S54](https://github.com/cmu-db/ottertune)
 
-Why it matters: swaps miss bind effects and load effects. Built-ins see them. HammerDB GPL-3.0 786 stars push 2026-09-18 Active, see S65, plus Swingbench 80 stars push 2026-05-26 Active license null, see S66, add load. SQLdb360 123 stars Low activity and SQLd360 65 stars Dormant only bundle output offline.
+SQLd360 and SQLdb360 make the same maintenance point from the other direction. The dated snapshot marked SQLd360 dormant after a 2018-01-14 push and SQLdb360 low activity after a 2024-12-03 push. Both returned `NOASSERTION` for license metadata. Prefer the newer collector only after checking its current license and release fit; neither is an Oracle built-in. [S67](https://github.com/sqldb360/sqldb360) [S75](https://dincosman.com/2025/02/23/oracle-database-health/)
 
-Sourced number: HammerDB GPL-3.0 786 push 2026-09-18 Active. Swingbench 80 push 2026-05-26 Active license null. SQLdb360 123 Low, SQLd360 65 Dormant, both no license declared, see S67.
+## What this pass did not close
 
-<details><summary>In case you don't know about SPDX license IDs, it's the short code GitHub reports for a repo license.</summary>SPDX IDs are short license codes from the GitHub API. MIT means permissive reuse. Apache-2.0 means permissive reuse with patent grant. GPL-3.0 means share-alike. Setup is a two-step check: read `license.spdx_id` from the API, then open LICENSE.txt in the repo. DBAs use it before any install, vetting in two minutes with license first, push second, Oracle fit third, stars last. It drives one decision: install or reject. Stars hide risk, and that risk costs a blocked ship. Sharp line: SPDX decides legal use, stars never do. Example: sqlglot MIT 9628, Calcite Apache-2.0 5186, HammerDB GPL-3.0 786, all Active on push dates 2026-09-21 or 2026-09-18. See file 07 for full rows, verified 2026-09-22.</details>
+The search did not triage the `oracle-samples/db-sample-schemas` HR/OE/SH schemas or the `opentelemetry-instrumentation-oracledb` instrumentation. It did not compare migration CI coverage for Liquibase and Flyway on Oracle. It also left SLER [S68] and the survey [S69], QueryBooster [S80], and QED [S51] outside the maintained OSS proof set: papers exist, but code, license, or Oracle coverage was not verified.
 
-<details><summary>In case you don't know about Oracle dialect support, it's the explicit promise that a tool reads Oracle SQL text.</summary>Oracle dialect support is the explicit promise a tool reads Oracle SQL. sqlglot lists Oracle among 30+ dialects. SQLFluff lists `oracle` in its dialect reference. Calcite ships `OracleSqlDialect`. Set it every run: `parse_one(sql, read="oracle")` for sqlglot, `sqlfluff lint --dialect oracle file.sql` for SQLFluff. Teams use it at the start of every parse or lint gate. It drives one decision: trust the parse or reject the tool. Generic SQL misreads hints and date math, and that misread costs a wrong rewrite. Sharp line: no Oracle line in docs means no Oracle use. Example: `sqlfluff dialects` must show oracle before you lint with `--dialect oracle`. Unverified — check the repo docs for config paths. See [S60][S61][S62].</details>
+That list is a boundary, not a claim that the projects are unusable. It is a reminder not to turn “not checked” into “does not exist.”
+
+## Source boundaries worth keeping
+
+- **S76** is the 19c Administrator's Guide material on index compression. It supports the T-67 discussion and its compatibility restrictions; it is not a promise that compression improves every query. [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html)
+- **S77** is the 19c VLDB and Partitioning Guide material on parallel execution. It supports the load-and-resource gate for T-68, not a universal performance claim. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html)
+- **S78** is the official Lifetime Support Policy PDF. The file was located, but its text was not extracted in this pass, so no support date is asserted. [S78](https://www.oracle.com/assets/lifetime-support-technology-069183.pdf)
+- **S79** is the 19c SQL*Plus User's Guide. Cite it only when SQL*Plus is part of the client assumption; it is not a universal client guarantee. [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/)
+- **S80** is QueryBooster paper evidence. Oracle support was not verified, so it remains a candidate. [S80](https://doi.org/10.14778/3611479.3611497)
 
 In this chapter:
 
@@ -51,4 +69,4 @@ In this chapter:
 - [The Parse-Lint-Test Trio That Is Safe to Use](/06-oss-guide/02-parse-lint-test-trio/)
 - [What Has No OSS Replacement](/06-oss-guide/03-what-has-no-oss-replacement/)
 
-**Keep this: No license, no push, no Oracle dialect, no use.**
+**The rule: use OSS to prepare, inspect, test, and load. Let Oracle decide the plan.**

@@ -5,49 +5,64 @@ order: 70
 draft: false
 ---
 
-A junior pasted a 2012 stats brief as current truth. Date sat on page one. The 19c brief had replaced it. The thread ran 30 replies before someone checked the header. One date check would have ended it at reply one.
+A citation is a dated receipt, not a magic link. The question is not “does this URL open?” The question is: which source, which class, which version, and which snapshot back this exact sentence?
 
-You know basic SQL and you copy numbers fast. You paste star counts without dates. You cite blogs as proof. This appendix stops that with a simple system. Every fact gets an ID, a class, and a date.
+## The ledger has a boundary
 
-Food labels that list what plus when plus where are more like S-numbers, where short code points to full receipt.
+The corpus currently contains **S01–S80**. Inline `[S##]` markers resolve to full source records in `.agents/research/07-sources-bibliography.md`. The published appendix explains the system; it does not duplicate every full row. When a published page links directly to a source, that link is the scoped evidence for that page, not a promise that the whole ledger is embedded in the site.
 
-## 1. What, when, where, in one short code
+All online sources in the research pass carry an access date of **2026-09-22 UTC**. GitHub API fields—stars, last push, license metadata, and `archived`—are snapshots from that date. They are not live guarantees.
 
-Plain claim: S-number plus class plus accessed date traces any claim to its page.
+The grading summary is approximate because a record can carry more than one class: 30+ A1 entries, 6 A2 entries, 19 B1 papers/preprints, 1 B2 reproducibility record, 16 C1/C2 tool or repository entries, and 8 D entries across 80 distinct IDs.
 
-Worked example: look up three facts. First sqlglot stars. Short form S60. Full form gives repo, MIT license docs, dialect docs, GitHub API 2026-09-22 with MIT 9,628 stars push 2026-09-21. See S60. Second SQLFluff Oracle dialect. Short form S61. Full form gives docs v4.3.0 plus dialect reference plus GitHub API 2026-09-22 with MIT 9,883 stars push 2026-09-21. See S61. Third Calcite Oracle dialect. Short form S62. Full form gives site plus OracleSqlDialect javadoc plus GitHub API 2026-09-22 with Apache-2.0 5,186 stars push 2026-09-21. See S62. First pass you read the short code inline. Second pass you open the full row in file 07 for author, title, version, link.
+## Source classes keep weight honest
 
-Why it matters: short codes keep text clean. Full rows keep proof intact. No mystery numbers survive.
+| Class  | Meaning                                       | Use it for                                                                         |
+| ------ | --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **A1** | Oracle official, versioned documentation      | Release-specific Oracle behavior and package boundaries                            |
+| **A2** | Oracle-authored whitepaper or technical brief | Vendor context and documented design, with the version attached                    |
+| **B1** | Peer-reviewed paper or preprint               | Research design and evidence; venue status must be stated when it is not confirmed |
+| **B2** | Third-party reproducibility material          | Checking whether a research artifact reproduces, not replacing the original claim  |
+| **C1** | Deterministic tool documentation              | Commands, dialects, and documented interfaces                                      |
+| **C2** | Maintained OSS repository                     | License and dated maintenance evidence for code                                    |
+| **D**  | Blog, forum, or secondary source              | Corroboration or practical context only                                            |
 
-Sourced number: 80 distinct sources (S01–S80). 30+ A1 Oracle versioned docs. 6 A2 Oracle briefs. 19 B1 papers (P1–P18 plus P20 QueryBooster). 1 B2 repro report. 16 C repos and tools. 8 D blogs for background only. All online sources accessed 2026-09-22.
+`B1` does not mean every record in this corpus has a confirmed peer-reviewed venue. A preprint, metadata-only record, or venue-unconfirmed paper stays labeled that way. Do not upgrade a source because it has a DOI or an S-number.
 
-## 2. Classes keep weight honest
+A mirror, YouTube video, or consultant tutorial cannot outrank a versioned A1 guide for an Oracle behavior claim. A repository can prove what its code claims, but it cannot prove that the code is correct for your Oracle release. A paper can motivate a method, but it cannot replace your plan, workload, and rollback evidence.
 
-Plain claim: A1 beats D every time, C proves code, B proves design.
+## The 55-query search trail
 
-Worked example: rank a mirror against A1. First the mirror. Unknown date, unknown version, class D at best. Rejected as evidence per Appendix A. Use only to find the official page. Then S01 Tuning Guide 19c E96095-19 Apr 2025, class A1. Versioned, chaptered, citable for behavior. First pass you ask for class. Second pass you ask for version. A mirror with no version never outranks A1 with an E-number. Same rule sorts B1 papers such as S49 SQLSolver SIGMOD 2024 and S50 VeriEQL OOPSLA 2024 above vendor tutorials, and C2 repos such as S63 utPLSQL Apache-2.0 624 stars needs 19c or newer above blog walkthroughs.
+The research log records **55 grouped searches and verification checks**, all run on 2026-09-22. The trail is discovery plus checking, not 55 independent claims.
 
-Why it matters: weight stops false ties. A blog post and an Oracle guide are not two equal votes. Class says which one decides.
+|      Queries | What the group covered                                                     |
+| -----------: | -------------------------------------------------------------------------- |
+|    1–12 (12) | Core Oracle tuning documentation, statistics, SPM, and rewrite research    |
+|    13–21 (9) | OSS frameworks, drivers, benchmark tools, and research repositories        |
+|   22–35 (14) | Package references, controls, clients, and Oracle feature boundaries       |
+|   36–49 (14) | Maintenance checks, candidate papers, tool verification, and corroboration |
+|    50–55 (6) | Dated GitHub API snapshots plus the support-policy and S76–S80 checks      |
+| **55 total** | **Search trail, not an evidence count**                                    |
 
-Sourced number: S01 19c E96095-19 Apr 2025 A1. S02 26ai Jan 2026 A1. S08 stats brief 19c A2. S12 SPM brief 19c A2. S63 utPLSQL Apache-2.0 624 push 2026-09-18 (latest README names 19c+, older runs went back to 11gR2 — match to your DB). S64 python-oracledb UPL-1.0 OR Apache-2.0 452 push 2026-09-19.
+The last group matters. It includes the dated repository reads, the official Lifetime Support Policy PDF search, index-compression documentation, parallel-execution documentation, the WeTune reproducibility trail, SQL*Plus documentation, and QueryBooster discovery. [S78](https://www.oracle.com/assets/lifetime-support-technology-069183.pdf) [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html) [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html) [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/) [S80](https://doi.org/10.14778/3611479.3611497)
 
-## 3. Two files split the job so numbers stay fresh
+## Five source boundaries to keep visible
 
-Plain claim: file 06 holds repo facts and per-technique maps, file 07 holds full bibliography plus search trail.
+- **S76** is the 19c Administrator's Guide section on index compression. It supports T-67 and its compatibility restrictions, not a blanket performance promise. [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html)
+- **S77** is the 19c VLDB and Partitioning Guide section on parallel execution. It supports the load/resource gate for T-68, not a promise that parallel execution wins everywhere. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html)
+- **S78** is the official Lifetime Support Policy PDF. It was located, but its text was not extracted in this pass. No support date is asserted from it here. [S78](https://www.oracle.com/assets/lifetime-support-technology-069183.pdf)
+- **S79** is Oracle's *SQL*Plus User's Guide and Reference, 19c, E96459-09, June 2025. Use it when SQL*Plus is the client assumption; do not generalize it to every client or release. [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/)
+- **S80** is QueryBooster paper evidence from _PVLDB_ 16:2911 (2023). Oracle support was not verified, so it remains a candidate rather than a proven OSS replacement. [S80](https://doi.org/10.14778/3611479.3611497)
 
-Worked example: trace 19c versus 26ai plus an archived repo. First S01 versus S02. S01 is 19c Apr 2025. S02 is 26ai Jan 2026 with Transpiler, Automatic SPM, auto error mitigation. Cite the one you ran, cite both if behavior changed. Then OtterTune. 1,233 stars, push 2020-11-13, Archived, see S54. Keep as design note, not runnable tooling. Then SQLd360 65 stars push 2018-01-14 Dormant versus SQLdb360 123 stars push 2024-12-03 Low activity, see S67. First pass you pin version plus accessed date on every Oracle claim. Second pass you pin push date plus license on every repo claim.
+## The citation pattern
 
-Why it matters: docs drift and repos rot. Split files let you update one side without touching the other. Dates tell you which snapshot the number belongs to.
+For a repo claim, record the source ID, license, snapshot date, last push, and archive state. For an Oracle claim, record the release and the package or guide section. For a research claim, record whether the venue is confirmed, the paper is a preprint, or the evidence is only metadata.
 
-Sourced number: S01 19c E96095-19 Apr 2025. S02 26ai Jan 2026. OtterTune 1,233 Archived 2020-11-13. SQLd360 65 Dormant 2018-01-14. SQLdb360 123 Low 2024-12-03.
-
-<details><summary>In case you don't know about accessed dates, it's the day the author fetched the page and froze the fact.</summary>Accessed dates freeze which snapshot you used. Oracle pages change. Stars change. The date ties a number to a day. This book uses 2026-09-22 for all online sources. Check in two steps: write the accessed date on every cite, and reopen the row before reuse. Writers need it to stay honest. Readers need it to recheck fast. It drives one decision: reuse the fact or refetch first. Do not drop the date for short links. That swap saves seconds and costs hours on drifted advice. Sharp line: the date proves when you saw it, not that it is still true. Example: S61 SQLFluff MIT 9,883 stars push 2026-09-21 was true on 2026-09-22 only. See [S60][S61][S01].</details>
-
-<details><summary>In case you don't know about source classes, it's the weight label from A1 down to D.</summary>Source classes grade weight from A1 down to D. A1 is Oracle versioned docs. A2 is an Oracle brief. B1 is a peer paper. B2 is a third-party repro. C1 is tool docs. C2 is a kept repo. D is a blog, background only. Check in two steps: tag class first, check version next. PROVEN needs 2 sources or 1 strong A1/A2/B1 plus a rerun. Devs need it before merge. It drives one decision: ship or test more. Do not let D beat A1. That swap costs rework from stale advice. Sharp line: class tells you what counts as proof, not what reads nice. Example: S06 DBMS_SQLPA A1 beats any SPA blog. Counts are 30+ A1, 6 A2, 19 B1, 1 B2, 16 C, 8 D, 80 total. See [S06].</details>
+The compact ID keeps the prose readable. The dated record keeps the claim inspectable. If the record is not in the published page, use the research ledger rather than pretending this appendix contains a full row.
 
 In this chapter:
 
 - [How Citations Work in This Book](/07-appendix-sources/01-how-citations-work/)
 - [Version Drift Survival for Oracle Docs and OSS](/07-appendix-sources/02-version-drift-survival/)
 
-**Keep this: No ID, no date, no trust — look up the S-number before you quote it.**
+**No source ID, no version boundary, no snapshot date: the claim is not ready to ship.**
