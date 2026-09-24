@@ -46,7 +46,7 @@ Example: Read [S01] — Oracle. Tuning Guide, 19c. E96095-19, April 2025. https:
 
 Why it matters: You audit fast. You check 19c vs 26ai scope.
 
-Number: 18 papers, 6 briefs. Classes A1/A2/B1/B2/C1/C2/D. PROVEN = 2 sources or 1 strong plus rerun.
+Number: 19 papers, 6 briefs. Classes A1/A2/B1/B2/C1/C2/D. PROVEN = 2 sources or 1 strong plus rerun.
 
 <details><summary>In case you don't know about Oracle SQL tuning, it's the work of making a query use less time and less I/O.</summary>You read the plan Oracle picked. You fix bad guesses with fresh numbers or better layout. You lock the good plan so it stays fast. Steps are fixed. Save the DISPLAY_CURSOR pair first. Fix stats, index, or rewrite next. Compare with SPA last. Teams with a 40-second regress need it now. Devs shipping new SQL need it before prod. It drives one decision: change and prove, or roll back. Do not start with blind index adds. Blind indexes cost writes and space with no proof. Sharp line: tuning proves per-statement gain, not app feel. Example: an employees join jumps from 2s to 40s. AWR plus ASH names the SQL ID. XPLAN shows E-Rows 500 versus A-Rows 2M. See the Tuning Guide 19c, https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/ [S01].</details>
 

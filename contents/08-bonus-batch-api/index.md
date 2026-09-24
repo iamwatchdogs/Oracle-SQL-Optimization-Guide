@@ -5,7 +5,9 @@ order: 80
 draft: false
 ---
 
-This is NOT Oracle SQL. This is a NON-Oracle bonus about the Anthropic Message Batches API.
+This is NOT Oracle SQL. This is a NON-Oracle bonus about the Anthropic Message Batches API. Skip it unless you call Anthropic APIs. It saves AI spend. It never tunes a query.
+
+Oracle batch is a different animal: `DBMS_SCHEDULER`, `DBMS_PARALLEL_EXECUTE`, `FORALL`/`BULK COLLECT`, `executemany` array binding, SQL*Loader/external tables. That list is not in here. Do not cite this page for Oracle bulk work.
 
 A junior sent 5,000 chat replies as one batch. Users waited. No stream arrived. The fix was simple. Chat stayed on realtime. Nightly summaries moved to batch. Cost fell. Chats stayed fast. That split is the whole lesson.
 

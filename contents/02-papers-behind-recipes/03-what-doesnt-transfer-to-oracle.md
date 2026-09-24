@@ -38,7 +38,7 @@ Example: continue the sorting demo with rewrite work.
 - WeTune [P4] SIGMOD 2022, pp. 94–107, finds and checks rules on queries from the 20 most popular open-source projects, plus a repro report.
 - VeriEQL [P6] OOPSLA 2024, DOI 10.1145/3649849, arXiv:2403.03193, targets complex SQL with integrity constraints.
 - QED [P7] PVLDB 17:3602, 2024, https://www.vldb.org/pvldb/vol17/p3602-wang.pdf, offers a new prover path.
-- QueryBooster [P19] PVLDB 16:2911, 2023, DOI 10.14778/3611479.3611497, [snippet-verified], adds middleware rewrite with human review.
+- QueryBooster [P20] PVLDB 16:2911, 2023, DOI 10.14778/3611479.3611497, [snippet-verified], adds middleware rewrite with human review.
 
 None list Oracle dialect support in our pass. Mark each CANDIDATE.
 
