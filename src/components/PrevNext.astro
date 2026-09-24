@@ -1,0 +1,35 @@
+---
+interface Link {
+  href: string;
+  title: string;
+}
+
+interface Props {
+  prev?: Link | undefined;
+  next?: Link | undefined;
+}
+
+const { prev, next } = Astro.props;
+---
+
+<nav
+  aria-label="Book navigation"
+  class="grid gap-3 sm:grid-cols-2 mt-10 pt-8 border-t border-[color:var(--rule)]"
+>
+  {prev ? (
+    <a href={prev.href} rel="prev" class="pager-link">
+      <span class="pager-label">← Previous</span>
+      <span class="pager-title">{prev.title}</span>
+    </a>
+  ) : (
+    <span aria-hidden="true"></span>
+  )}
+  {next ? (
+    <a href={next.href} rel="next" class="pager-link sm:justify-end sm:text-right sm:items-end">
+      <span class="pager-label">Next →</span>
+      <span class="pager-title">{next.title}</span>
+    </a>
+  ) : (
+    <span aria-hidden="true"></span>
+  )}
+</nav>

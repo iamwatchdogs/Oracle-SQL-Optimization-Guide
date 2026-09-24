@@ -1,15 +1,27 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>Not found</title>
-  </head>
-  <body>
-    <main>
-      <h1>404</h1>
-      <p>Page not found.</p>
-      <a href="/">Back to home</a>
-    </main>
-  </body>
-</html>
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Not found" description="This page is not in the notebook.">
+  <main id="main" class="shell py-24">
+    <div class="measure">
+      <div class="title-block">
+        <h1 class="m-0 mb-4" style="font-size: var(--text-display); letter-spacing: -0.03em;">
+          Page not found
+        </h1>
+        <p class="font-[family-name:var(--font-sans)] text-[color:var(--ink-muted)] leading-relaxed max-w-[42ch] mb-8">
+          This citation does not map to a record. Return to the notebook and look up the section
+          again.
+        </p>
+        <div class="flex flex-wrap gap-4">
+          <a href="/" class="btn-primary">
+            Back to home <span aria-hidden="true">→</span>
+          </a>
+          <a href="/07-appendix-sources/" class="btn-ghost">
+            Source appendix
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</BaseLayout>

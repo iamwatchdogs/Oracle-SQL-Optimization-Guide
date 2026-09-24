@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-24T09:19:12.115715+00:00",
+  "title": "Design System: Oracle SQL Optimization Guidebook",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Near-black Paper",
+        "canonical": "#0c0c0e",
+        "tonalRamp": [
+          "#08080a",
+          "#0c0c0e",
+          "#141417",
+          "#1e1e22",
+          "#2a2a2e",
+          "#3a3a40",
+          "#5a5a60",
+          "#8a857c"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Ink Accent",
+        "canonical": "#8aa4ff",
+        "tonalRamp": [
+          "#2d4a9a",
+          "#4a65c4",
+          "#6b84e0",
+          "#8aa4ff",
+          "#a3b8ff",
+          "#c5d0ff",
+          "#dfe6ff",
+          "#f0f3ff"
+        ]
+      },
+      "zone-a": {
+        "role": "neutral",
+        "displayName": "Zone A (A1/A2)",
+        "canonical": "#e0dbd2",
+        "tonalRamp": [
+          "#8a857c",
+          "#9a958c",
+          "#b8b3a9",
+          "#d0cbc2",
+          "#e0dbd2",
+          "#ebe7e0",
+          "#f3f0ea",
+          "#faf8f5"
+        ]
+      },
+      "light-paper": {
+        "role": "neutral",
+        "displayName": "Light Paper",
+        "canonical": "#f7f5f0",
+        "tonalRamp": [
+          "#eceae3",
+          "#f2f0ea",
+          "#f7f5f0",
+          "#faf9f6",
+          "#fdfcfb",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Home title block only."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Long-form reading at 68ch."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Grades, citations, measured figures."
+      }
+    },
+    "shadows": [
+      {
+        "name": "code-frame-light",
+        "value": "0 1px 3px rgba(0,0,0,0.12)",
+        "purpose": "Expressive Code only in light mode."
+      }
+    ],
+    "motion": [
+      {
+        "name": "rise-in",
+        "value": "translateY(10px) \u2192 0, 500ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Home title-block entrance; transform-only, resting state visible."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Single solid accent control \u2014 Begin at Preface.",
+      "html": "<a class=\"ds-btn-primary\" href=\"/00-preface/\">Begin at Preface \u2192</a>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:8px;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1;padding:14px 24px;background:#8aa4ff;color:#0c0c0e;border:1px solid #8aa4ff;border-radius:2px;text-decoration:none;transition:background 150ms ease,transform 150ms ease}.ds-btn-primary:hover{background:#a3b8ff;transform:translateY(-1px)}.ds-btn-primary:focus-visible{outline:2px solid #8aa4ff;outline-offset:3px}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary control \u2014 Jump to techniques, Theme toggle.",
+      "html": "<a class=\"ds-btn-ghost\" href=\"/01-proven-techniques/\">Jump to techniques</a>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;gap:8px;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:500;line-height:1;padding:12px 20px;background:transparent;color:#ece8e0;border:1px solid #3a3a40;border-radius:2px;text-decoration:none;transition:border-color 150ms ease,color 150ms ease}.ds-btn-ghost:hover{border-color:#8aa4ff;color:#8aa4ff}"
+    },
+    {
+      "name": "Grade Chip",
+      "kind": "chip",
+      "refersTo": "grade-chip",
+      "description": "Zone-ramp evidence grade badge (A1\u2013D).",
+      "html": "<span class=\"ds-grade-chip\" data-zone=\"a\">A1</span>",
+      "css": ".ds-grade-chip{display:inline-flex;align-items:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:0.06em;text-transform:uppercase;line-height:1;padding:4px 6px;border:1px solid currentColor;border-radius:2px;background:rgba(236,232,224,0.06);white-space:nowrap}.ds-grade-chip[data-zone=\"a\"]{color:#e0dbd2}.ds-grade-chip[data-zone=\"b\"]{color:#b8b3a9}.ds-grade-chip[data-zone=\"c\"]{color:#9a958c}.ds-grade-chip[data-zone=\"d\"]{color:#8a857c}"
+    },
+    {
+      "name": "TOC Link",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Sticky section TOC row; active state is cue state.",
+      "html": "<a class=\"ds-toc-link\" data-active=\"true\" href=\"#s1\"><span class=\"num\">01</span><span>Grades name the tester</span></a>",
+      "css": ".ds-toc-link{display:flex;gap:12px;align-items:baseline;padding:6px 12px;font-family:Inter,system-ui,sans-serif;font-size:14px;color:#a8a49c;text-decoration:none;border-left:1px solid transparent;border-radius:0 2px 2px 0;transition:color 150ms ease,background 150ms ease}.ds-toc-link:hover{color:#ece8e0;background:rgba(138,164,255,0.12)}.ds-toc-link[data-active=\"true\"]{color:#8aa4ff;border-left-color:#8aa4ff;background:rgba(138,164,255,0.12);font-weight:500}"
+    },
+    {
+      "name": "Contribution Row",
+      "kind": "custom",
+      "refersTo": "custom",
+      "description": "Home numbered contents row with proof line.",
+      "html": "<a class=\"ds-contribution\" href=\"/00-preface/\"><span class=\"n\">01</span><span><span class=\"t\">Preface - Trust Runs, Not Rumors</span><span class=\"d\">How this book grades evidence\u2026</span></span></a>",
+      "css": ".ds-contribution{display:grid;grid-template-columns:40px 1fr;gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid #2a2a2e;text-decoration:none;color:#ece8e0;transition:background 150ms ease}.ds-contribution:hover{background:rgba(138,164,255,0.12);color:#ece8e0}.ds-contribution .n{font-family:'JetBrains Mono',monospace;font-size:13px;font-variant-numeric:tabular-nums;color:#9a958c}.ds-contribution .t{display:block;font-family:'Source Serif 4',Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-0.01em}.ds-contribution:hover .t{color:#8aa4ff}.ds-contribution .d{display:block;font-family:Inter,system-ui,sans-serif;font-size:14px;color:#a8a49c;margin-top:4px}"
+    },
+    {
+      "name": "Title Block",
+      "kind": "custom",
+      "refersTo": "custom",
+      "description": "Home first-viewport preprint title block with metadata margin.",
+      "html": "<section class=\"ds-title-block\"><h1>Oracle SQL Optimization for Junior Devs</h1><p class=\"abstract\">Prove every speed win twice\u2026</p><div class=\"actions\"><a class=\"ds-btn-primary\">Begin at Preface \u2192</a></div><aside class=\"meta\">68 catalog entries<br>A1 A2 B1 B2 C1 C2 D</aside></section>",
+      "css": ".ds-title-block{border-block:1px solid #3a3a40;padding-block:clamp(2.5rem,6vw,4.5rem);display:grid;grid-template-columns:1fr auto;gap:4rem}.ds-title-block h1{font-family:'Source Serif 4',Georgia,serif;font-size:clamp(2.75rem,6vw,6rem);font-weight:700;line-height:1.05;letter-spacing:-0.03em;margin:0 0 1.25rem;color:#ece8e0}.ds-title-block .abstract{font-family:Inter,system-ui,sans-serif;color:#a8a49c;max-width:42ch;margin-bottom:2rem}.ds-title-block .meta{font-family:'JetBrains Mono',monospace;font-size:13px;text-transform:uppercase;letter-spacing:0.02em;color:#9a958c;border-left:1px solid #2a2a2e;padding-left:2rem;text-align:right}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Academic Preprint",
+    "overview": "A scholarly reading surface for junior developers learning evidence-graded Oracle SQL tuning. The world borrows the apparatus of a research preprint \u2014 title block, numbered contributions, running heads, zone-ramped evidence grades \u2014 and makes it navigable as a 37-page web book. Dark near-black paper is the default ground; light mode is a full palette swap. Structure comes from hairline rules, mono tabular metadata, and one solid accent for the primary path.",
+    "keyCharacteristics": [
+      "Near-black paper with stepped neutral zone ramp (A1\u2013D) for evidence grades",
+      "Source Serif 4 for reading/display; Inter for UI chrome; JetBrains Mono for grades and measured figures",
+      "One restrained ink accent for primary action and active wayfinding only",
+      "Hairline title-block framing and rules instead of cards",
+      "Sticky section TOC as margin apparatus",
+      "Force annotation: measured values render as mono tabular inline figures"
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "The accent appears on at most one solid control per viewport and on the active wayfinding state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Measure Rule",
+        "body": "Body prose never exceeds 68ch. Display never exceeds 6rem. Tracking never tighter than -0.04em.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do keep the accent on one solid control and the active TOC state per viewport.",
+      "Do render grades, citations, and measured numbers in JetBrains Mono with tabular figures.",
+      "Do frame major regions with 1px hairlines and title-block rules, not cards.",
+      "Do hold body measure at 68ch and display at max 6rem.",
+      "Do theme browser surfaces from the palette tokens.",
+      "Do ship dark as default with a complete light palette swap."
+    ],
+    "donts": [
+      "Don't add kickers or eyebrows above headings.",
+      "Don't use side accent stripes >1px on list items, callouts, or TOC rows.",
+      "Don't put Unicode glyph icons where an authored SVG belongs.",
+      "Don't introduce a second solid accent button or a hero-metric card grid.",
+      "Don't animate content from opacity 0 \u2014 first paint is the resting state.",
+      "Don't rewrite, reorder, or reword the frozen notebook content."
+    ]
+  }
+}

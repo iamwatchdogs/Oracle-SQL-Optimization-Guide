@@ -1,0 +1,157 @@
+---
+/**
+ * Sticky section TOC with scroll-spy (desktop) and collapsible disclosure (mobile).
+ * Cue states: active heading is deep-linkable via hash.
+ */
+interface Heading {
+  id: string;
+  text: string;
+  depth: number;
+}
+
+interface Props {
+  headings: Heading[];
+  /** Label shown above the list. */
+  label?: string;
+}
+
+const { headings, label = 'On this page' } = Astro.props;
+---
+
+{/* Desktop: sticky aside */}
+<aside
+  class="hidden lg:block sticky top-16 self-start max-h-[calc(100dvh-5rem)] overflow-y-auto"
+  aria-label={label}
+>
+  <p class="running-head mb-3 pl-3">{label}</p>
+  <nav id="toc-desktop" class="flex flex-col gap-0.5" data-toc>
+    {headings.map((h, i) => (
+      <a
+        href={`#${h.id}`}
+        class="toc-link"
+        data-toc-link={h.id}
+        data-active={i === 0 ? 'true' : 'false'}
+        style={h.depth > 2 ? 'padding-left: 1.5rem;' : undefined}
+      >
+        <span class="toc-num">{String(i + 1).padStart(2, '0')}</span>
+        <span class="truncate">{h.text}</span>
+      </a>
+    ))}
+  </nav>
+</aside>
+
+{/* Mobile: disclosure */}
+<details class="lg:hidden mb-6" data-toc-mobile>
+  <summary class="toc-mobile-summary">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      class="toc-caret shrink-0 transition-transform duration-150"
+    >
+      <path d="M9 18l6-6-6-6"></path>
+    </svg>
+    <span>{label}</span>
+    <span class="meta ml-auto" data-toc-mobile-current>
+      {headings[0]?.text ?? ''}
+    </span>
+  </summary>
+  <nav class="flex flex-col gap-0.5 py-2" data-toc>
+    {headings.map((h, i) => (
+      <a
+        href={`#${h.id}`}
+        class="toc-link"
+        data-toc-link={h.id}
+        data-active={i === 0 ? 'true' : 'false'}
+        style={h.depth > 2 ? 'padding-left: 1.5rem;' : undefined}
+      >
+        <span class="toc-num">{String(i + 1).padStart(2, '0')}</span>
+        <span>{h.text}</span>
+      </a>
+    ))}
+  </nav>
+</details>
+
+<script>
+  function setActiveState(
+    links: HTMLAnchorElement[],
+    id: string,
+    currentLabel: Element | null,
+  ): void {
+    for (const link of links) {
+      const match = link.dataset['tocLink'] === id;
+      link.dataset['active'] = match ? 'true' : 'false';
+    }
+    const active = links.find((l) => l.dataset['tocLink'] === id);
+    if (currentLabel && active) {
+      const text = active.querySelector('.truncate, span:last-child')?.textContent;
+      if (text) {
+        currentLabel.textContent = text;
+      }
+    }
+  }
+
+  function closeMobileOnJump(links: HTMLAnchorElement[], mobile: HTMLDetailsElement | null): void {
+    for (const link of links) {
+      link.addEventListener('click', () => {
+        if (mobile?.open && window.matchMedia('(max-width: 1023px)').matches) {
+          mobile.open = false;
+        }
+      });
+    }
+  }
+
+  function observeSections(
+    sections: HTMLElement[],
+    onActive: (id: string) => void,
+  ): IntersectionObserver {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .toSorted((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]?.target.id) {
+          onActive(visible[0].target.id);
+        }
+      },
+      { rootMargin: '-15% 0px -65% 0px', threshold: 0 },
+    );
+    for (const section of sections) {
+      observer.observe(section);
+    }
+    return observer;
+  }
+
+  function setupToc(): void {
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
+    if (links.length === 0) {
+      return;
+    }
+
+    const ids = links.map((a) => a.dataset['tocLink'] ?? '');
+    const sections = ids
+      .map((id) => document.querySelector<HTMLElement>(`#${CSS.escape(id)}`))
+      .filter((el): el is HTMLElement => el !== null);
+
+    const currentLabel = document.querySelector('[data-toc-mobile-current]');
+    const mobile = document.querySelector<HTMLDetailsElement>('[data-toc-mobile]');
+
+    observeSections(sections, (id) => {
+      setActiveState(links, id, currentLabel);
+    });
+    closeMobileOnJump(links, mobile);
+
+    if (location.hash) {
+      setActiveState(links, location.hash.slice(1), currentLabel);
+    }
+  }
+
+  setupToc();
+  document.addEventListener('astro:page-load', setupToc);
+</script>

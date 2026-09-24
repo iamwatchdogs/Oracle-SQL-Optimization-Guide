@@ -1,0 +1,116 @@
+---
+/**
+ * Home title block — FIRST VIEWPORT.
+ * Full-bleed paper title-block: display title, abstract, 9 numbered
+ * contributions, solid "Begin at Preface", mono tabular metadata
+ * with zone-ramp grade chips (A1–D).
+ */
+interface Contribution {
+  href: string;
+  title: string;
+  description?: string | undefined;
+}
+
+type Zone = 'a' | 'b' | 'c' | 'd';
+
+interface Props {
+  title: string;
+  description: string;
+  contributions: Contribution[];
+  meta: string[];
+  gradeZones?: Zone[];
+  gradeLabels?: string[];
+}
+
+const { title, description, contributions, meta, gradeZones, gradeLabels } = Astro.props;
+const showGrades = gradeZones !== undefined && gradeLabels !== undefined && gradeZones.length > 0;
+---
+
+<section class="title-block" aria-labelledby="book-title">
+  <div class="shell">
+    <div class="grid lg:grid-cols-[1fr_auto] gap-8 lg:gap-16 items-start">
+      <div class="min-w-0">
+        <h1
+          id="book-title"
+          class="rise rise-1 font-[family-name:var(--font-serif)] font-bold leading-[1.05] tracking-[-0.03em] mb-5"
+          style="font-size: var(--text-display);"
+        >
+          {title}
+        </h1>
+
+        <p
+          class="rise rise-2 font-[family-name:var(--font-sans)] text-[color:var(--ink-muted)] leading-relaxed max-w-[42ch] mb-8"
+          style="font-size: clamp(1.05rem, 1.5vw, 1.25rem);"
+        >
+          {description}
+        </p>
+
+        <div class="rise rise-3 flex flex-wrap items-center gap-4">
+          <a href="/00-preface/" class="btn-primary">
+            Begin at Preface
+            <span aria-hidden="true">→</span>
+          </a>
+          <a href="/01-proven-techniques/" class="btn-ghost">
+            Jump to techniques
+          </a>
+        </div>
+      </div>
+
+      {/* Mono metadata margin — tabular figures + zone-ramp grade chips */}
+      <aside
+        class="rise rise-4 lg:text-right lg:border-l lg:border-[color:var(--rule)] lg:pl-8 pt-2 lg:pt-0"
+        aria-label="Metadata"
+      >
+        <dl class="meta space-y-2">
+          {meta.map((line) => (
+            <div class="lg:text-right">
+              <dt class="sr-only">Metadata</dt>
+              <dd>
+                {line === 'grades' && showGrades ? (
+                  <span
+                    class="inline-flex flex-wrap gap-1 justify-end"
+                    aria-label="Evidence grades"
+                  >
+                    {gradeLabels.map((label, gi) => (
+                      <span class="grade-chip" data-zone={gradeZones[gi]}>
+                        {label}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  line
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </aside>
+    </div>
+  </div>
+</section>
+
+{/* Nine numbered contributions */}
+<section class="shell mt-0 pb-16" aria-labelledby="contributions-heading">
+  <div class="max-w-[52rem]">
+    <div class="flex items-baseline justify-between gap-4 pt-10 pb-4 border-b border-[color:var(--rule-strong)]">
+      <h2 id="contributions-heading" class="running-head !text-[color:var(--ink-muted)] !text-xs">
+        Contents · nine sections
+      </h2>
+      <span class="meta">09 entries</span>
+    </div>
+
+    <ol class="list-none p-0 m-0">
+      {contributions.map((c, i) => (
+        <li>
+          <a href={c.href} class="contribution">
+            <span class="contribution-num">{String(i + 1).padStart(2, '0')}</span>
+            <span class="min-w-0">
+              <span class="contribution-title block">{c.title}</span>
+              {c.description && <span class="contribution-desc block">{c.description}</span>}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
