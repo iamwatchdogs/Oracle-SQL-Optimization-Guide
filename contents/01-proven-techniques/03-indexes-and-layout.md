@@ -5,97 +5,69 @@ order: 13
 draft: false
 ---
 
-"Do I just index every column? No."
+An index is a read shortcut with a write bill. A layout change is a way to avoid reading work that the query never needed.
 
-`employees(id,name,dept_id,salary)` has 50M rows. `SELECT * FROM employees WHERE dept_id = 10` returns 40K rows and takes 9 seconds with `TABLE ACCESS FULL`. You add five indexes. Writes slow down. Reads stay slow. More objects did not mean less I/O.
+The first question is not “which index should I add?” It is “where does the work happen, and what physical structure can remove it without breaking the workload?”
 
-An index is like a book index, except it speeds selective reads while taxing each write and using disk space. Drop the book now. Selective reads gain. Writes pay. Plans prove it.
+## 1. Design an index for the access path
 
-<details><summary>In case you don't know about a B-tree path, it's how Oracle walks an ordered index to rows.</summary>Root to branch to leaf, then rowid to the table row. Range scan fits selective filters. Unique scan fits one key. Fast full scan fits index-only reads. Skip scan fits narrow edge cases. No setup step creates a path. You create the index, gather stats, then the optimizer picks the path by cost. Check `CLUSTERING_FACTOR` in `ALL_INDEXES`. Low means leaf order matches table blocks. High means scattered reads. Devs use B-tree paths when a filter matches few rows out of millions. They drive less I/O for selective reads. Do not use a full scan for selective reads. Full scans read all blocks and waste buffer gets on 100-row results. Sharp line: it is the cheapest route to few rows when order lines up. Example: `WHERE id BETWEEN 1000 AND 1100` shows INDEX RANGE SCAN plus TABLE ACCESS BY INDEX ROWID BATCHED with A-Rows 101. See [T-24] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/optimizer-access-paths.html</details>
+A B-tree index stores ordered keys and row identifiers. The optimizer may choose a range scan, unique scan, fast full scan, skip scan, or another documented access path when the cost model supports it. The index is a candidate shape, not a guarantee that the optimizer will use it. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)
 
-<details><summary>In case you don't know about partitioning, it's splitting a big table by key values.</summary>Time keys are common. Hash, range, and list each have set rules. Pruning skips whole parts at run time based on your predicate. You define it at CREATE time with a partition key. You query with a plain predicate on that key. Verify with DISPLAY_CURSOR and look for `PARTITION RANGE SINGLE` plus PSTART and PSTOP. Owners of large sales or log tables use it when queries touch one week out of 104. It drives partition elimination, cutting I/O by orders of magnitude. Do not put a function on the key. `TRUNC(sale_date)` blocks pruning and forces `PARTITION RANGE ALL`. Sharp line: it turns a 104-part scan into a one-part read. Example: `WHERE sale_date >= DATE '2026-09-01' AND sale_date < DATE '2026-09-02'` shows PSTART=17 PSTOP=17. See [T-26] https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/partition-pruning.html</details>
+For a selective predicate, check the plan and the clustering factor. A high clustering factor can mean that index keys point to table blocks spread across the table, so a range scan may visit more blocks than expected. Check `CLUSTERING_FACTOR` in the dictionary before you keep the design. Do not add five indexes and hope the optimizer discovers the right one. Each extra index consumes space and adds work to inserts, updates, and deletes.
 
-### 1. Design B-tree use for selective reads, check clustering
+Bitmap indexes and index-organized tables are different tools. Bitmap indexes can fit suitable read-heavy patterns, but concurrent DML changes the cost. Test that trade-off with a representative load. An index-organized table changes the table's physical organization; it is not a drop-in B-tree shortcut. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)
 
-Plain claim: an index helps when few rows match and table order matches index order.
+## 2. Remove partitions and precomputed work
 
-Naive progression:
-
-```sql
--- Naive: index on (dept_id) but rows for dept 10 scatter across all blocks
-SELECT * FROM employees WHERE dept_id = 10;
--- Plan: INDEX RANGE SCAN + TABLE ACCESS BY INDEX ROWID, 40K random block reads. Slower than FULL.
-```
-
-Check `CLUSTERING_FACTOR` in `ALL_INDEXES`. High means index order fights table order. Each key points to a new block. Low means keys in one leaf point to the same blocks. Docs: Concepts, Index Clustering Factor (https://docs.oracle.com/en/database/oracle/oracle-database/23/cncpt/indexes-and-index-organized-tables.html) [T-24].
-
-Fixed:
+Partitioning is useful when a query touches a known subset of a large table. A predicate on the partition key can enable pruning:
 
 ```sql
--- Fixed: selective predicate that fits the layout
-SELECT id, name FROM employees WHERE id BETWEEN 1000 AND 1100;
--- Plan: INDEX RANGE SCAN on EMP_ID_PK + TABLE ACCESS BY INDEX ROWID BATCHED, A-Rows=101
+SELECT COUNT(*)
+FROM sales
+WHERE sale_date >= DATE '2026-09-01'
+  AND sale_date <  DATE '2026-09-02';
 ```
 
-What the plan shows: `INDEX RANGE SCAN` for bounded ranges, `INDEX UNIQUE SCAN` for `WHERE id = 42`, `INDEX FAST FULL SCAN` when the index covers the query without table access, `INDEX SKIP SCAN` in narrow cases. Each has set conditions in ch.8 [T-24]. Keep bitmaps to warehouse patterns. Docs flag DML concurrency limits, so test concurrent writes before use on OLTP [T-25].
+Verify the actual plan. Look for a single partition or the expected partition range, not just the word “partition.” A function on the key or a type conversion can prevent pruning. [S36](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/partition-concepts.html)
 
-Why it matters: cost includes clustering factor. Bad factor kills range-scan value. No factor check, no index.
+A materialized view moves repeated aggregation out of the request path. It trades freshness and refresh work for read speed. Enable query rewrite only when the view's contents, constraints, and refresh policy fit the business meaning of the result. A result cache is another option for deterministic, slow-changing results; it is not a cache for data that must change immediately. [S44](https://docs.oracle.com/en/database/oracle/oracle-database/26/dwhsg/basic-materialized-views.html) [S45](https://docs.oracle.com/en/database/oracle/oracle-database/26/lnpls/pl-sql-function-result-cache.html)
 
-### 2. Prune partitions and precompute repeats
+## 3. Use hardware and advanced structures only when the bill fits
 
-Plain claim: skip partitions, or skip the work itself.
+In-Memory can help scan-heavy analytic queries by keeping a columnar representation of hot objects. Check the plan for the documented in-memory access and aggregation operations, then check edition and entitlement requirements. Exadata Smart Scan and storage-index offload are Exadata-specific. They should not be presented as generic Oracle row-store improvements. [S37](https://docs.oracle.com/en/database/oracle/oracle-database/19/inmem/intro-to-in-memory-column-store.html) [S38](https://www.oracle.com/database/technologies/exadata/software/smartscan/)
 
-Naive progression:
+### Index compression: read the restrictions
 
-```sql
--- Naive: 104 weekly partitions, filter on TRUNC(load_date) blocks pruning
-SELECT COUNT(*) FROM sales WHERE TRUNC(sale_date) = DATE '2026-09-01';
--- Plan: PARTITION RANGE ALL, all 104 parts scanned
-```
+Index compression has more choices than “compressed or not.” `COMPRESS n` is prefix or key compression. The 19c Administrator's Guide documents it for non-unique indexes where a ROWID is appended to make the key unique, and for unique multicolumn indexes. `COMPRESS ADVANCED LOW` and `COMPRESS ADVANCED HIGH` use block-level advanced compression; the guide documents them for supported indexes, including indexes that are not good prefix-compression candidates, and allows partition-level decisions. [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html)
 
-Fixed:
+The restrictions matter:
 
-```sql
--- Fixed: predicate on the key, no function
-SELECT COUNT(*) FROM sales WHERE sale_date >= DATE '2026-09-01' AND sale_date < DATE '2026-09-02';
--- Plan: PARTITION RANGE SINGLE, PSTART=17 PSTOP=17, TABLE ACCESS FULL on one part
-```
+- Advanced index compression is not supported for bitmap indexes or index-organized tables.
+- `LOW` cannot be specified on a single-column unique index.
+- `HIGH` has additional CPU cost compared with `LOW`; `LOW` has only minimal CPU overhead in the documented comparison.
+- `LOW` requires database compatibility 12.1.0 or later; `HIGH` requires 12.2.0 or later.
 
-What the plan shows: `PARTITION RANGE SINGLE` for one part, `PARTITION RANGE ITERATOR` for a range. Hash only prunes equality and `IN` lists. Functions and type conversions on the key break pruning [T-26]. For equi-partitioned joins on the key, look for partition-wise distribution [T-27].
+Compression is also an operational change. Rebuilding an index requires more disk space, while coalescing is the lower-cost space path in the guide's comparison. Both consume time and change the physical index. Record segment bytes, compression state, rebuild or coalesce work, and the query-side V0 result. Space saved by itself is not proof of a faster statement. [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html)
 
-Second progression, repeats:
+### Parallel execution: a resource decision
 
-```sql
--- Naive: monthly rollup scans 200M rows each run
-SELECT TRUNC(sale_date,'MM'), SUM(amount) FROM sales GROUP BY TRUNC(sale_date,'MM');
--- Plan: TABLE ACCESS FULL + HASH GROUP BY, 90 seconds
--- Fixed: materialized view with ENABLE QUERY REWRITE, QUERY_REWRITE_ENABLED=TRUE
-CREATE MATERIALIZED VIEW sales_mth_mv ENABLE QUERY REWRITE AS
-SELECT TRUNC(sale_date,'MM') m, SUM(amount) s FROM sales GROUP BY TRUNC(sale_date,'MM');
--- Same SELECT now shows MAT_VIEW REWRITE ACCESS, 0.4 seconds
-```
+Parallel execution can reduce elapsed time for a single large scan, join, partitioned-index scan, or bulk operation when the data set is large, concurrency is low, elapsed time matters, and the system has enough CPU, memory, and I/O bandwidth. Oracle's 19c guidance describes an underutilized-CPU condition, including a typical threshold under 30% in its recommendation context. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html)
 
-Docs: Data Warehousing Guide basic rewrite (https://docs.oracle.com/en/database/oracle/oracle-database/19/dwhsg/basic-query-rewrite-materialized-views.html) [T-28]. Stale data is the trade. Set refresh policy with eyes open. For hot read-mostly results, use result cache. Plan shows `RESULT CACHE`. Track hits via `DBMS_RESULT_CACHE`. Only for deterministic, slow-changing results [T-29].
+The same guidance warns against parallel execution for small data sets, high-concurrency workloads, short online transactions, and systems with limited I/O bandwidth or heavily used CPU and memory. On an overutilized system, parallel execution **may reduce performance**, not merely fail to improve it. A single-session benchmark cannot expose that failure mode.
 
-Why it matters: pruning can cut work by orders of magnitude. Rewrite cuts repeat work to near zero. Both must appear in the plan. (One aside: I still grep plans for PARTITION before I trust them. Back to layout.)
+Run a concurrency-realistic test with HammerDB or Swingbench. Record elapsed time, throughput, CPU, memory, and I/O. If throughput falls or resource pressure rises, reject the parallel change even when one serial run looks faster. [S65](https://www.hammerdb.com/) [S66](https://www.dominicgiles.com/swingbench/)
 
-### 3. Use memory, hardware, and auto help where they fit
+Automatic Indexing can identify index gaps, create candidates for verification, retain useful indexes, and drop unused ones. Availability and licensing depend on the database release, edition, and service entitlement. The research did not settle the exact licensing requirement, so check the current Oracle licensing guide instead of repeating “Tuning Pack required” as a universal fact. [S15](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_AUTO_INDEX.html) [S16](https://doi.org/10.14778/3750601.3750616)
 
-Plain claim: scan-heavy analytics wants columnar or offload. OLTP wants neither.
+SQL Access Advisor can propose indexes, materialized views, and partitioning changes from a Tuning Set. Treat its output as a proposal until V0 measures the change. [S35]
 
-Naive progression:
+<details><summary>B-tree and partition checks worth keeping</summary>
 
-```sql
--- Naive: full scan aggregate on row store, 60 seconds
-SELECT dept_id, AVG(salary) FROM employees GROUP BY dept_id;
-```
+For a B-tree design, record the intended access path, selectivity, clustering factor, and write-load test. For a partitioned design, record the partition predicate and the `PARTITION START`/`PARTITION STOP` evidence in the executed plan. If either artifact is missing, the design is still a hypothesis. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) [S36](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/partition-concepts.html)
+</details>
 
-Fixed for analytics: mark hot object `INMEMORY`, set `INMEMORY_SIZE`, rerun. Plan shows `TABLE ACCESS INMEMORY FULL` and `VECTOR GROUP BY` for aggregation [T-30/T-43]. Docs: In-Memory Guide 19c (https://docs.oracle.com/en/database/oracle/oracle-database/19/inmem/intro-to-in-memory-column-store.html). Check Enterprise Edition license scope first.
+No live Oracle database was available for the research pass. `sqlcl` and `sqlplus` were not on `PATH`. The plans, timings, and load results in this chapter are illustrative procedures, not measurements produced by the research pass.
 
-On Exadata only, check cell offload stats (`cell physical IO bytes saved for offload`) for Smart Scan plus storage-index skips [T-31]. Offload needs direct-path full-scan shapes plus Exadata storage — never cite this on non-Exadata. Docs: Exadata Smart Scan vendor page, graded A2* (product page, weakest A2 — not a brief) (https://www.oracle.com/database/technologies/exadata/software/smartscan/).
+Source IDs and technique IDs resolve in `.agents/research/07-sources-bibliography.md` and `.agents/research/01-proven-techniques-catalog.md`. Compression and parallel execution use [S76] and [S77].
 
-Two late additions. Index key compression (`COMPRESS n` or `COMPRESS ADVANCED LOW/HIGH`) packs more keys per block. Check `SELECT compression FROM all_indexes`. LOW needs 12.1.0+, HIGH needs 12.2.0+, HIGH adds CPU cost. Not for bitmap or IOT. Docs: Admin Guide 19c ch.21 §21.3.8 [T-67]. Parallel execution (`PX COORDINATOR`, `PX SEND`) cuts elapsed time on large scans with low concurrency and spare CPU plus I/O. It harms high-concurrency OLTP and overused systems. Test under load with HammerDB or Swingbench, not single-session only. Docs: VLDB and Partitioning Guide ch.8 [T-68]. Automatic Indexing finds gaps, tests invisible, keeps winners. Vendor paper showed ~15% gain on one customer load with up to 60% space-reclaim potential (VLDB 2025) [T-32] — existence proof, not a promise. License is Tuning Pack — verify. Check `DBMS_AUTO_INDEX.REPORT_ACTIVITY(NULL, NULL, 'ALL', 'TEXT', 'ALL')` — 5 args, check names in your release ref (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_AUTO_INDEX.html). SQL Access Advisor proposes indexes, MVs, partitioning from a Tuning Set. Proposals need V0 [T-33]. Unverified on your schema — test on your schema.
-
-Why it matters: each shortcut has a bill. Memory, license, CPU, writes. The plan plus rerun proves the bill was worth it.
-
-**Keep this: Prove less I/O in the plan, not more objects in the schema. Show the operation, then the rerun delta.**
+**Artifact: an index/layout decision table with the access path, resource bill, load test, and rollback operation.**

@@ -5,77 +5,48 @@ order: 30
 draft: false
 ---
 
-Picture a junior with 4 screens open, each showing a different plan for the same query.
+A fast query is not evidence. Match every claim to an instrument that can prove or reject it.
 
-No guess ships. Each claim gets one tool that can prove or reject it.
+This chapter keeps the toolchain small: capture the input, read the executed plan, compare the same workload, test the failure modes, and reject anything that cannot show its work. The child pages carry the runbooks; this page is the map.
 
-You can run SELECT. You have seen a slow query. You have heard "it feels slow after the stats job." That is the baseline. This chapter starts there.
+> **Execution boundary:** no live Oracle database was available for this editorial pass. The statements here are runbooks and illustrative outputs, not measurements from a production system. Validate package signatures, privileges, licences, and data on a test or staging database before running them.
 
-A toolbox is like a test bench, except each tool checks one claim and writes down its proof.
+## Match the claim to the tool
 
-<details><summary>In case you don't know about deterministic, it's output you can repeat with machine-readable proof when inputs and DB state match.</summary>It means same inputs plus same DB state gives the same class of output, with machine-readable proof attached. You set it up by freezing inputs: save SQL text, binds, and stats in a tuning set, run `DBMS_SQLPA` test execute before and after, and keep medians per Hoefler and Belli SC15. Loop builders use it when a claim says faster. It drives accept or rollback. Do not use one-off wall time. Single runs swing with cache and load and fake wins that vanish at 10 a.m. Sharp line: it makes a speed claim repeatable. Example: `REPORT_ANALYSIS_TASK` shows improved, regressed, or unchanged per SQL on the same frozen set. Unverified — check your noise floor. See [S06][S58] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html</details>
+| Claim                              | Minimum evidence                                                                                      | Decision                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| The plan or estimate changed       | SQL ID, child number, plan hash, predicates, `E-Rows`, `A-Rows`, selectivity, rows examined, and cost | Change recorded; not yet a win                       |
+| The workload improved              | Same frozen STS, named trials, raw samples, and measured deltas                                       | Compare against the A/A floor and no-regression rule |
+| The change holds under concurrency | Realistic mix, errors, waits, throughput, and guardrail events                                        | Promote only after a controlled load test            |
+| The rewrite preserves meaning      | Parse, lint, result assertions, and a controlled execution test                                       | Approve only after the semantic gate                 |
 
-## 1. Measure first, argue later
+A plan-hash change is a change, not a win. A clean lint result is a selected ruleset passed, not a proof that the SQL is correct. A lower wall-clock number is not useful until the input and comparison are fixed.
 
-Plain claim: the executed plan is the truth. Not the guessed plan. The run plan.
+## Child pages
 
-Worked example: run your SQL, then read the cursor cache:
+- [Measure With XPLAN and Monitor](/03-toolbox/01-measure-with-xplan-and-monitor/) — executed plans, runtime rows, and ASH evidence.
+- [Freeze Work With STS](/03-toolbox/02-freeze-work-with-sts/) — frozen workload, named trials, and comparison evidence.
+- [Load Test Without Prod](/03-toolbox/03-load-test-without-prod/) — realistic concurrency, resource pressure, and guardrails.
+- [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/) — parse, lint, and result assertions before database time.
 
-```sql
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR());
-```
+## Checklist / artifact
 
-For a known SQL ID, name it:
+- [ ] Tag the run and save the SQL ID, child number, and plan hash.
+- [ ] Save the STS identity, binds, host, workload window, and metric.
+- [ ] Keep before/after XPLAN, raw trial samples, and the comparison report.
+- [ ] Record rollback, privilege, licensing, and test-target assumptions.
 
-```sql
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR('gwp663cqh5qbf', 0, 'ALLSTATS LAST'));
-```
+**Artifact:** a reproducible before/after evidence set, not a screenshot.
 
-Shapes above come from Oracle DBMS_XPLAN 19c docs (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html).
+## References
 
-How to read it: check Plan hash value at the top. Check Rows (optimizer guess) against A-Rows (real rows) per line. Check timing per line.
+- [DBMS_XPLAN, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
+- [DBMS_SQLPA, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
+- [Managing SQL Tuning Sets, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
+- [Database Performance Tuning Guide, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/)
+- [HammerDB](https://www.hammerdb.com/)
+- [sqlglot](https://github.com/tobymao/sqlglot)
+- [SQLFluff](https://docs.sqlfluff.com/)
+- [Hoefler and Belli, SC15 benchmarking methodology](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf)
 
-Decision it drives: hash changed means the plan changed. Big guess-vs-real gap means the estimate pushed a bad choice. No hash, no verdict.
-
-## 2. Freeze the work, then compare
-
-Plain claim: one fast run proves nothing. Same workload twice proves a change.
-
-Worked example: load top SQL into one set with DBMS_SQLSET.CREATE_SQLSET plus LOAD_SQLSET, then build a task:
-
-```sql
-VARIABLE tname VARCHAR2(64);
-EXEC :tname := DBMS_SQLPA.CREATE_ANALYSIS_TASK(sqlset_name => 'my_sts');
-EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(task_name => :tname, execution_type => 'test execute', execution_name => 'before_change');
-```
-
-After your change, run `test execute` again as `after_change`, then `compare performance`. Shapes from Oracle DBMS_SQLPA 19c docs (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) and STS guide (https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html).
-
-How to read it: open REPORT_ANALYSIS_TASK. Look for improved, regressed, unchanged per statement. Default is elapsed_time. You can set buffer_gets.
-
-Decision it drives: regressed means stop. Improved across the set means keep testing under load.
-
-## 3. Prove safe before prod, catch shape faults early
-
-Plain claim: solo wins can fail at 10 a.m. with 30 sessions. Mechanical faults can fail before you even connect.
-
-Worked example A — load: drive a copy with HammerDB (GPL-3.0, 786 stars, last push 2026-09-18, https://www.hammerdb.com/) from hammerdbcli with a Tcl script. Watch Resource Manager kills in `V$RSRC_*` plus Quarantine blocks in `DBA_SQL_QUARANTINE` set via `DBMS_SQLQ`. Zero quarantine hits is the gate. Kill is Manager. Block is Quarantine. Do not mix them.
-
-Worked example B — static: parse with sqlglot (`parse_one`, MIT, 9628 stars, https://github.com/tobymao/sqlglot), lint with SQLFluff (`sqlfluff lint --dialect oracle`, MIT, 9883 stars, https://docs.sqlfluff.com/). Unverified — test on your schema for exact config paths.
-
-One aside: four screens, one query, zero proof — classic. Back to the proof.
-
-How to read it: load output gives throughput plus errors plus quarantine events. Lint output gives rule hits plus file and line.
-
-Decision it drives: quarantine hit means fix the plan. Lint hit means fix the text. Stored-result fail means the rewrite changed meaning.
-
-<details><summary>In case you don't know about SQL Tuning Sets, it's a stored copy of SQL text, binds, and stats you can replay and move.</summary>A tuning set freezes statements plus binds plus metrics for replay. `DBMS_SQLSET` is the newer interface in 19c. You create a set, capture the cursor cache over a window, then lock it. Both SPA runs read that same name. Test leads use it before any claim. It drives one decision: is this the exact workload both runs graded. Do not compare live cache to live cache. Live traffic shifts binds and order, and the cost is a void verdict. Sharp line: same set in, fair compare out. Example: capture 300 seconds at peak, inspect the top 20 by buffer_gets, and hand the set name to `DBMS_SQLPA.CREATE_ANALYSIS_TASK`. See [T-06] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html</details>
-
-In this chapter:
-
-- [Measure With XPLAN and Monitor](/03-toolbox/01-measure-with-xplan-and-monitor/)
-- [Freeze Work With STS](/03-toolbox/02-freeze-work-with-sts/)
-- [Load Test Without Prod](/03-toolbox/03-load-test-without-prod/)
-- [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/)
-
-**Keep this: Match each claim to one tool that can prove or reject it.**
+**Keep this: match every claim to a tool that can prove or reject it.**

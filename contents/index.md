@@ -1,69 +1,66 @@
 ---
 title: Oracle SQL Optimization for Junior Devs
-description: Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.
+description: 'A short book from 68 catalog entries: 67 PROVEN techniques and one CONDITIONAL diagnostic, plus safe ship habits.'
 order: 0
 draft: false
 ---
 
-Tuesday 2 a.m. your query stalls. A blog hint makes it fast once. At 9 a.m. it stalls again.
+A fast query is a claim until you can reproduce it.
 
-This book proves a change is faster, then ships it safe.
+This book is about turning Oracle SQL performance guesses into decisions. You will learn how to find the statement that matters, repair the optimizer's input, test one change at a time, and keep the evidence that lets another engineer repeat the result.
 
-You know SELECT, JOIN, WHERE. You copy tips when stuck. Baseline set.
+You already know the basic vocabulary: `SELECT`, `JOIN`, `WHERE`, and a plan. That is enough to start. The missing skill is not collecting more tips. It is knowing which tip applies to your data, your release, and your workload.
 
-This book is a counter scale, except it weighs plans and reads instead of flour.
+## The catalog is not a magic trick list
 
-One aside: I shipped one too. Back to the check.
+The research catalog has **68 entries**: **67 PROVEN** and **one CONDITIONAL**, T-08. That means 67 techniques meet the research bar and one community diagnostic bundle is useful but not peer to Oracle's documented tools.
 
-## 1. Tips are hints, grades decide
+`PROVEN` has a narrow meaning here:
 
-Claim: A tip proves nothing until a stronger source backs it.
+- The claim has authoritative documented evidence, such as Oracle versioned documentation, an Oracle technical brief, or a paper, or it has at least two independent verified sources.
+- The research names a deterministic, reproducible verification procedure for it.
+- The procedure has not been confused with a result. This pass did not run a live Oracle database.
 
-Example: A blog says hints always fix slow JOINs. Grade it D. D means blog or forum. Check the 19c Tuning Guide E96095-19 April 2025 [S01] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/ . That is A1. D plus A1 is still not PROVEN. PROVEN needs 2 sources, or 1 strong source plus a rerun. Mark D. Require a rerun.
+So the catalog is **not** 68 fixes that someone benchmarked for you. It is 68 evidence-backed starting points, each with a test you can run against your own database.
 
-Why it matters: You keep only claims you can re-test.
+## The loop is short
 
-Number: Catalog holds 68 entries. D alone passed zero.
+Every chapter follows the same loop:
 
-Progression 1: tip to D to A1 to rerun.
-Progression 2: guess to fact to trace.
+1. **Name the target.** Find the SQL ID, time window, wait, plan, and business outcome that matter.
+2. **Freeze the workload.** Use a SQL Tuning Set or another repeatable input so the before and after runs ask the same question.
+3. **Change one thing.** One statistics change, index, rewrite, parameter, or plan control can teach you something. Four changes teach you almost nothing.
+4. **Measure twice or more.** Compare the same workload, report the noise, and keep enough repetitions to avoid a lucky result.
+5. **Keep the plan evidence.** Save the before and after `DBMS_XPLAN` output. A faster number with no visible plan is still an incomplete diagnosis.
+6. **Decide and record.** Accept, reject, or roll back. The decision belongs with the task ID, metrics, plan, sources, and rollback command.
 
-## 2. One change, two runs
+The primary measurement spine is `DBMS_SQLPA`: create an analysis task, run `test execute` before and after a change, and run `compare performance` on the same SQL Tuning Set. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf)
 
-Claim: One run is noise. Two runs on one workload is signal.
+## The tooling count is a taxonomy, not a marketing number
 
-Example: Take tiny employees and departments. Freeze them in a Tuning Set for V0. Step 1: save the workload. Step 2: DBMS_SQLPA test execute for before [S06] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html . Step 3: apply one change. Step 4: test execute for after, compare on elapsed_time and buffer_gets. Step 5: repeat and keep medians per Hoefler and Belli SC15 [S58] https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf . Step 6: save DISPLAY_CURSOR for both, as covered in [S01]. Compare hash, E-Rows vs A-Rows, predicates. Unverified: sqlcl and sqlplus were missing, so no runs here. Run V0 on your DB.
+The deterministic-tooling research counts **18 Oracle built-in tool rows, 3 client rows, and 12 external rows**: **33 tool entries**. SQL Quarantine is a separate guardrail row, so the rendered inventory has **34 displayed rows**. The external rows include candidate tools; a candidate is not automatically an Oracle-proven technique. [S03](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/) [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
 
-Why it matters: Same input and medians stop false wins.
+## What the chapters give you
 
-Number: 33 tools back it. DBMS_SQLPA [S06] and DBMS_XPLAN [S01] are C1.
+- [Preface](/00-preface/) explains evidence grades, scope, and the V0 proof loop.
+- [Proven Techniques](/01-proven-techniques/) works through the catalog in eight groups: measure, statistics, layout, rewrites, controls, advisors, application safety, and guardrails.
+- [Papers Behind Recipes](/02-papers-behind-recipes/) separates Oracle-authored/specific evidence from promising work on other databases.
+- [Toolbox](/03-toolbox/) gives you the measurement instruments.
+- [Recipes](/04-recipes/) provides the reusable calls.
+- [Feedback Loop](/05-feedback-loop/) explains repetition, noise, and accept-or-rollback.
+- [OSS Guide](/06-oss-guide/) shows where open-source tools help and where they do not.
+- [Appendix Sources](/07-appendix-sources/) is the book's citation key.
+- [Bonus Batch API](/08-bonus-batch-api/) is outside Oracle SQL and is explicitly marked as such.
 
-## 3. Every number needs a source
+<details><summary>If execution-plan vocabulary is new, start here</summary>
 
-Claim: Without a source, you cannot trust the number.
+An execution plan is the sequence of operations Oracle chose to run a statement. It shows access paths, join methods, predicates, estimated rows, and runtime statistics. `EXPLAIN PLAN` is a compile-time explanation. `DBMS_XPLAN.DISPLAY_CURSOR` shows the plan that actually ran for the current cursor, including `E-Rows` and `A-Rows` when runtime statistics are available. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html) [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
 
-Example: Read [S01] — Oracle. Tuning Guide, 19c. E96095-19, April 2025. https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/ . S01 is the ID, A1 the class, 19c the version. Read [S06] for DBMS_SQLPA. Read [S58] for SC15. Each [S##] maps to a full record. No record, no trust.
+The decision artifact is a saved before-and-after plan pair, not a pretty screenshot.
+</details>
 
-Why it matters: You audit fast. You check 19c vs 26ai scope.
+No live Oracle database was available for the research pass. `sqlcl` and `sqlplus` were not on `PATH`, so no procedure in this book is presented as an executed result.
 
-Number: 19 papers, 6 briefs. Classes A1/A2/B1/B2/C1/C2/D. PROVEN = 2 sources or 1 strong plus rerun.
+Research-only references (not published navigation): `.agents/research/07-sources-bibliography.md` and `.agents/research/01-proven-techniques-catalog.md`. The research-only S76 and S77 rows are in that bibliography; do not assume a contents appendix row when one is not present.
 
-<details><summary>In case you don't know about Oracle SQL tuning, it's the work of making a query use less time and less I/O.</summary>You read the plan Oracle picked. You fix bad guesses with fresh numbers or better layout. You lock the good plan so it stays fast. Steps are fixed. Save the DISPLAY_CURSOR pair first. Fix stats, index, or rewrite next. Compare with SPA last. Teams with a 40-second regress need it now. Devs shipping new SQL need it before prod. It drives one decision: change and prove, or roll back. Do not start with blind index adds. Blind indexes cost writes and space with no proof. Sharp line: tuning proves per-statement gain, not app feel. Example: an employees join jumps from 2s to 40s. AWR plus ASH names the SQL ID. XPLAN shows E-Rows 500 versus A-Rows 2M. See the Tuning Guide 19c, https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/ [S01].</details>
-
-<details><summary>In case you don't know about an execution plan, it's the steps Oracle chose to run your query.</summary>It is the step list Oracle chose for your SELECT and JOIN. It names join order and how each table was read. It also shows row guesses and cost per line. You get it after you run the query. Run `SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR());` for the last cursor. `EXPLAIN PLAN FOR` plus `DISPLAY()` only shows a compile guess. Devs and DBAs pull it when a query slows with no code change. It comes first, before any index or rewrite. It drives one decision. Same plan hash means look at data or load. New hash means the optimizer picked a new path. Do not use wall time alone. Wall time hides which line moved and pushes blind rewrites that cost test cycles. Sharp line: it is the only proof of what ran, line by line. Example: `SELECT * FROM employees WHERE dept_id = 10;` then compare hash 3693697075 for TABLE ACCESS FULL versus the hash for INDEX RANGE SCAN. Unverified — check on your DB for your hash. See [T-04][S05] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html</details>
-
-How to read this book:
-
-- Start at [00-preface](/00-preface/) if you have 10 minutes. It shows how evidence grades work and the 6-step check every chapter uses.
-- Read [01-proven-techniques](/01-proven-techniques/) for the 68 fixes in 5 moves: measure, feed estimates, fix layout, let rewrites happen, lock the plan.
-- Use [02-papers-behind-recipes](/02-papers-behind-recipes/) when someone cites a paper from another database. Only 3 papers here are Oracle-tested. The rest are ideas until Oracle runs prove them.
-- Keep [03-toolbox](/03-toolbox/) open while you work. One claim, one tool: plan, monitor, tuning set, analyzer, loader, linter.
-- Copy from [04-recipes](/04-recipes/) when you need exact calls for tuning sets, before-and-after compares, stats pipelines, and safe deploys.
-- Finish with [05-feedback-loop](/05-feedback-loop/) for the boring loop that wins: one change, frozen input, measured noise, accept or roll back, write the lesson.
-- Check [06-oss-guide](/06-oss-guide/) before you add a GitHub tool. Parse and lint help. Plan control stays inside Oracle.
-- Use [07-appendix-sources](/07-appendix-sources/) to look up any `[S##]` number, class, and date.
-- Skip [08-bonus-batch-api](/08-bonus-batch-api/) unless you need cheap async AI calls. It is not Oracle. It is marked bonus for that reason.
-
-No live DB was open here. sqlcl and sqlplus were missing.
-
-**Keep this: If you did not measure it twice on the same workload, you did not fix it.**
+**Decision: keep a change only when the same workload beats the measured noise floor and the saved plan explains the change.**

@@ -5,37 +5,50 @@ order: 40
 draft: false
 ---
 
-Friday at 4pm. A report runs slow. You re-run it by hand. New binds each time. New timing each time. Nothing proves anything. Monday brings the same bug back.
+A tuning loop is a pipeline with a boring job: keep the input fixed, change one thing, measure the result, and keep the evidence if the result earns promotion.
 
-You know basic SQL. You write SELECT with JOINs. You write INSERT, UPDATE, DELETE. You fear Friday deploys because prod behaves different from test. This chapter closes that gap.
+These recipes are written to be copied into a runbook. They are not claims about a particular database. Validate the installed release, package signatures, privileges, licensing, and data on a test or staging system before executing them.
 
-A recipe run is like a lab test, except the sample is SQL text plus binds plus plans.
+> **Execution boundary:** no live Oracle database was available for this editorial pass. The calls and outputs below are illustrative runbooks, not measurements from a production system.
 
-<details><summary>In case you don't know about STS, it's a named set of SQL saved inside Oracle for replay.</summary>A tuning set freezes statements plus binds plus metrics for replay. `DBMS_SQLSET` is the newer interface in 19c. You create a set, capture the cursor cache over a 300-second window, then lock it. Both SPA runs read that same name. Test leads use it before any claim. It drives one decision: is this the exact workload both runs graded. Do not compare live cache to live cache. Live traffic shifts binds and order, and the cost is a void verdict. Sharp line: same set in, fair compare out. Example: capture 300 seconds at peak, inspect the top 20 by buffer_gets, and hand the set name to `DBMS_SQLPA.CREATE_ANALYSIS_TASK`. See [T-06] https://docs.oracle.com/en/database/oracle/oracle-database/18/arpls/DBMS_SQLSET.html</details>
+## Operating contract
 
-<details><summary>In case you don't know about SPA, it's the Oracle tool that runs a workload twice and compares the two runs.</summary>SPA builds two versions of one frozen tuning set and grades each statement. You create the task, run test execute before, apply one change, run test execute after, set the comparison metric, run compare performance, and read the report. It needs ADVISOR privilege. Every change owner uses it. It drives the ship-or-stop verdict. Do not use explain plan only. That skips execution and ships a pretty plan with bad runtime. Sharp line: it turns hope into per-statement improved, regressed, unchanged. Example: an index cuts aggregate buffer_gets 12% with zero regressed rows. Ship. See [T-56] https://docs.oracle.com/en/database/oracle/oracle-database/26/arpls/DBMS_SQLPA.html</details>
+Freeze the representative SQL Tuning Set, capture incumbent plans, run the before trial, apply one candidate, run the after trial, compare the named trials, repeat enough to measure variability, and roll back when the gate fails.
 
-## 1. Freeze the input before you change anything
+The book's operating policy is **K>=5 per side**, with **10–15 preferred** for noisy or high-impact measurements, plus a full-workload SPA pass per side for the aggregate verdict. SC15 supports repetition, duration, variability, and confidence reporting; it does not prescribe this exact K floor.
 
-Hand runs drift. Binds shift. Plans shift. Data shifts. A scripted run freezes the workload first as an STS. You capture from the cursor cache over a 300-second window. You inspect the top 20 by buffer_gets. You lock the set. Both later runs read that same set. No frozen set means no claim.
+SQLPA supplies the comparison trials and reports. The external harness calculates medians and bootstrap 95% confidence intervals from the comparable trial metrics. SQLPA does not calculate the book's medians or bootstrap intervals.
 
-## 2. Measure twice on the same set
+## Claim / decision table
 
-One fast run proves nothing. SPA runs test execute twice on the frozen STS. Once before the change. Once after. Then it compares on buffer_gets first and elapsed_time second. You read per-statement rows, then the aggregate. You record plan hash per statement. A plan change alone is not proof. Only measured deltas count. SPA needs repeated runs per side. Research sets K>=5 reps as the floor.
+| Change class                                                                   | What it freezes                              | What earns promotion                         | Rollback                                                         |
+| ------------------------------------------------------------------------------ | -------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| [Freeze With STS](/04-recipes/01-freeze-with-sts/)                             | SQL, binds, context, statistics, and plans   | Both sides tested the same workload          | Restore the prior STS and discard the candidate capture          |
+| [Before and After With SPA](/04-recipes/02-before-after-with-spa/)             | Named SPA trials and comparison metric       | Per-statement and aggregate deltas           | Revert the one change and rerun the incumbent trial              |
+| [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/) | Statistics preferences and publication state | Pending-statistics impact before publication | Discard pending values, or restore published history             |
+| [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/)                 | Redefinition objects and dependency strategy | Correctness, performance, and rollout safety | Abort before finish, switch edition, or promote only after gates |
 
-## 3. Gate stats, DDL, and promote
+A plan hash is an identifier, not an improvement claim. Check structure, estimates, cost, and workload together. A full scan is not automatically wrong: reject it only when the measured evidence says the work is excessive.
 
-Stats drive plans. You set INCREMENTAL TRUE and STALE_PERCENT 5 in a script. You test with PUBLISH FALSE before you publish. DDL moves through CAN, START, SYNC, FINISH with an abort path. CI adds 5 gates: lint, utPLSQL on a clone, SPA workload compare, load check, watched promote. See DBMS_STATS reference: https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html and DBMS_REDEFINITION reference: https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html and pending-stats flow: https://docs.oracle.com/en/database/oracle/oracle-database/18/tgsql/controlling-the-use-of-optimizer-statistics.html and SQLFluff dialects: https://docs.sqlfluff.com/en/stable/reference/dialects.html and utPLSQL: https://www.utplsql.org/
+## Execution boundary and CI
 
-You will see four moves in this chapter. Freeze with STS. Compare before and after with SPA. Script the stats pipeline. Guard DDL and CI. Each move has code you can run. Each move names its rollback. No step mutates prod first.
+Static checks can run without Oracle. Behavior tests and SPA need a controlled database. Load testing is optional for changes that cannot create contention or capacity risk, but it is required before promoting a change whose failure mode is concurrency, memory, locks, or I/O. A no-regression result is not a performance win; a performance win must clear the measured noise floor.
 
-Numbers set the tone. Capture runs 300 seconds. SPA needs K>=5 reps per side. Stats use 5% stale limits. CI has 5 gates. Small numbers. Clear pass or fail.
+## Checklist / artifact
 
-In this chapter:
+- [ ] Record the STS hash, binds, workload window, metric, and K policy.
+- [ ] Keep the incumbent and candidate plan evidence with the named trials.
+- [ ] Retain raw samples, the external median/CI calculation, and the no-regression check.
+- [ ] Store the class-specific rollback command and its verification evidence.
 
-- [Freeze With STS](/04-recipes/01-freeze-with-sts/)
-- [Before and After With SPA](/04-recipes/02-before-after-with-spa/)
-- [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/)
-- [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/)
+**Artifact:** a frozen workload, one change record, a named comparison, and a tested rollback.
 
-**Keep this: Freeze first, change once, measure twice, promote only on proof.**
+## References
+
+- [Managing SQL Tuning Sets, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
+- [DBMS_SQLSET, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLSET.html)
+- [DBMS_SQLPA, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
+- [DBMS_STATS, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html)
+- [DBMS_REDEFINITION, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html)
+- [SQLFluff dialect reference](https://docs.sqlfluff.com/en/stable/reference/dialects.html)
+- [utPLSQL](https://www.utplsql.org/)

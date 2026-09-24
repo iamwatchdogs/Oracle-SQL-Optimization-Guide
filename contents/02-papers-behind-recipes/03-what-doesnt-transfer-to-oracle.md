@@ -5,67 +5,50 @@ order: 23
 draft: false
 ---
 
-A junior asks a fair question. If it worked on Postgres, will it work on Oracle. The short answer is no, not without an Oracle test. Engines differ in cost models, hints, and storage. A win elsewhere is a lead. It is not proof.
+Non-Oracle results are not failures. They are design evidence with an Oracle gap. This research pass executed no Oracle workload, so no paper in this chapter earns an Oracle performance claim by proximity.
 
-A tuning trick is like a power plug, except the socket shape changes with each database.
+The catalog contains 19 papers: P1–P18 plus P20. P19 was never assigned. The rule for the rest of the shelf is simple: reuse the mechanism only after you test the mechanism on Oracle.
 
-Start with learned optimizers. Then check rewrite provers. Finally use Calcite only for prep work. First you sort each paper into proven or candidate. Next you name the exact gap. Then you plan the Oracle test.
+## 1. Learned optimizers stay CANDIDATE without an Oracle run
 
-## 1. Learned optimizers stay candidate without an Oracle run
+AutoSteer, Bao, and OtterTune show how a system can steer an optimizer. Their experiments do not establish Oracle support for the same knobs, hints, or loop.
 
-Claim: AutoSteer, Bao, and OtterTune give design ideas, not Oracle proof.
+An optimizer knob is a setting or hint that steers plan choice. The engine comes first: map the control second, test the Oracle mapping last. A loop shape can transfer; a database-specific control cannot be copied by name and called an Oracle result.
 
-Example: run the sorting demo. Pile A holds Oracle-proven work: P1, P2, P3. Pile B holds CANDIDATE work.
+- AutoSteer P8 is [snippet-verified] and names PostgreSQL, Presto, Spark, MySQL, and DuckDB. PVLDB 16:3515, 2023, DOI 10.14778/3611540.3611544.
+- Bao P9 is a PostgreSQL prototype using per-query hints, tree models, and Thompson sampling. SIGMOD 2021, DOI 10.1145/3448016.3452838, arXiv:2004.03814.
+- OtterTune P10 uses PostgreSQL and MySQL. SIGMOD 2017, DOI 10.1145/3035918.3064029, https://github.com/cmu-db/ottertune. The repository is archived, with 1,233 stars and a last push on 2020-11-13.
+- SLER P11 is an arXiv preprint. IEEE ICDE 2026 is listed, but the proceedings status is unconfirmed. Preserve the preprint/listing caveat.
+- The survey P12 maps rule-based, machine-learning, and LLM-driven optimization. The LLM rewrite paper P13 is also a preprint. Both are orientation and proposal evidence, not Oracle results.
 
-- AutoSteer [P8] PVLDB 16:3515, 2023, DOI 10.14778/3611540.3611544, [snippet-verified], steers knobs on PostgreSQL, Presto, Spark, MySQL, DuckDB.
-- Bao [P9] SIGMOD 2021, DOI 10.1145/3448016.3452838, arXiv:2004.03814, steers Postgres with per-query hints, tree models, and Thompson sampling.
-- OtterTune [P10] SIGMOD 2017, DOI 10.1145/3035918.3064029, https://github.com/cmu-db/ottertune, tunes Postgres and MySQL from past sessions.
-- SLER [P11] arXiv:2603.04169, 2026, [snippet-verified], ranks rewrite rules. Survey [P12] IEEE 2026 maps rules to ML to LLM methods. LLM rewrite [P13] arXiv:2502.12918 follows WeTune ideas.
+These papers stay CANDIDATE for Oracle in this pass. The relevant non-Oracle experiments do not establish Oracle support. A knob name is not a portable abstraction; it is a database-specific control until the Oracle version and workload confirm otherwise.
 
-All lack Oracle runs in our pass. Mark each CANDIDATE. Oracle knob mapping unverified.
+## 2. Rewrite provers stop at the dialect boundary
 
-Why it matters: knob names do not port. A Postgres setting can have no Oracle twin. Copy-paste tuning can hurt. Use these papers for the loop shape, then test on Oracle.
+A proof on Calcite or Spark SQL does not automatically prove an Oracle rewrite safe. SQL dialects differ in types, null handling, functions, and optimizer behavior.
 
-Number: OtterTune repo archived 2020-11-13 with 1233 stars. Five systems for AutoSteer. Two for OtterTune. One for Bao. Zero list Oracle.
+- SQLSolver P5 proves 346 of 359 equivalent query pairs derived from Calcite and Spark SQL rewrite rules. SIGMOD 2024, DOI 10.1145/3626768, https://github.com/SJTU-IPADS/SQLSolver, [snippet-verified].
+- WeTune P4 discovers and verifies rules on queries from 20 popular open-source projects. SIGMOD 2022, pp. 94–107, DOI 10.1145/3514221.3526125, with a third-party reproducibility report B2.
+- VeriEQL P6 targets bounded equivalence for complex SQL with integrity constraints. OOPSLA 2024, DOI 10.1145/3649849, arXiv:2403.03193.
+- QED P7 provides another equivalence-decider path. PVLDB 17:3602, 2024, https://www.vldb.org/pvldb/vol17/p3602-wang.pdf.
+- QueryBooster P20 (S80) is a middleware rewrite system with a human-in-the-loop path. PVLDB 16:2911, 2023, DOI 10.14778/3611479.3611497, [snippet-verified]. The paper discusses an Oracle connector, but its experiments do not validate Oracle dialect or performance. Keep QueryBooster CANDIDATE.
 
-## 2. Rewrite provers stay candidate without Oracle dialect proof
+That QueryBooster distinction matters. “The paper does not mention Oracle” would be false. “The relevant non-Oracle experiments do not establish Oracle support” is the accurate boundary.
 
-Claim: proof on Calcite or Spark SQL rules does not prove Oracle SQL safe.
+The missing gate is not another paper citation. It is a controlled Oracle run: check the result contract, explain the plan, and compare the measured before/after behavior on the release and workload you actually operate.
 
-Example: continue the sorting demo with rewrite work.
+## 3. Calcite and agentic loops are design evidence
 
-- SQLSolver [P5] SIGMOD 2024, DOI 10.1145/3626768, https://github.com/SJTU-IPADS/SQLSolver, proves 346 of 359 pairs from Calcite and Spark SQL rules, [snippet-verified].
-- WeTune [P4] SIGMOD 2022, pp. 94–107, finds and checks rules on queries from the 20 most popular open-source projects, plus a repro report.
-- VeriEQL [P6] OOPSLA 2024, DOI 10.1145/3649849, arXiv:2403.03193, targets complex SQL with integrity constraints.
-- QED [P7] PVLDB 17:3602, 2024, https://www.vldb.org/pvldb/vol17/p3602-wang.pdf, offers a new prover path.
-- QueryBooster [P20] PVLDB 16:2911, 2023, DOI 10.14778/3611479.3611497, [snippet-verified], adds middleware rewrite with human review.
+The last group changes how you build and test a loop. It does not prove that the loop will win on Oracle.
 
-None list Oracle dialect support in our pass. Mark each CANDIDATE.
+- P18 gives Apache Calcite and an OracleSqlDialect implementation. arXiv:1802.10233, 2018, https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/dialect/OracleSqlDialect.html. Use it to parse and normalize SQL before database time. Parsing Oracle text is not proof of Oracle plan quality.
+- CHESS P14 adds a unit-test agent that checks candidate SQL against a test database. arXiv:2405.16755, ICML 2025, https://arxiv.org/abs/2405.16755. The paper record is metadata-verified; the substantive unit-test claim is snippet-verified in S55.
+- Reflexion P15 turns failed attempts into language feedback. NeurIPS 2023, arXiv:2303.11366.
+- ReAct P16 interleaves reasoning and tool actions. ICLR 2023, arXiv:2210.03629.
+- Hoefler and Belli P17 provide a benchmarking method built around repeated measurements, variation, and enough runtime to separate noise from an effect. SC15, https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf.
 
-Why it matters: SQL dialects differ in nulls, types, and functions. A proof that ignores Oracle semantics can bless a wrong rewrite. Gate every rewrite on an Oracle run plus a bound check.
+These are design evidence. Oracle use is unverified. Mark each CANDIDATE for Oracle until you run the relevant check on Oracle. P17’s method can port; its results cannot.
 
-Number: 346 of 359 proved. 20 projects sampled. Both numbers are non-Oracle. Keep the CANDIDATE tag attached.
+<details><summary>What is bounded verification?</summary>Bounded verification proves that two queries agree for inputs up to a chosen bound, or returns a counterexample. VeriEQL targets complex SQL with integrity constraints. SQLSolver’s 346-of-359 result is a concrete number from Calcite and Spark SQL rewrite rules, not an Oracle dialect proof. A bounded result reduces risk inside its bound. It does not cover every input, release, or Oracle behavior.</details>
 
-## 3. Use Calcite to prep, and agentic loops for shape only
-
-Claim: Calcite parses Oracle text, but only an Oracle run proves speed.
-
-Example: finish the sorting demo.
-
-- P18 [P18] arXiv:1802.10233, 2018, gives Calcite plus OracleSqlDialect code. Use it to parse and normalize SQL before you touch the DB. Do not claim it proves plan quality.
-- CHESS [P14] arXiv:2405.16755, ICML 2025, adds a unit-test agent that checks SQL on a real test DB.
-- Reflexion [P15] NeurIPS 2023, arXiv:2303.11366, turns failed tries into text lessons.
-- ReAct [P16] ICLR 2023, arXiv:2210.03629, interleaves reason and act for tool calls.
-- P17 Hoefler SC15 benchmarking rigor asks for repeats and spread.
-
-All four are design evidence. Oracle use unverified. Mark each CANDIDATE for Oracle until you test.
-
-Why it matters: prep without proof is still useful. Clean parses cut bad tests. A test agent catches bad SQL before users see it. Reflection logs stop repeat fails. None of that replaces EXPLAIN and timed runs on Oracle.
-
-Number: P18 is arXiv:1802.10233. P17 source is https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf. Method ports. Results do not port without a fresh Oracle run.
-
-<details><summary>In case you don't know about optimizer knobs, it's settings and hints that steer which plan the database picks.</summary>Optimizer knobs are hints and settings that steer plan choice. AutoSteer and Bao tune them from outside the engine. Oracle has its own hint set. Mapping is unverified in our pass. Check in three steps. Name the engine first. List knob names next. Test on Oracle last. Teams with Postgres wins need this before porting. It drives one decision: reuse the loop shape or claim Oracle proof. Do not copy Postgres hints to Oracle. That swap costs slow plans with no gain. Sharp line: knobs do not port, loop shape does. Example: AutoSteer lists PostgreSQL, Presto, Spark, MySQL, DuckDB, and zero list Oracle, so mark it CANDIDATE. See [P8].</details>
-
-<details><summary>In case you don't know about bounded verification, it's a proof that 2 queries match for inputs up to a set size.</summary>Bounded verification proves two queries match for inputs up to a set size. VeriEQL uses SMT solvers to prove a match or show a counterexample. It handles complex SQL with integrity constraints. Check in three steps. Parse both queries. Set bound and constraints. Demand proof or counterexample. Teams rewriting SQL need it before ship. It drives one decision: accept the rewrite or block it. Do not claim full unbounded proof. Bounds leave larger inputs unproven and cost false safe tags. Sharp line: bounded proof cuts risk for tested sizes, not for all data. Example: SQLSolver proves 346 of 359 Calcite and Spark pairs, yet stays CANDIDATE with no Oracle dialect proof. See [P6].</details>
-
-**Keep this: Mark every non-Oracle result as candidate until Oracle runs show a win.**
+**Keep this: treat non-Oracle work as CANDIDATE until an Oracle dialect, semantic, and timed-workload test earns a stronger label.**

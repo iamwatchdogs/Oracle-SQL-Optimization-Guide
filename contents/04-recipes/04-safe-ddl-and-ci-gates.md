@@ -5,75 +5,152 @@ order: 44
 draft: false
 ---
 
-Can we add that index without locking the table Friday at 5pm. Every junior dev has heard that question. The safe answer used to be no. This file gives you a yes with proof.
+DDL is where a small mistake becomes a visible outage. The safe pattern is not “DDL never locks.” It is: build the new shape away from the live table, synchronize it, test it, and accept a brief finish lock at the commit point.
 
-You know basic SQL. You write DML. DDL scares you because ALTER can block writes. You fear Friday deploys because rollback feels vague. This file makes DDL online and rollback concrete.
+> **Execution boundary:** no DDL was executed for this editorial pass. Validate `CAN_REDEF_TABLE`, object privileges, dependent-object behavior, lock timing, and rollback procedures on a disposable copy before using any of this in a shared environment.
 
-An online redefine is like a road detour, except traffic keeps moving while you pave the new lane.
+## 1. Choose the right online path
 
-<details><summary>In case you don't know about DBMS_REDEFINITION, it's the package that rebuilds a table online.</summary>DBMS_REDEFINITION rebuilds shape with users still connected. Flow is CAN_REDEF_TABLE check, START on interim T_INT, build indexes on T_INT, SYNC, FINISH swap. Abort path is ABORT_REDEF_TABLE before finish. Call shapes follow the package ref. Unverified — run on your test DB. Schema teams use it for compression, partition, or type changes without downtime. It drives one decision: swap now or abort and retry. Do not use blocking ALTER at peak. That queues writes and spikes latency, and the cost is an incident for a planned change. Sharp line: it keeps reads and writes moving while the new shape builds aside. Example: APP.T needs a new partition. CAN passes on the primary key, START links T_INT, the index builds on T_INT only, SYNC catches lag, FINISH swaps at low traffic. Queries never stop. See [T-62] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html</details>
+For a table-shape change, use the multi-step `DBMS_REDEFINITION` path. For application code, use Edition-Based Redefinition when editioned objects and the operational switch are already supported. These paths solve different problems.
 
-<details><summary>In case you don't know about utPLSQL, it's a test framework that asserts on results not speed.</summary>utPLSQL is a unit-test framework inside Oracle DB. Tests are PL/SQL packages that assert expected versus actual rows. Latest README names 19c or newer — older runs went back to 11gR2, so match the README to your DB. Teams use it after lint, before SPA. It drives one decision: stop the rewrite or book SPA time. Lint alone passes while rows drop from 400 to 380, and that gap costs a day of debug. A test costs 30 seconds. Sharp line: utPLSQL locks meaning, lint only checks shape. Example: expect 400 rows, get FAIL at 380, fix the predicate, get PASS. Green means semantics held, and speed comes later from SPA. See https://github.com/utplsql/utplsql and https://www.utplsql.org/ Apache-2.0, 624 stars, push 2026-09-18 [S63]. SQLFluff oracle dialect: https://docs.sqlfluff.com/en/stable/reference/dialects.html</details>
+The multi-step path keeps the original table available while the interim table is created, populated, synchronized, and prepared. The `FINISH_REDEF_TABLE` step briefly locks the original table while the redefinition is completed. Do not promise uninterrupted access; promise a tested online path with a bounded finish phase.
 
-## 1. Redefine online with an abort button
+## 2. Check eligibility and create the interim table
 
-Plain claim: CAN, START, SYNC, FINISH beats a blocking ALTER.
-
-Use this exact flow:
+Run the eligibility check first:
 
 ```sql
-EXEC DBMS_REDEFINITION.CAN_REDEF_TABLE('APP','T', DBMS_REDEFINITION.CONS_USE_PK);
-EXEC DBMS_REDEFINITION.START_REDEF_TABLE('APP','T','T_INT');
--- SKETCH: verify overload in your release ref. Skip it and FINISH drops triggers/grants.
-EXEC DBMS_REDEFINITION.COPY_TABLE_DEPENDENTS('APP','T','T_INT');
-EXEC DBMS_REDEFINITION.SYNC_INTERIM_TABLE('APP','T','T_INT');
-EXEC DBMS_REDEFINITION.FINISH_REDEF_TABLE('APP','T','T_INT');
+EXEC DBMS_REDEFINITION.CAN_REDEF_TABLE(
+  'APP', 'ORDERS', DBMS_REDEFINITION.CONS_USE_PK
+);
 ```
 
-Line by line: CAN_REDEF_TABLE checks if APP.T can go online with CONS_USE_PK. START_REDEF_TABLE begins work on interim T_INT. You build indexes and constraints on T_INT here, then run COPY_TABLE_DEPENDENTS so triggers and grants follow. SYNC_INTERIM_TABLE replays recent writes to T_INT. FINISH_REDEF_TABLE swaps names and ends the job. Abort path is ABORT_REDEF_TABLE with the same three names before finish. Call shapes follow the DBMS_REDEFINITION reference. Unverified — run on your test DB.
+Create `APP.ORDERS_INT` separately with the desired post-change definition. `START_REDEF_TABLE` expects an empty interim table to exist. Keep the column mapping explicit if names differ:
 
-How to read success: CAN returns clean. START creates the interim linkage. SYNC lag drops near zero. FINISH swaps fast. Queries keep running through all four steps.
+```sql
+EXEC DBMS_REDEFINITION.START_REDEF_TABLE(
+  uname => 'APP',
+  orig_table => 'ORDERS',
+  int_table => 'ORDERS_INT',
+  options_flag => DBMS_REDEFINITION.CONS_USE_PK
+);
+```
 
-Rollback line: run ABORT_REDEF_TABLE on APP, T, T_INT any time before FINISH. Test the abort once in sandbox. After FINISH, rollback means a new redefine back, not an abort.
+The exact `START_REDEF_TABLE` signature and options are release-sensitive. Verify them in the current package reference before running a production script.
 
-Worked progression A — CAN to START to SYNC to FINISH: CAN passes on primary key. START links T_INT. You add the index on T_INT only. SYNC catches up writes. FINISH swaps at low traffic. App sees short lock only at swap.
+## 3. Decide how dependent objects are handled
 
-Worked progression B — abort mid-flight: START succeeded. Your index build on T_INT looks wrong. You run ABORT_REDEF_TABLE. Temp objects clear. Source table never swapped. You fix the interim definition and start again.
+`COPY_TABLE_DEPENDENTS` is **optional in this multi-step recipe**, not universally required. Choose one of these strategies:
 
-## 2. Pick one rollout path per change
+1. Let the package clone the dependent objects you want and inspect the returned error count.
+2. Create the indexes, constraints, triggers, grants, and other dependents manually on the interim table and register them with the release-verified dependent-object APIs.
 
-Plain claim: one change, one path, one recorded rollback.
+Do not claim that `FINISH_REDEF_TABLE` drops or recreates every trigger, grant, or index. It completes the redefinition using the objects and registrations that are present. The dependency choice must be explicit and tested.
 
-Physical table change uses the redefine flow above. App code rollout uses Edition-Based Redefinition with instant switch and revert by edition. Pick one path per change. Record it. Neither path skips measurement. The change still faces SPA on the frozen STS.
+If you use the package helper, treat the call as a **release-check sketch**:
 
-No new code here. The four-line block above is the code for table shape changes.
+```sql
+DECLARE
+  copy_errors PLS_INTEGER;
+BEGIN
+  DBMS_REDEFINITION.COPY_TABLE_DEPENDENTS(
+    uname => 'APP',
+    orig_table => 'ORDERS',
+    int_table => 'ORDERS_INT',
+    copy_indexes => DBMS_REDEFINITION.CONS_ORIG_PARAMS,
+    copy_triggers => TRUE,
+    copy_constraints => TRUE,
+    copy_privileges => TRUE,
+    num_errors => copy_errors
+  );
+END;
+/
+```
 
-Line by line for the choice: if the fix needs new columns or partitions, use redefine. If the fix needs new views or PL/SQL, use editions. Write the choice in the run log. Write the revert command next to it.
+Inspect `copy_errors` before proceeding. The 19c/current package reference documents the available flags and the rule that cloned dependent objects are not cloned again if already registered. If you register objects manually, omit the helper rather than running both strategies blindly.
 
-How to read success: the log names the path. The revert was tested in sandbox. SPA shows no regressed statement after the swap.
+## 4. Synchronize and test before finish
 
-Rollback line: redefine path reverts with ABORT before FINISH. Edition path reverts by switching edition back. Both need a prior test in sandbox.
+Long work on the interim table creates a synchronization backlog. Catch it up before the finish phase:
 
-Worked progression A — table path with measure: redefine adds a partition to APP.T. SPA before and after on buffer_gets shows flat or better. You FINISH. You watch AWR for one window.
+```sql
+EXEC DBMS_REDEFINITION.SYNC_INTERIM_TABLE(
+  'APP', 'ORDERS', 'ORDERS_INT'
+);
+```
 
-Worked progression B — code path with measure: new edition holds fixed PL/SQL. Old edition stays live. You switch one session first. utPLSQL passes. You switch traffic. Revert is one switch back.
+Run the frozen SQL workload against the candidate definition, then run the controlled before/after comparison. Check row correctness, constraints, indexes, triggers, grants, and the measured performance deltas. A finish operation is not a substitute for testing the interim table.
 
-## 3. Fail builds on regression with 5 gates
+If the redefinition must be abandoned before the commit point:
 
-Plain claim: five small gates beat one big Friday scare.
+```sql
+EXEC DBMS_REDEFINITION.ABORT_REDEF_TABLE(
+  'APP', 'ORDERS', 'ORDERS_INT'
+);
+```
 
-Gate 1 lints with SQLFluff oracle dialect plus sqlglot parse. No DB needed. Gate 2 runs utPLSQL suites for result correctness on a clone. Gate 3 captures STS and runs SPA before and after, and fails on regression past threshold. Gate 4 runs HammerDB or Swingbench for concurrency and fails on `DBA_SQL_QUARANTINE` hits set via `DBMS_SQLQ`. Gate 5 promotes with AWR and ASH watch plus quarantine check. Tool names and gate order come from the research CI pattern. Unverified — run on your test DB.
+Test that abort in the sandbox. If you enabled the release-specific rollback feature at start, follow the current `ROLLBACK` procedure and lifecycle instead of guessing between abort and rollback.
 
-No new PL/SQL here. Gate 3 reuses the SPA block from the prior file verbatim.
+## 5. Finish in a controlled window
 
-Line by line: lint catches syntax and style early. utPLSQL proves results still match. SPA proves speed did not regress. Load proves concurrency holds. Watched promote proves prod stays calm.
+When the candidate is approved:
 
-How to read success: all 5 gates green in order. Gate 3 report shows buffer_gets flat or better per statement. Gate 4 shows no quarantine. Gate 5 shows clean AWR for the watch window.
+```sql
+EXEC DBMS_REDEFINITION.FINISH_REDEF_TABLE(
+  'APP', 'ORDERS', 'ORDERS_INT'
+);
+```
 
-Rollback line: fail at any gate stops promote. DDL aborts with ABORT_REDEF_TABLE. Stats discard with pending delete or restore. Code reverts by edition switch. Each rollback was tested before need.
+Expect a brief lock on the original table during this step. Test the lock behavior, monitor for blocked sessions, and choose the operational window. After finish, verify object names, constraints, indexes, grants, triggers, row counts, and the executed plans.
 
-Worked progression A — CAN to START to SYNC to FINISH to CI gates: redefine passes in test. Lint green. utPLSQL green. SPA green on buffer_gets. Load green. You FINISH in prod during window. You watch AWR one hour.
+For a code-only change, switch sessions to the new edition only after the editioned code passes the same behavior and SPA gates. The previous edition is the rollback switch until the observation window closes.
 
-Worked progression B — gate 3 red blocks gate 5: lint green, utPLSQL green, SPA shows one statement up 40% on buffer_gets. Build fails. No FINISH in prod. You abort redefine, drop pending stats, log sql_id and plan hash. Friday stays calm.
+## 6. Use CI gates with different jobs
 
-**Keep this: No DDL without tested abort; no promote without 5 green gates.**
+| Gate                    | Required when                                     | Pass condition                                                         |
+| ----------------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| Parse and lint          | Any SQL or migration change                       | Selected static rules pass; parser accepts the text                    |
+| Behavior tests          | Any query rewrite or semantic change              | Expected rows, aggregates, and error behavior pass                     |
+| SPA workload comparison | Any performance candidate                         | No important statement regresses beyond threshold                      |
+| Load check              | Concurrency, memory, locks, I/O, or capacity risk | Throughput, errors, waits, and guardrails are within the agreed limits |
+| Observation window      | Any production promotion                          | AWR/ASH, plan evidence, and rollback signals remain clean              |
+
+The load gate is **optional** for changes that cannot create a contention or capacity risk. It is not optional merely because the CI pipeline is busy. A no-regression SPA result means the change did not exceed the agreed regression threshold. It does not mean the change improved performance. Call it a performance win only when the measured improvement clears the noise floor and the confidence interval supports the direction.
+
+## 7. Make the promotion reversible
+
+Before production, record:
+
+- the exact redefinition or edition path;
+- the dependency-copy or manual-registration strategy;
+- the sandbox abort or edition rollback command;
+- the behavior-test result;
+- the SPA report with `section => 'ALL'` for per-statement evidence;
+- the optional load report;
+- the observation window and owner.
+
+Do not use a result from a test database with a smaller data volume as proof of production capacity. Re-run the relevant workload on a representative environment.
+
+## Output checklist
+
+- [ ] `CAN_REDEF_TABLE` passed
+- [ ] Interim table created explicitly
+- [ ] `COPY_TABLE_DEPENDENTS` chosen or intentionally omitted
+- [ ] Dependency errors checked or manual registrations verified
+- [ ] Sync lag handled before finish
+- [ ] Abort or edition rollback tested
+- [ ] Finish lock accepted as a brief commit-point lock
+- [ ] Static, behavior, and SPA gates passed
+- [ ] Load gate marked optional or required with a reason
+- [ ] “No regression” kept distinct from “performance win”
+
+## References
+
+- [DBMS_REDEFINITION, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html)
+- [Online Data Reorganization and Redefinition](https://www.oracle.com/database/technologies/online-operations/)
+- [Edition-Based Redefinition, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/adfns/editions.html)
+- [DBMS_SQLPA, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
+- [SQLFluff dialect reference](https://docs.sqlfluff.com/en/stable/reference/dialects.html)
+- [utPLSQL](https://www.utplsql.org/)
+
+**Keep this: build offline, test the interim, accept a brief finish lock, and keep the rollback.**

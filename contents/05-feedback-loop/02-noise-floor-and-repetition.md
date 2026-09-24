@@ -5,52 +5,133 @@ order: 52
 draft: false
 ---
 
-A junior shipped a 200 ms win seen once. Prod showed slower p95 for a week. Rollback took two days. The test had no floor and no reps.
+**Verdict: a change is not faster because one run won.** First measure the wobble. Then repeat the full workload on both
+sides. Then calculate the median and its bootstrap interval outside SQLPA.
 
-You have seen a query run faster once then run slower in prod. That pattern is noise beating proof. Thesis up front: A/A floor first, K>=5 with 95% CI, buffer_gets first and elapsed_time second.
+## Status and scope
 
-A noise floor is like a ruler, except it measures wobble in your own test rig before you measure change.
+This page is a reference design based on primary sources. It was **not executed against a live Oracle database in this
+research pass**. There is no measured A/A spread, K-sample set, confidence interval, or production result in this page.
+All sample values, medians, percentages, and intervals below are illustrative unless a source is named.
 
-Status: designed, not run. This env had no live Oracle DB. No sqlcl or sqlplus on PATH. All A/A runs, K reps, and CI builds below are NOT-VERIFIED here. Authority comes from sources. [S58] Hoefler and Belli SC15, https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf. [S06] DBMS_SQLPA 19c, https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html. [S05] DBMS_XPLAN 19c, https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html.
+The statistical policy is explicit:
 
-## 1. Run A/A before any claim
+- Run an A/A noise floor on the unchanged workload.
+- Use **K >= 5 samples per side** for a formal comparison.
+- Prefer **10–15 samples per side** when the workload is noisy or the cost of a wrong decision is high.
+- Run a **full-workload SPA pass per side**, not only the motivating statement.
+- Calculate medians and the bootstrap **95% CI for the median difference outside SQLPA**.
+- Record raw samples, the estimator, bootstrap count, seed or reproducibility method, metric, binds, and STS hash.
 
-Claim: test the unchanged workload twice and record the spread.
+Hoefler and Belli's SC15 material is the methodology source for repeats, duration, variability, and confidence reporting:
+[S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf). It is not an Oracle-specific K rule. The
+`K >= 5` and `10–15` values are this design's operating policy.
 
-Walkthrough A: freeze STS OPT_LOOP_WL with 8 statements. Run DBMS_SQLPA.CREATE_ANALYSIS_TASK. Run EXECUTE_ANALYSIS_TASK with test execute named aa_run_1. Run again named aa_run_2. Set comparison_metric to buffer_gets. Run compare performance named aa_cmp. Read REPORT_ANALYSIS_TASK. Result: aggregate buffer_gets differs 3% with zero change. That 3% is the noise floor. Margin becomes max of 2x noise or 5%. Here that is max of 6% or 5%, so 6%. Later gains must clear 6%. This exact run is NOT-VERIFIED here.
+## 1. Measure the unchanged workload first
 
-Walkthrough B: A/A on elapsed_time shows 9% spread on the same host. Same workload. Same binds. Higher variance. That gap is why elapsed_time stays secondary. Buffer_gets stays primary for the gate. Both get reported. Neither gets trusted without a floor.
+A/A is a boring control. It answers a question that most “before versus after” posts skip: how much does the rig move when
+nothing changes?
 
-Why this rule exists: benchmarking method requires variance to be measured before any effect claim [S58]. SPA predicts impact by comparing two workload versions [S06]. A/A uses that same compare path with zero change to set the bar. D7 says faster once is not evidence. No floor means no verdict.
+Freeze the STS, binds, host, workload window, metric, and duration. Run the unchanged workload through at least two
+full-workload passes. If the spread is high, do not pretend one later pair is precise. Collect more A/A samples or
+fix the measurement conditions first.
 
-Cost of skipping it: every small delta reads as a win. A 2% dip ships. Prod cache state flips it to +5%. Team debates ghosts. A day burns on a non-effect.
+### Illustrative scenario
 
-## 2. Repeat K times and show the interval
+The numbers are synthetic, not measurements from this project:
 
-Claim: minimum 5 reps per side, 10 to 15 advised, plus a 95% CI that must exclude zero.
+| A/A pass                        |       `buffer_gets` spread | `elapsed_time` spread |
+| ------------------------------- | -------------------------: | --------------------: |
+| First unchanged pass            |                       `3%` |                  `9%` |
+| Second unchanged pass           |                       `3%` |                  `9%` |
+| Research-design starting margin | `max(2x noise, 5%)` = `6%` |  Not a gate by itself |
 
-Walkthrough C: tiny numbers. Before side buffer_gets for one statement over K=10: 1200, 1230, 1190, 1215, 1225, 1205, 1210, 1195, 1220, 1208. Median is 1210. After side with index: 1060, 1085, 1050, 1070, 1065, 1090, 1055, 1075, 1068, 1072. Median is 1070. Drop is 11.6%. Bootstrap 2000 resamples of the median difference gives 95% CI [-14%, -8%]. Zero sits outside. Noise floor is 3%. Margin is 6%. Drop clears margin. Interval clears zero. Win counts pending other gate checks.
+The `6%` value is illustrative. The `2x noise or 5%` formula is an engineering starting point, not an Oracle rule. The
+correct margin is calibrated to the measured rig. A floor from one host is not automatically a floor for another host.
 
-Walkthrough D: same shape, K=3. Before: 1200, 1235, 1190. After: 1120, 1185, 1095. Medians jump with each extra sample. Bootstrap CI spans [-13%, +4%]. Zero sits inside. Verdict is reject. Action is clear: add reps to K=10, use longer single runs over many ultra-short runs, same host, same binds. Short runs inflate variance [S58]. This decision path is NOT-VERIFIED here because no samples were taken in this env.
+A/A is not a claim that the database is stable. It is the record of how unstable the measurement is. The artifact is the
+A/A report, the raw samples, and the floor calculation tied to the STS hash.
 
-Why this rule exists: SC15 demands enough reps and duration plus confidence reporting [S58]. Longer single measurements beat many ultra-short ones. Median resists outliers better than mean on skewed DB timings. 95% CI on the median difference forces the effect to survive variance. K>=5 is minimum. K=10 to 15 is advised for statement metrics plus one full SPA pass per side for the aggregate.
+## 2. Repeat the full workload and calculate outside SQLPA
 
-Cost of skipping it: K=1 ships the best run. Next run regresses. Reviewers cannot tell luck from gain. Rework repeats each sprint. Trust in tuning drops.
+A single SPA pass gives you a before report, an after report, and a comparison. It does not by itself create the
+repetition policy, a median-difference estimator, or a bootstrap confidence interval. Those calculations belong in an
+external harness or analysis script.
 
-## 3. Order metrics and guard the aggregate
+### The formal comparison
 
-Claim: buffer_gets first, elapsed_time second, plan hash never alone, STS aggregate guards chance best-movers.
+1. Capture the unchanged before samples on the frozen full workload.
+2. Apply one candidate in the isolated target.
+3. Capture the after samples on the same full workload and comparable conditions.
+4. Record per-statement rows, aggregate rows, plan hashes, rows, and elapsed metrics.
+5. Compute the per-side medians outside SQLPA.
+6. Compute the median difference using a declared paired or unpaired estimator.
+7. Bootstrap the difference, using a recorded number of resamples and reproducibility method.
+8. Report the median estimate and the bootstrap 95% CI.
+9. Compare the estimate with the A/A floor and the no-regression rule.
 
-Walkthrough E: index changes plan hash for sql_id abc123 from 1842217434 to 2901463682. Buffer_gets drops 11%. Elapsed_time drops 7%. CPU time drops 9%. Rows processed match exactly. All three metrics come from the same SPA report. Hash change supports the story. Measured deltas decide. Hash alone would have passed a bad rewrite with equal hash churn and zero gain.
+Use longer, meaningful executions instead of a pile of tiny runs. Repeat the full workload, not just a single statement.
+Keep binds and workload ordering fixed. If the host, statistics, data distribution, or bind set changes, treat the
+comparison as a new experiment.
 
-Walkthrough F: STS holds 20 statements. Best mover improves 18%. Aggregate improves 1%. Two other statements regress 6% each. Verdict is reject under the no-regression rule. With N statements, one best mover often improves by chance. Aggregate plus per-statement guard blocks that trap [S06][S58]. Full STS compare is NOT-VERIFIED here.
+### Illustrative paired samples
 
-Why this rule exists: SPA default comparison metric is elapsed_time and switches to buffer_gets [S06]. Elapsed_time is user-visible but noisy. Buffer_gets tracks logical work with lower variance. Tertiary signals are CPU time and rows from the same report. Plan hash shifts for calm reasons. Only measured outcomes count. D5 makes metric choice deliberate.
+The following values are synthetic and are included only to show the shape of the calculation:
 
-Cost of skipping it: team tunes one statement and ships. Three others slow in prod. AWR shows load rise. Quarantine may fire. Rollback now touches prod traffic. A narrow win becomes a wide incident.
+| Side   | Ten sample values                                            | Median |
+| ------ | ------------------------------------------------------------ | -----: |
+| Before | `1200, 1230, 1190, 1215, 1225, 1205, 1210, 1195, 1220, 1208` | `1210` |
+| After  | `1060, 1085, 1050, 1070, 1065, 1090, 1055, 1075, 1068, 1072` | `1070` |
 
-<details><summary>In case you don't know about A/A, it's two runs of the same code with zero change to gauge wobble.</summary>A/A runs the same tuning set twice with zero change through SPA: test execute as aa_run_1, again as aa_run_2, comparison_metric to buffer_gets, compare performance as aa_cmp, then read the report. The spread is the floor. Testers run it first on each new rig. It drives one decision: what margin the gate will use tonight. Do not reuse last week's floor on a new host. Cache and neighbors shift it, and the cost is a stale bar that passes noise. Sharp line: it proves the rig before it grades the change. Example: aa_run_1 versus aa_run_2 shows 3% on buffer_gets and 9% on elapsed_time. You set margin 6% and keep buffer_gets primary. See [S06][S58] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html</details>
+An external bootstrap over the paired median difference could produce an illustrative `11.6%` reduction with a `95% CI
+[-14%, -8%]`. The interval excludes zero. That still does not override a failed full-workload gate, a semantic test, or
+a statement-level regression.
 
-<details><summary>In case you don't know about 95% CI, it's the range that should hold the true median in 95 of 100 repeats.</summary>The 95% CI on the median difference says if the gain survives variance. You need K>=5 per side, 10 to 15 advised, same binds, same host. Build by bootstrap with 2000 resamples and report low, median, high. The rule: the interval must exclude zero. Analysts use it after each SPA pair. It drives one decision: is this median drop real or luck. Do not trust a single fast run. K=1 ships the best draw, and the cost is a prod revert when the next run lands high. Sharp line: it forces the effect to beat its own spread. Example: K=10 gives medians 1210 before and 1070 after, a drop of 11.6%, with CI [-14%, -8%]. Zero sits outside, so the win counts pending other gates. With K=3 the CI spans [-13%, +4%]. Reject and add reps. Build step is design method. Unverified — run on your test DB. See [S58] https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf</details>
+With only three samples, an illustrative interval might span `[-13%, +4%]`. Zero is inside. The correct verdict is not
+“probably good.” It is `INCONCLUSIVE` or `REJECT`, followed by a better-powered repeat.
 
-**Keep this: A/A floor first, K>=5 with 95% CI, buffer_gets first and elapsed_time second.**
+The artifact is the sample JSON, the median-difference calculation, the bootstrap output, and the decision record. Keep
+those separate from the SPA report so another engineer can recompute the result.
+
+## 3. Choose metrics without worshiping one number
+
+`buffer_gets` is the primary logical-work metric in this design. `elapsed_time` is the user-visible secondary metric.
+CPU time, rows processed, and plan changes are supporting evidence. The choice is deliberate and must be calibrated on
+the target workload. Lower variance for `buffer_gets` is a design expectation to test, not a universal fact to quote as
+Oracle behavior.
+
+SPA's `comparison_metric` is release-supported and documented in [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html).
+The default and available metrics must still be checked against the release reference. The same workload, same binds,
+and same duration matter more than the label on the metric.
+
+Plan hashes do not decide the gate. A hash can change with no useful gain, and the same hash can exist with different
+runtime behavior. The plan artifact explains the result. The measured samples decide it.
+
+The full STS is the guard against a lucky winner. If one statement improves by an illustrative `18%` while the aggregate
+barely moves and two other statements regress, reject the candidate under the no-regression rule. Looking only at the
+best mover is how a narrow win becomes a workload loss.
+
+The [DBMS_XPLAN reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) supplies
+plan and runtime evidence. It does not replace the external statistics calculation.
+
+Adaptive plans remain workload-dependent. Keep the measurement policy. Do not turn an adaptive feature on or off from a
+universal slogan.
+
+The artifact is a metric decision plus a full-workload sample set. The verdict is based on the floor, the interval, and
+the per-statement guard.
+
+<details><summary>In case you don't know about A/A, it is a control run with the workload unchanged.</summary>
+
+Run the same STS through the same measurement path twice without applying a candidate. The spread tells you the rig's
+normal wobble. Keep the metric-specific floor separate: a stable `buffer_gets` result does not make a noisy
+`elapsed_time` result precise.
+
+A/A is not a benchmark of the candidate. It is a prerequisite for interpreting one. The output should include the STS
+identity, binds, host, time window, raw samples, report, and calculated floor.
+
+</details>
+
+The bootstrap interval is for the median difference, not for a plan hash or a single SPA aggregate. A point estimate without variability is not enough; record the estimator, resample count, and reproducibility method beside the interval.
+
+**Verdict: A/A sets the bar; repeated full-workload SPA sets the workload; external medians and bootstrap set the
+uncertainty.**

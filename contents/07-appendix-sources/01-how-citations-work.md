@@ -5,50 +5,86 @@ order: 71
 draft: false
 ---
 
-A junior cited a mirror with no version. Link worked. Facts were five years old. Review flagged it in seconds because the cite had no S-number, no class, no date. The fix took one minute: swap the mirror for S01 Tuning Guide 19c.
+An S-number is an index into evidence. It is not evidence by itself. The useful citation tells you what was checked, which class it belongs to, when it was accessed, and what boundary still remains.
 
-You start with copy-paste habits. You grab a sentence from a blog. You keep the link. You lose the version. This page gives you a cite pattern that keeps version attached.
+## Inline ID, dated ledger
 
-Store receipts that show short code in hand plus full slip in file are more like S-numbers, where inline ID points to full row.
+Write `[S##]` in the body when a claim needs a source. Resolve the full record in `.agents/research/07-sources-bibliography.md`. The published appendix does not reproduce every full row; it explains how to read the compact citations and points to direct source URLs where the published page needs them.
 
-## 1. Short inline, full in file 07
+That distinction prevents a common failure: a short S-number gets mistaken for a complete bibliography. It is a lookup key. The research ledger is the record.
 
-Plain claim: S## in text points to a full row with author, title, version, link.
+A useful citation has four parts:
 
-Worked example: do an S-number lookup demo. First S60. Inline you write S60 after a sqlglot claim. Full row gives repo plus MIT docs plus dialect docs plus GitHub API 2026-09-22 with MIT 9,628 stars push 2026-09-21 Active. Second S61. Inline after a lint claim. Full row gives docs v4.3.0 plus Oracle dialect reference plus GitHub API 2026-09-22 with MIT 9,883 stars push 2026-09-21 Active. Third S64. Inline after a harness claim. Full row gives LICENSE.txt with UPL-1.0 OR Apache-2.0 plus driver docs plus GitHub API 2026-09-22 with 452 stars push 2026-09-19 Active and NOASSERTION explained as dual license. First pass you match each fact to its S-number. Second pass you open the row before you reuse the fact.
+1. **ID:** the stable pointer, such as `[S60]`.
+2. **Class:** the evidence class, such as A1, B1, or C2.
+3. **Scope:** release, repository, or experiment boundary.
+4. **Date:** the access or snapshot date, not a claim that the source is eternally current.
 
-Why it matters: short keeps reading fast. Full keeps audit fast. No ID means no trust.
+For example, the sqlglot repository snapshot in this pass is MIT, 9,628 stars, last pushed 2026-09-21, and active under the six-month label. The live repository can change. [S60](https://github.com/tobymao/sqlglot)
 
-Sourced number: S60 sqlglot MIT 9,628 push 2026-09-21. S61 SQLFluff MIT 9,883 push 2026-09-21. S62 Calcite Apache-2.0 5,186 push 2026-09-21. S63 utPLSQL Apache-2.0 624 push 2026-09-18 (latest README names 19c+, older runs went back to 11gR2). S64 python-oracledb 452 push 2026-09-19.
+## Classes are weights, not badges
 
-## 2. Mirror versus A1, weight decides
+| Class  | Record                                        | Editorial rule                                                        |
+| ------ | --------------------------------------------- | --------------------------------------------------------------------- |
+| **A1** | Oracle official versioned documentation       | Use for release-specific behavior and package boundaries.             |
+| **A2** | Oracle-authored whitepaper or technical brief | Use with its version and scope.                                       |
+| **B1** | Peer-reviewed paper or preprint               | State whether the venue is confirmed, metadata-only, or unconfirmed.  |
+| **B2** | Third-party reproducibility report            | Use to test reproduction, not as a substitute for the original paper. |
+| **C1** | Deterministic tool documentation              | Use for documented commands and interfaces.                           |
+| **C2** | Maintained OSS repository                     | Use for dated license and maintenance evidence.                       |
+| **D**  | Blog, forum, or secondary material            | Corroborate; do not use as sole proof for behavior.                   |
 
-Plain claim: class D never beats class A1 for behavior claims.
+This is why the wording is “peer-reviewed paper/preprint,” not “every B1 record is confirmed peer-reviewed.” SLER [S68] and the survey [S69] are especially easy to overstate: their venue status is not treated as confirmed in this pass. QueryBooster [S80] has paper metadata and a DOI, but Oracle support is unverified. QED [S51] has a paper and no repository check here. The WeTune record pairs its paper with the third-party reproducibility report, not with a claim of confirmed Oracle coverage. [S48](https://doi.org/10.1145/3514221.3526125)
 
-Worked example: run a mirror versus A1 demo. First the mirror. Third-party copy of Oracle docs, unknown vintage, no E-number, no version header. Class D at best. Rejected as evidence. Used only to locate the official page. Then S01. Oracle Database SQL Tuning Guide 19c E96095-19 Apr 2025, class A1, TOC read firsthand, chapters 1 to 30 citable. S01 wins. Then S06 DBMS_SQLPA read firsthand with task calls and comparison_metric default elapsed_time, class A1, wins over any blog summary of SPA. First pass you check class letter. Second pass you check version string. No version means no cite for behavior.
+## The T-number map
 
-Why it matters: mirrors rot silently. A1 pages carry E-numbers and dates you can pin. Review can verify in one click.
+The map below points to the published chapter that explains each technique. T-42 remains a mechanism note for T-41, not a standalone intervention.
 
-Sourced number: 30+ A1 entries, 6 A2, 19 B1, 1 B2, 16 C, 8 D, total 80. S01 19c E96095-19 Apr 2025. S02 26ai Jan 2026. S08 stats brief 19c A2. S12 SPM brief A2.
+| IDs                  | Published chapter                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T-01–T-08            | [Measure First](/01-proven-techniques/01-measure-first/)                                                                                                                             |
+| T-09–T-23            | [Stats Run the Show](/01-proven-techniques/02-stats-run-the-show/) and the scriptable stats recipe at [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/) |
+| T-24–T-33, T-67–T-68 | [Indexes and Layout](/01-proven-techniques/03-indexes-and-layout/)                                                                                                                   |
+| T-34–T-44            | [Let Oracle Rewrite](/01-proven-techniques/04-let-oracle-rewrite/)                                                                                                                   |
+| T-45–T-53            | [Stabilize and Ship Safely](/01-proven-techniques/05-stabilize-and-ship-safely/)                                                                                                     |
+| T-54–T-57            | [Stabilize and Ship Safely](/01-proven-techniques/05-stabilize-and-ship-safely/) and [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/)                              |
+| T-58                 | [How to Prove a Win](/00-preface/02-how-to-prove-a-win/) and [Measure First](/01-proven-techniques/01-measure-first/)                                                                |
+| T-59                 | [Stabilize and Ship Safely](/01-proven-techniques/05-stabilize-and-ship-safely/)                                                                                                     |
+| T-60                 | [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/) and [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/)                                          |
+| T-61                 | [Let Oracle Rewrite](/01-proven-techniques/04-let-oracle-rewrite/) and [Stabilize and Ship Safely](/01-proven-techniques/05-stabilize-and-ship-safely/)                              |
+| T-62–T-66            | [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/) and [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/)                                          |
 
-## 3. T-number to chapter map — no hunting in research folders
+The compact map is published here. Full technique descriptions remain in `.agents/research/01-proven-techniques-catalog.md`; full source rows remain in research file 07, `.agents/research/07-sources-bibliography.md`. Do not invent a full row in a published page that does not contain one.
 
-Plain claim: every T-ID lives in this book. No need to open `.agents/`.
+## Source boundaries that change the claim
 
-Worked example: T-01 AWR and T-02 ASH and T-57 ADDM live in `01-measure-first`. T-03 Monitor and T-04 XPLAN live in `03-toolbox/01`. T-06 STS plus T-56 SPA live in `03-toolbox/02` and `04-recipes/01-02`. T-05 Trace lives in `03-toolbox/01` section 3. T-07 Test Case Builder plus T-64 Quarantine and Resource Manager kill (part of T-64, S39) live in `03-toolbox/03`. T-08 SQLdb360 lives in `01-measure-first` section 3 — CONDITIONAL, cross-check it. T-09 to T-23 stats live in `04-recipes/03`. T-24 to T-33 plus T-67 compression plus T-68 parallel live in `01-indexes-and-layout`. T-34 to T-44 rewrites live in `01-let-oracle-rewrite` (T-39 Join factorization lives here, not in guardrails). T-45 hints to T-53 outlines live in `01-stabilize-and-ship`. T-54 Tuning Advisor to T-55 ADG live in `05-feedback-loop/01`. T-58 method to T-61 Transpiler live in preface plus `04-safe-ddl`. T-62 redefine to T-66 Repair live in `04-safe-ddl` plus `05-feedback-loop/03`. T-42 is a footnote to T-41, not a fix you apply. Full T text stays in research file 01. This map is the bridge.
+**S76 — index compression.** The 19c Administrator's Guide documents prefix and advanced index compression, including compatibility and index-type restrictions. Cite it for T-67. Do not turn a space-saving feature into a universal query-speed claim. [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html)
 
-## 4. C and B classes prove code and design, D only adds color
+**S77 — parallel execution.** The 19c VLDB and Partitioning Guide describes when parallel execution can help and when resource pressure can make it worse. It supports T-68's concurrency-realistic load gate. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html)
 
-Plain claim: C proves runnable code, B proves peer design, D proves nothing alone.
+**S78 — support policy.** The official Lifetime Support Policy PDF was located but not text-extracted in this pass. No support date is asserted. If a future pass reads it, record the exact release window then—not now. [S78](https://www.oracle.com/assets/lifetime-support-technology-069183.pdf)
 
-Worked example: sort four sources by weight. First S65 HammerDB GPL-3.0 786 stars push 2026-09-18 Active, class C2. Runnable load tool. Second S66 Swingbench 80 stars push 2026-05-26 Active license null, class C2. Runnable Oracle load tool with rights check. Third S49 SQLSolver Apache-2.0 70 stars push 2025-11-22 Low activity, class B1 plus C2. Peer paper plus code, candidate gate only. Fourth a vendor tutorial on SPM. Class D. Background only, never sole proof. First pass you tag each source with class. Second pass you drop D from the proof chain and keep it as walkthrough.
+**S79 — SQL\*Plus.** Oracle's *SQL*Plus User's Guide and Reference, 19c, E96459-09, June 2025, is a client boundary. Cite it when SQL*Plus is actually part of the procedure; do not use it as a generic citation for SQL behavior. [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/)
 
-Why it matters: proof chains stay short and checkable. Color stays out of the verdict. Future readers can re-run the same sort.
+**S80 — QueryBooster.** The _PVLDB_ 16:2911 (2023) paper is candidate evidence for middleware-assisted rewriting. Oracle support is not verified, so the correct label is **CANDIDATE**, not proven replacement. [S80](https://doi.org/10.14778/3611479.3611497)
 
-Sourced number: HammerDB GPL-3.0 786 push 2026-09-18 Active. Swingbench 80 push 2026-05-26 Active license null. SQLSolver Apache-2.0 70 push 2025-11-22 Low. VeriEQL 27 push 2026-03-26 Low no license declared, see S50. Bao AGPL-3.0 223 Dormant, see S53.
+## Release-sensitive names stay marked
 
-<details><summary>In case you don't know about DOI links, it's the permanent ID for a paper that outlives blog URLs.</summary>A DOI link is a permanent ID that outlives blog URLs. It points to the publisher page for a paper. Use it in two steps: copy the DOI such as 10.1145/3514221.3526125 for WeTune P4, then paste at doi.org to land on the full record. Authors need it for audit. Readers need it to check venue fast. It drives one decision: which exact paper version backs this claim. Do not swap in a blog rewrite. Blogs rot, change URLs, strip methods, and cost dead links plus lost proof. Sharp line: DOI pins the paper, blog pins traffic. Example: S48 pairs the WeTune DOI with a third-party repro report B2. See https://doi.org/10.1145/3514221.3526125 [S48][P4].</details>
+A citation does not make a package signature portable. `DBMS_XPLAN.COMPARE_PLANS` is release-checked as a 23ai+ name; 19c users should use the documented side-by-side display facilities. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) SQL Quarantine names are release-sensitive and should be marked as sketches until checked against the installed release. [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)
 
-<details><summary>In case you don't know about NOASSERTION, it's GitHub saying it could not confirm a license.</summary>NOASSERTION means GitHub could not confirm a license from the API. It does not mean public domain. Setup is manual: open LICENSE.txt in the repo root and read the header. python-oracledb shows NOASSERTION because it is dual licensed UPL-1.0 OR Apache-2.0. Teams use this check during the two-minute vet. It drives one decision: treat as rights-unclear until you read the file. Assuming free use costs legal rework, while reading costs a minute. Sharp line: NOASSERTION forces you to read, never to assume. Example: python-oracledb passes after file read, while SQLd360 and SQLdb360 show NOASSERTION with no license file to back it. Unverified — check the repos for current LICENSE.txt. See [S64][S67].</details>
+The same applies to a new client assumption or a feature in a 26ai guide. Name the release, link the reference, and label what was not verified.
 
-**Keep this: Match each fact to its S-number, class, and date before you reuse it.**
+## The citation check
+
+Before reuse, ask:
+
+- Does the S-number resolve to the research ledger?
+- Is the source class accurate?
+- Is the release or repository version stated?
+- Is a GitHub number a dated snapshot or being presented as live?
+- Is a preprint, metadata-only paper, or venue-unconfirmed work labeled honestly?
+- Does the cited source actually support the sentence, or only the surrounding example?
+
+If any answer is no, fix the citation before publishing the claim.
+
+**Match the claim to the source class, the release, and the date.**
