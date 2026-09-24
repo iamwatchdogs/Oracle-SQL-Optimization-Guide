@@ -7,16 +7,97 @@ draft: false
 
 "It got faster on my laptop. Can I ship it? Not yet."
 
-Keep the fast plan. Block the bad one. Ship with a rollback ready.
+Your join on `employees(id,name,dept_id,salary)` and `departments(id,name)` drops from 9 seconds to 0.4 seconds after a new index. You ship Friday. Monday stats refresh flips it back to `TABLE ACCESS FULL`. Same code. Slow again. Speed without a lock is luck.
 
-A plan baseline is like a saved game, except Oracle reloads the known-good plan and tests new plans before they go live.
+A baseline is like a saved game, except Oracle reloads the known-good plan and tests new plans before they go live. Drop the game now. Known plans run. New plans prove faster first.
 
-<details><summary>In case you don't know about a SQL profile, it's extra numbers attached to one SQL ID.</summary>It corrects bad estimates without editing code. Drop it to roll back. V0 proves if it helped.</details>
+<details><summary>In case you don't know about a SQL profile, it's extra numbers attached to one SQL ID.</summary>It corrects bad estimates without editing code. Drop it to roll back. V0 proves if it helped. See TGSQL ch.27 [T-46].</details>
 
-<details><summary>In case you don't know about a SQL patch, it's a hint attached to one SQL ID.</summary>It works around a defect without editing the app. Treat it as short-term. Revisit the root cause.</details>
+<details><summary>In case you don't know about a SQL patch, it's a hint attached to one SQL ID.</summary>It works around a defect without editing the app. Treat it as short-term. Revisit the root cause. See <code>DBMS_SQLDIAG</code> ref (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html) [T-47/T-66].</details>
 
-Use hints last. Check the hint report to confirm Oracle used the hint, not ignored it. Prefer baselines for control. Capture from cursor cache, AWR, or Tuning Set. Evolve only verified plans. View them with `DISPLAY_SQL_PLAN_BASELINE`. On 19c, Auto SPM verifies in back office. On 26ai, Real-Time SPM verifies in foreground and reinstates the prior plan on regression. Keep adaptive plans on unless V0 says off. They switch join method at run time. Keep binds in code. Do not set `CURSOR_SHARING=FORCE` as a fix. Watch `V$SQL` for child-cursor counts and bind-aware flags.
+### 1. Control the plan: hints last, baselines first
 
-Propose with advisors. SQL Tuning Advisor gives 4 checks: numbers, profile, access path, structure. Apply one tip at a time. SPA with `comparison_metric` of `elapsed_time` or `buffer_gets` is the gate. ADDM is triage only. Deploy via test systems first. For layout changes without downtime, use DBMS_REDEFINITION with `CAN_REDEF_TABLE` checks and `ABORT_REDEF_TABLE` ready. For code deploys, use Edition-Based Redefinition and keep the old edition live. For runaways, set Resource Manager limits plus SQL Quarantine. On 26ai, note `SQL_ERROR_MITIGATION` as a net, not a fix.
+Plain claim: hints freeze decisions. Baselines verify decisions.
 
-**Keep this: One change, one SPA compare, one rollback path; otherwise do not ship.**
+Naive progression:
+
+```sql
+-- Naive: hint that worked once, now stale
+SELECT /*+ INDEX(e emp_dept_ix) USE_NL(e d) */ d.name, AVG(e.salary)
+FROM employees e JOIN departments d ON d.id = e.dept_id
+WHERE e.salary > 50000 GROUP BY d.name;
+-- Plan today: NESTED LOOPS + INDEX RANGE SCAN. Fast.
+-- Plan after data growth: same frozen shape. Slow. Hint ignored or harmful.
+```
+
+Check hint use with the hint report in `DISPLAY_CURSOR`. Docs: TGSQL ch.19 Influencing the Optimizer (https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/influencing-the-optimizer.html) [T-45]. If the report says unused, Oracle ignored you.
+
+Fixed:
+
+```sql
+-- Fixed: capture the good plan, evolve only verified plans
+EXEC DBMS_SPM.LOAD_PLANS_FROM_CURSOR_CACHE(sql_id=>'abc123');
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_SQL_PLAN_BASELINE(sql_handle=>'XYZ'));
+-- New plans stay unaccepted until evolve proves better
+```
+
+What the plan shows: `DISPLAY_SQL_PLAN_BASELINE` lists accepted vs unaccepted plans. Only accepted run. Docs: TGSQL ch.28/29 + `DBMS_SPM` ref + 19c SPM brief [T-48]. Migrate old stored outlines to baselines with ch.30 paths and behavior-preserving options [T-53]. On 19c, Auto SPM verifies candidates in back office from Auto STS when best-vs-worst metrics cross a threshold. On 26ai, Real-Time SPM verifies in foreground during execution and reinstates the prior accepted plan on regression (PVLDB 2026, Oracle Optimizer blogs July 2024 / Nov 2025) [T-49]. Keep adaptive plans on unless V0 says off. Plan shows adaptive markers and the final branch. Docs: TGSQL ch.4 About Adaptive Query Optimization [T-50].
+
+Why it matters: baselines are the reject-regression primitive. Hints are last resort and short-term mitigations.
+
+### 2. Keep cursors shared and parameters scoped
+
+Plain claim: literals flood the shared pool. Binds reuse plans. Wrong scope pollutes cursors.
+
+Naive progression:
+
+```sql
+-- Naive: app builds text per dept
+SELECT * FROM employees WHERE dept_id = 10;
+SELECT * FROM employees WHERE dept_id = 11;
+-- V$SQL shows 5,000 child cursors, high parse CPU
+```
+
+Fixed: bind the variable, let adaptive cursor sharing pick per bind set.
+
+```sql
+SELECT * FROM employees WHERE dept_id = :b1;
+-- V$SQL shows 1 parent, few children, IS_BIND_SENSITIVE/AWARE flags where skew needs it
+```
+
+What the plan shows: fewer children in `V$SQL` / `V$SQL_SHARED_CURSOR`, stable hash for the common case, second child for the skewed bind. Docs: TGSQL ch.20 cursor sharing, bind peeking, ACS [T-51/T-59]. Do not set `CURSOR_SHARING=FORCE` as a permanent fix. Do not scatter session-level optimizer changes. They cause cursor pollution and mismatches [T-52]. SQL profiles [T-46] and patches [T-47] attach to a SQL ID without editing code when you cannot change the app. Drop to roll back.
+
+Why it matters: parse storms look like slow queries. The fix is reuse, not indexes. Measure cursor counts plus V0 on a Tuning Set of both extremes. (One aside: I still check V$SQL before I blame the index. Back to shipping.)
+
+### 3. Propose with advisors, ship with a gate and guardrails
+
+Plain claim: advisors propose. SPA disposes. Guardrails catch the rest.
+
+Naive progression:
+
+```sql
+-- Naive: apply all four Tuning Advisor tips at once, ship direct to prod
+-- Stats + profile + index + rewrite. One helps. One hurts. Unknown which.
+```
+
+Fixed, one at a time:
+
+1. Run SQL Tuning Advisor on the SQL ID, AWR range, or Tuning Set. It returns four analyses: statistics, profile, access path, structure, plus alternative plans [T-54]. On standby workloads, tune via Active Data Guard workflow [T-55].
+2. Apply one tip. Run SQL Performance Analyzer: `DBMS_SQLPA.CREATE_ANALYSIS_TASK`, `test execute` before/after, `compare performance` on `buffer_gets` or `elapsed_time` [T-56]. Docs: `DBMS_SQLPA` ref (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html), RAT User's Guide.
+3. ADDM is triage only [T-57]. Test deploy before prod [T-60]. Follow ch.2 methodology for modeling and rollout [T-58].
+
+What the plan shows: SPA report lists improved, regressed, unchanged per statement, with plan hash per side. Ship only the improved set.
+
+Second progression, deploys:
+
+```sql
+-- Naive: ALTER TABLE ADD PARTITION during peak, locks queue
+-- Fixed layout path: DBMS_REDEFINITION with CAN_REDEF_TABLE checks, sync interim, ABORT_REDEF_TABLE ready [T-62]
+-- Fixed code path: Edition-Based Redefinition, old edition live, new edition tested, instant switch [T-63]
+```
+
+For runaways, set Resource Manager plan limits plus SQL Quarantine so the bad plan is killed and blacklisted [T-64]. Docs: TGSQL ch.4 About Quarantined SQL Plans, Resource Manager guide. On 26ai, note `SQL_ERROR_MITIGATION` and the transpiler for PL/SQL-in-SQL as a net for compile errors and per-row call overhead, not as a tuning fix [T-61/T-65]. Unverified on your schema — test on your schema.
+
+Why it matters: safe ship is a loop. Propose, test execute, compare, lock, guard. Skip a step and Monday reverts you.
+
+**Keep this: One change, one SPA compare, one rollback path; otherwise do not ship. No gate, no prod.**

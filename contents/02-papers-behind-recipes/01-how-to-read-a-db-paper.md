@@ -5,24 +5,57 @@ order: 21
 draft: false
 ---
 
-"Will this trick from a Postgres paper work on my Oracle database?"
-
-A paper is useful when you know what system it ran on, what year it shipped, and whether the claim was read in full.
+A junior finds a fast Postgres trick on a blog. The blog cites a paper. The junior pastes the trick into Oracle. Nothing speeds up. The manager asks why. The junior has no answer. The missing step was a 4-step read. System first. Year and venue next. Read depth next. Evidence class last.
 
 Reading a paper is like checking a medicine label, except you check which database it was tested on instead of dose.
 
-<details><summary>In case you don't know about PVLDB, it's a database research venue where papers pass peer review before publication.</summary>Year matters because Oracle 11g, 19c, and 26ai behave in different ways.</details>
+Start with the test system. Then check year and venue. Finally split full reads from snippets and name the evidence class. First you run the check on P1. Next you run it on Bao. Then you apply it to every new paper you meet.
 
-<details><summary>In case you don't know about snippet-verified, it's a flag that means we saw the abstract only, not the full test.</summary>Read firsthand means the full text was read. Our sources use both labels.</details>
+## 1. Name the test system before you cite the win
 
-Step 1: read the test system first. Our set names PostgreSQL, MySQL, Presto, Spark, DuckDB, Calcite, plus Oracle. If Oracle is absent, stop and mark it candidate. AutoSteer names 5 non-Oracle systems. Bao names PostgreSQL only. OtterTune names 2 systems.
+Claim: the test system decides if a result can move to Oracle.
 
-Step 2: read the year and venue. P1 is PVLDB 2026. P2 is PVLDB 2025. P4 is SIGMOD 2022 with a third-party repro report. W5 is an Oracle whitepaper from 2007. A 2007 definition can explain a term, but it cannot describe 19c behavior.
+Example: run the 4-step demo on P1 versus Bao. Step 1 asks for the system.
 
-Step 3: split full reads from snippet reads. P1 was read firsthand. P2, P3, P5, and P8 were snippet-verified in our set. Do not quote a snippet as if you ran the test.
+- P1 [P1] PVLDB 19(12):4169–4181, 2026, DOI 10.14778/3827998.3828024, https://arxiv.org/html/2608.27758v1, [read firsthand], is Oracle engineers on Oracle. It details 11g manual capture, 12c Auto SPM Evolve Advisor, 19c Auto SPM with Auto STS, and 26ai Real-Time SPM.
+- Bao [P9] SIGMOD 2021, DOI 10.1145/3448016.3452838, arXiv:2004.03814, is a PostgreSQL prototype. It steers a classic optimizer with per-query hints, tree models, and Thompson sampling. Oracle hint mapping is unverified in our pass. Mark Bao CANDIDATE for Oracle.
 
-Step 4: note the evidence class. B1 means peer-reviewed paper. A2 means Oracle-authored brief. B2 means third-party repro artifact. Access date for all entries is 2026-09-22.
+Why it matters: hints are engine-specific. A Postgres hint set has no direct Oracle match. You save days by stopping at Step 1 when Oracle is absent.
 
-Oracle learned this the hard way. Background plan checks ran too slow on cloud systems with tight resources, so the 26ai team moved verification into the foreground user run.
+Number: AutoSteer [P8] PVLDB 16:3515, 2023, [snippet-verified], lists 5 non-Oracle systems: PostgreSQL, Presto, Spark, MySQL, DuckDB. OtterTune [P10] SIGMOD 2017 lists 2: PostgreSQL and MySQL. Zero list Oracle.
+
+## 2. Check year, venue, and evidence class
+
+Claim: year and venue tell you how much weight to give a claim.
+
+Example: continue the demo with Steps 2 and 4. Step 2 reads year and venue.
+
+- P1 is PVLDB 2026. P2 [P2] is PVLDB 2025. P4 [P4] is SIGMOD 2022, pp. 94–107, with a third-party repro report [B2].
+- W5 is an Oracle whitepaper from 2007, https://www.oracle.com/technetwork/database/performance/spa-white-paper-ow07-132047.pdf. A 2007 brief can define SQL Performance Analyzer. It cannot describe 19c conduct. Current SPA conduct comes from 19c docs [S06][S13].
+
+Step 4 reads evidence class. B1 means peer-reviewed paper. A2 means Oracle-authored brief such as W4 SQL Plan Management in Oracle Database 19c, https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf. B2 means repro artifact.
+
+Why it matters: old vendor briefs still rank high in search. Juniors cite W6 from 2012 for stats practice. W2 from 19c supersedes it. Year check blocks that error.
+
+Number: access date for all entries is 2026-09-22. Four key entries in our set were [snippet-verified]: P2, P3, P5, P8. One was [read firsthand]: P1.
+
+## 3. Never quote a snippet as a test you ran
+
+Claim: read depth limits what you can claim.
+
+Example: finish the demo with Step 3 on Bao and P2.
+
+- Bao full text shows a Postgres loop. It does not show an Oracle run. So you write CANDIDATE, Oracle mapping unverified.
+- P2 abstract reports about 15% speed gain and up to 60% space-reclamation potential on customer load. Our source flags both as [snippet-verified, abstract-level figures]. So you write vendor-reported, test locally.
+- SQLSolver [P5] SIGMOD 2024, DOI 10.1145/3626768, https://github.com/SJTU-IPADS/SQLSolver, proves 346 of 359 pairs from Calcite and Spark SQL rules, [snippet-verified]. Still CANDIDATE. No Oracle dialect proof in our pass.
+- WeTune [P4] checked rules on queries from the 20 most popular open-source projects. Strong method. Still no Oracle dialect proof in our pass.
+
+Why it matters: precise labels keep you honest. Teammates can then plan a real Oracle test instead of trusting a snippet.
+
+Number: 346 of 359 proved. 20 projects sampled. 2026-09-22 access date. Those three numbers belong in any cite of P5 and P4.
+
+<details><summary>In case you don't know about PVLDB, it's a database research venue where papers pass peer review before publication.</summary>Year matters because Oracle 11g, 19c, and 26ai behave in different ways. P1 tracks that shift year by year. Cite the year with the claim.</details>
+
+<details><summary>In case you don't know about snippet-verified, it's a flag that means we saw the abstract only, not the full test.</summary>Read firsthand means the full text was read. Our sources use both labels. Keep the label attached to the number.</details>
 
 **Keep this: Never cite a result without naming the tested system and year.**

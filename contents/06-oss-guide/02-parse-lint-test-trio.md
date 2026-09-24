@@ -5,28 +5,44 @@ order: 62
 draft: false
 ---
 
-Run three cheap gates before you touch the DB. Parse, lint, test.
+A junior shipped a rewrite with clean lint and no unit test. Lint was happy. Rows dropped from 400 to 380. A 30-second unit test would have caught it. SPA would have caught the plan shift next. Two gates were skipped to save a minute. Debug took a day.
 
-"'why did my lint pass but prod still break?'"
+You know basic SQL and you trust a green check. Green from a linter means clean text. Green from prod means same rows and fast plan. This page shows three cheap gates that run before you touch the DB, plus the harness that calls the DB when you are ready.
 
-Short answer: lint checks text. Prod checks meaning plus data plus load. You need all three gates.
+Three gates at an airport are more like ticket plus bag plus ID, where each gate blocks a different risk.
 
-Think of the trio like three gates at an airport: ticket, bag, ID.
+## 1. Parse proves structure, never speed
 
-<details><summary>In case you don't know about AST parsing, it's turning SQL text into a tree the machine can walk.</summary>sqlglot builds that tree for Oracle dialect SQL. You can then rewrite, compare, and print it back to text.</details>
+Plain claim: sqlglot turns Oracle text into a tree you can diff and normalize.
 
-<details><summary>In case you don't know about utPLSQL, it's a unit-test framework that lives inside Oracle DB.</summary>Tests are PL/SQL packages. They assert expected versus actual. They need 19c or newer per the README.</details>
+Worked example: parse v1 and v2 of a join rewrite. First you run parse_one on v1 with Oracle dialect. You get a tree. You print it back to text. Syntax holds. Then you run parse_one on v2 and diff the two trees. You spot a dropped predicate in seconds. Output A: parse OK, 2 tables, 1 join key. Output B: parse OK, 2 tables, 0 join keys, full cross product flagged by eye on the diff. First pass you parse one file to learn the shape. Second pass you diff two files to catch the rewrite fault. You never claim speed from this step.
 
-Gate 1 means parse with sqlglot. MIT, 9,628 stars, push 2026-09-21, Active. It reads Oracle dialect SQL into a tree. Use it to normalize text, diff two rewrites, and build candidates for T-34 to T-44. It also parses hint text for T-45. It does not prove speed. It proves structure.
+Why it matters: structure faults are cheap to find in text. In prod they read as timeouts. Parse moves the find earlier.
 
-Gate 2 means lint with SQLFluff. MIT, 9,883 stars, push 2026-09-21, Active. Docs list an Oracle dialect. Use it as a CI gate for T-58. It blocks bad patterns early. It costs seconds. It never replaces EXPLAIN PLAN.
+Sourced number: sqlglot MIT 9,628 stars push 2026-09-21 Active, Oracle among 30+ dialects, see S60. Apache Calcite Apache-2.0 5,186 stars push 2026-09-21 Active with OracleSqlDialect, see S62, for rule-based normalization in the T-34 to T-44 lane. sqlglot also parses hint text for T-45 but does not bless hint safety.
 
-Gate 3 means test with utPLSQL. Apache-2.0, 624 stars, push 2026-09-18, Active. README requires Oracle Database 19c or newer. Use it for T-60 result checks. Assert row counts and values before and after a rewrite. A green lint plus a red unit test still means stop.
+## 2. Lint blocks style faults in CI in seconds
 
-Harness means python-oracledb. UPL-1.0 OR Apache-2.0, 452 stars, push 2026-09-19, Active. GitHub shows NOASSERTION because the license is dual, so read LICENSE.txt. Use it to connect, run, time, and script calls to built-ins such as SPA tasks. It does the plumbing. Oracle does the verdict.
+Plain claim: SQLFluff with Oracle dialect stops bad patterns before review.
 
-What about proof of sameness? VeriEQL: 27 stars, no license declared, push 2026-03-26. SQLSolver: Apache-2.0, 70 stars, push 2025-11-22. Both are candidates only. Oracle coverage is unverified. Do not present them as gates.
+Worked example: gate a pull request with two files. First good.sql. SQLFluff with Oracle dialect returns exit 0, 0 violations. Pull request proceeds. Then bad.sql with mixed case keywords and a trailing comma fault. SQLFluff returns exit 1, 3 violations, lines flagged. CI blocks merge. First pass you lint one file locally to learn rule IDs. Second pass you gate the full pull request in CI for T-58. You still need EXPLAIN PLAN after. Lint never replaces the optimizer.
 
-A junior once shipped a rewrite with clean lint and no unit test. Lint was happy. Rows dropped from 400 to 380. The unit test would have caught it in 30 seconds. SPA would have caught the plan shift next.
+Why it matters: style faults create noise in diffs and hide logic faults. A seconds-fast gate keeps main clean. Review time drops.
+
+Sourced number: SQLFluff MIT 9,883 stars push 2026-09-21 Active, Oracle dialect documented, see S61. Use as CI gate for T-58 methodology checks. Cost is seconds. Verdict stays with Oracle.
+
+## 3. Test asserts meaning, harness connects the DB
+
+Plain claim: utPLSQL asserts rows, python-oracledb runs the calls.
+
+Worked example: test the same rewrite end to end. First utPLSQL. Apache-2.0, 624 stars, push 2026-09-18, Active, needs 19c or newer, see S63. You write a package with one test: expect 400 rows, expect sum 1,204,500. Run. Output: FAIL, got 380 rows. Stop. No SPA run needed yet. Fix the predicate, rerun. Output: PASS. Then python-oracledb. UPL-1.0 OR Apache-2.0, 452 stars, push 2026-09-19, Active, see S64. You connect, run before and after timing, and script DBMS_SQLPA calls for T-56. First pass you assert meaning inside Oracle. Second pass you script measurement around Oracle. VeriEQL 27 stars no license declared push 2026-03-26, see S50, and SQLSolver Apache-2.0 70 stars push 2025-11-22, see S49, stay candidates only with unverified Oracle cover.
+
+Why it matters: a green lint plus a red unit test still means stop. Meaning beats style. Measurement beats both.
+
+Sourced number: utPLSQL Apache-2.0 624 push 2026-09-18 Active needs 19c or newer. python-oracledb UPL-1.0 OR Apache-2.0 452 push 2026-09-19 Active. VeriEQL 27 Low no license. SQLSolver Apache-2.0 70 Low.
+
+<details><summary>In case you don't know about AST parsing, it's turning SQL text into a tree the machine can walk.</summary>sqlglot builds that tree for Oracle dialect SQL. You can then rewrite, compare, and print it back to text. You cannot prove speed from the tree.</details>
+
+<details><summary>In case you don't know about utPLSQL, it's a unit-test framework that lives inside Oracle DB.</summary>Tests are PL/SQL packages. They assert expected versus actual. They need 19c or newer per the README. Run them before any SPA task.</details>
 
 **Keep this: Parse the text, lint the style, test the meaning — then measure in Oracle.**

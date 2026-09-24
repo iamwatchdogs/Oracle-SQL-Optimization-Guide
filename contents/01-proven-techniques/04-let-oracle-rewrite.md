@@ -7,18 +7,112 @@ draft: false
 
 "Should I rewrite this query by hand? Usually no."
 
-Let the optimizer rewrite first. Check the plan it picked.
+You write a clean join on `employees(id,name,dept_id,salary)` and `departments(id,name)`. Oracle runs a different shape: view folded, predicate pushed, subquery turned to a join. Same result. Less work. Your job is to name the rewrite in the plan and prove it.
 
-A query transformation is like rewording a request, except Oracle keeps the meaning and picks a cheaper execution shape.
+A rewrite is like rewording a request, except Oracle keeps the meaning and picks a cheaper execution shape. Drop the rewording now. Meaning stays. Shape changes. Plan names it.
 
-<details><summary>In case you don't know about view merging, it's folding an inner query into the outer one.</summary>Folded queries expose better joins. Some shapes run worse folded. Controls exist for that reason.</details>
+<details><summary>In case you don't know about view merging, it's folding an inner query into the outer one.</summary>Folded queries expose better joins. Some shapes run worse folded. Controls exist for that reason. See TGSQL ch.5 Query Transformations (https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/query-transformations.html) [T-35].</details>
 
-<details><summary>In case you don't know about subquery unnesting, it's turning a subquery into a join.</summary>Filters become HASH JOIN SEMI or ANTI paths. The plan names the new shape. V0 proves the gain.</details>
+<details><summary>In case you don't know about subquery unnesting, it's turning a subquery into a join.</summary>Filters become <code>HASH JOIN SEMI</code> or <code>ANTI</code> paths. The plan names the new shape. V0 proves the gain. See [T-37].</details>
 
-The list is fixed in chapter 5. OR expansion turns ORs into UNION-ALL branches and shows CONCATENATION. Predicate pushing moves filters inside views to prune early. Star transformation handles star schemas and shows `STAR TRANSFORMATION`, but needs `STAR_TRANSFORMATION_ENABLED` plus bitmaps on fact keys. Join factorization merges common joins across UNION branches. Table expansion splits partially indexed access into branches. Temp-table transformation stores a repeated result for cursor duration. Do not force it by hand. It is internal.
+### 1. Give ORs and views a better shape
 
-Two special cases close the set. VECTOR GROUP BY speeds aggregation over In-Memory scans. Check the plan line plus scan timing. `APPROX_COUNT_DISTINCT` trades exactness for speed. Keep the exact query as reference. Measure error on samples. Document the approximation in output.
+Plain claim: ORs and layered views block good access paths. Expansion and merging reopen them.
 
-The oldest proof habit still wins. Do not cite the manual. Show the plan before and after. Name the new row source. Pair it with buffer gets and elapsed time from the same Tuning Set.
+Naive progression:
 
-**Keep this: Name the rewrite in the plan, then show the rerun delta.**
+```sql
+-- Naive: OR blocks the dept index
+SELECT * FROM employees WHERE dept_id = 10 OR salary > 200000;
+-- Plan: TABLE ACCESS FULL, 8 seconds
+```
+
+Fixed: let OR expansion split branches. Plan shows `CONCATENATION`, one branch with `INDEX RANGE SCAN` on dept, one with range on salary [T-34].
+
+```sql
+-- Same text after stats + indexes, no hand rewrite:
+-- Plan: CONCATENATION
+--   Branch 1: INDEX RANGE SCAN EMP_DEPT_IX
+--   Branch 2: INDEX RANGE SCAN EMP_SAL_IX
+```
+
+What the plan shows: `CONCATENATION` plus per-branch access. Do not force it. Cost decides. If one indexed range already serves the OR, expansion adds nothing. Measure.
+
+Second progression:
+
+```sql
+-- Naive: inline view hides the filter
+SELECT * FROM (SELECT * FROM employees WHERE salary > 50000) e
+JOIN departments d ON d.id = e.dept_id WHERE d.name = 'Sales';
+-- Plan shows VIEW row source, late filter
+-- Fixed: view merging folds it, predicate pushing drops d.name='Sales' inside early
+-- Plan: no VIEW, HASH JOIN with pushed access on departments, then rowid to employees
+```
+
+Docs: view merging simple/complex [T-35], predicate pushing [T-36]. Merging can hurt in documented cases. Controls exist. Check the plan, then V0.
+
+Why it matters: you keep SQL readable. Oracle picks the shape. The plan names the shape. Unverified on your schema — test on your schema.
+
+### 2. Turn subqueries to joins, stars to bitmap paths
+
+Plain claim: `NOT IN` and `EXISTS` run best as joins. Star schemas run best from dimensions inward.
+
+Naive progression:
+
+```sql
+-- Naive: FILTER loop over departments
+SELECT d.name FROM departments d
+WHERE NOT EXISTS (SELECT 1 FROM employees e WHERE e.dept_id = d.id);
+-- Plan: FILTER, one probe per department row
+```
+
+Fixed: subquery unnesting converts to `HASH JOIN ANTI`. Same rows. One hash pass [T-37].
+
+```sql
+-- Fixed plan: HASH JOIN ANTI, full scan of small departments, hash on employees.dept_id
+```
+
+What the plan shows: `HASH JOIN ANTI` or `HASH JOIN SEMI` in place of `FILTER`. Second shape, star:
+
+```sql
+-- Naive: fact-first scan on sales + 4 dimensions, 50 seconds
+SELECT p.name, t.mth, SUM(s.amount)
+FROM sales s, products p, times t, customers c, stores st
+WHERE s.prod_id=p.id AND s.time_id=t.id AND s.cust_id=c.id AND s.store_id=st.id
+AND p.cat='Bikes' AND t.yr=2026;
+```
+
+Fixed: star transformation with `STAR_TRANSFORMATION_ENABLED=TRUE` plus bitmaps on fact keys rewrites to dimension-first bitmap access. Plan shows `STAR TRANSFORMATION` [T-38]. Needs the star pattern and bitmap indexes. Without them, no transform.
+
+Union repeats get join factorization: common joins across `UNION` branches factor once [T-39]. Partial indexes get table expansion: `UNION-ALL` with indexed parts via index and the rest via full scan [T-40]. Repeated expressions get temp-table transformation: cursor-duration temp for the shared result [T-41/T-42]. All are internal. Do not hand-force. Docs: TGSQL ch.5 plus ch.4 cursor-duration tables.
+
+Why it matters: these are the 11 documented transforms [T-34 to T-44]. Each has conditions and controls. The plan proves which one fired. (One aside: I still read the plan twice before I claim a rewrite. Back to shapes.)
+
+### 3. Use vector aggregation and approximations where exactness allows
+
+Plain claim: aggregates over columnar scans vectorize. Counts you do not need exact can approximate.
+
+Naive progression:
+
+```sql
+-- Naive: row-store GROUP BY over 200M sales rows, 70 seconds
+SELECT prod_id, COUNT(DISTINCT cust_id) FROM sales GROUP BY prod_id;
+-- Plan: HASH GROUP BY + TABLE ACCESS FULL
+```
+
+Fixed for In-Memory: same text over IM column store shows `VECTOR GROUP BY` plus `TABLE ACCESS INMEMORY FULL`. Docs: TGSQL ch.5 + In-Memory Guide [T-43]. Needs IM store enabled. Not for row-by-row OLTP.
+
+Second progression:
+
+```sql
+-- Naive: exact distinct over huge set, slow but exact
+SELECT COUNT(DISTINCT cust_id) FROM sales;
+-- Fixed: approximate where business accepts error
+SELECT APPROX_COUNT_DISTINCT(cust_id) FROM sales;
+```
+
+What the plan shows: same access, far less work for the aggregate. Docs: TGSQL ch.4 About Approximate Query Processing [T-44]. Keep the exact query as reference. Measure error on samples. Document the approximation in output. Never use for results that need exactness.
+
+Why it matters: the oldest proof habit still wins. Show the plan before and after. Name the new row source. Pair it with buffer gets and elapsed time from the same Tuning Set [T-06/T-56].
+
+**Keep this: Name the rewrite in the plan, then show the rerun delta. No operation name, no claim.**

@@ -7,26 +7,46 @@ draft: false
 
 This is NOT Oracle SQL. This is a NON-Oracle bonus about the Anthropic Message Batches API.
 
-Batch trades speed for 50% lower price.
+A junior sent 5,000 chat replies as one batch. Users waited. No stream arrived. The fix was simple. Chat stayed on realtime. Nightly summaries moved to batch. Cost fell. Chats stayed fast. That split is the whole lesson.
 
-"'can I use batch for my chatbot?'"
+Batch is like night-shift mail sorting, except you track each letter with custom_id and read results from .jsonl.
 
-Short answer: no. No streaming. No Fast mode. No sync replies.
+Start with the price-for-speed trade. Then learn strict mechanics. Finally dodge billing and limit traps. First you pick batch or realtime. Next you build the batch right. Then you poll and bill it right.
 
-Think of batch like night-shift mail sorting: cheaper, next morning, no rush.
+## 1. Trade speed for price when replies can wait
 
-<details><summary>In case you don't know about custom_id, it's the label you set so you can match each result to its request.</summary>Batch output order is random. Store custom_id like ticket-001 and join on it after download.</details>
+Claim: batch costs half, but gives no realtime reply. Example: run the decision demo. A chatbot needs tokens now. It needs streaming. It fails on batch. Docs say batch suits cases where immediate responses are not required. A nightly eval of 5,000 tickets fits batch. A live chat turn does not. Move bulk evals, moderation, dataset labeling, and bulk generation to batch. Keep interactive chat on realtime. Why it matters: wrong path picks hurt users or waste cash. Batch on chat adds hours of lag. Realtime on 5,000 nightly labels wastes half the spend. Number: All usage is charged at 50% of the standard API prices. Source: https://platform.claude.com/docs/en/build-with-claude/batch-processing, accessed 2026-09-20. Most batches finish in less than 1 hour. The 24-hour mark is expiry, not a promise.
 
-<details><summary>In case you don't know about .jsonl results, it's one JSON object per line you stream and parse.</summary>Files can be large. Stream, do not load all at once. Check result type: succeeded, errored, canceled, expired.</details>
+## 2. Build strict batches and match by custom_id
 
-Precise terms now. Create with POST /v1/messages/batches. Each entry in requests[] holds custom_id plus params with model, max_tokens, messages, plus system or tools if needed. custom_id must be 1 to 64 chars, letters, numbers, hyphen, underscore. Results come back in any order in .jsonl. Always match by custom_id.
+Claim: batch shape is strict, and result order is random. Example: continue the decision demo with a small batch. Create with POST /v1/messages/batches. Each item in requests[] holds custom_id plus params with model, max_tokens, messages, plus system or tools if needed. Set custom_id like ticket-001. It must be 1 to 64 chars, letters, numbers, hyphen, underscore only. Test the params shape on realtime first. Batches validate async and lock after submit. To change one, cancel and resubmit. Poll retrieve until processing_status is ended. Then stream results_url as .jsonl. Join on custom_id. Never trust order.
 
-Lifecycle: processing_status goes in_progress to canceling to ended. expires_at is 24 hours after creation. Access results when all done or after 24 hours, whichever comes first. Typical finish is less than 1 hour. 24 hours is expiry, not a promise. Docs say a batch can expire and not complete. Expired items are not billed.
+```python
+import anthropic, time
+client = anthropic.Anthropic()
+batch = client.messages.batches.create(requests=[
+  {"custom_id": "ticket-001", "params": {
+    "model": "claude-sonnet-4-5", "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Summarize this ticket..."}]}}
+])
+while True:
+  b = client.messages.batches.retrieve(batch.id)
+  if b.processing_status == "ended":
+    break
+  time.sleep(60)
+for entry in client.messages.batches.results(batch.id):
+  if entry.result.type == "succeeded":
+    print(entry.custom_id, entry.result.message.content)
+```
 
-Limits: either 100,000 requests or 256 MB per batch, whichever hits first. Price: all use at 50% of standard, input plus output plus special tokens. Stacks with prompt caching for more savings. Use 1-hour cache since batches can pass the 5-minute TTL. Only succeeded items bill. Errored, canceled, expired show "You will not be billed for these requests."
+Why it matters: random order breaks naive joins. Teams that index by row lose tickets. custom_id is the only safe key. Docs state batch results can be returned in any order and direct you to always use the custom_id field. Number: a batch holds either 100,000 requests or 256 MB, whichever hits first. Statuses are in_progress, canceling, ended at batch level, and succeeded, errored, canceled, expired per request. Types source: SDK batches.ts plus https://platform.claude.com/docs/en/api/php/beta/messages/batches/cancel, accessed 2026-09-20.
 
-Use batch when replies can wait: bulk evals, moderation, dataset labeling, bulk generation. Do not use when latency matters or when you need stream: true. stream: true, speed, and max_tokens: 0 fail checks. Batch has its own rate limits shared across models. It does not touch realtime limits. Results stream from results_url. Delete with DELETE /v1/messages/batches/{id}.
+## 3. Bill only wins and respect hard limits
 
-A junior sent 5,000 chat replies as one batch and polled each second. No stream arrived. Users waited. Fix was simple: realtime path for chat, batch path for nightly summaries. Cost fell. Chats stayed fast.
+Claim: only succeeded items bill, and 24 hours is a cutoff, not a pledge. Example: finish the demo with traps. An errored item shows invalid_request_error and bills zero. Docs state you will not be billed for these requests for errored, canceled, and expired alike. A batch can expire with work undone. Docs state batches expire if processing does not complete within 24 hours, and a batch can expire and not complete. Expired items bill zero. A batch with stream true, speed Fast mode, or max_tokens 0 fails checks. Prompt caching stacks with batch for extra cuts. Use 1-hour cache since batches can pass the 5-minute TTL. Batch rate limits stand apart from realtime limits and span all models. Source: https://platform.claude.com/docs/en/api/rate-limits, accessed 2026-09-20. Why it matters: three myths die here. Expiry is not a finish pledge. Failed items are not half-price. Batch calls do not eat realtime quota. Plan long generations inside the 24-hour window. A 300k-token run can pass one hour. Number: 50% price on input, output, and special tokens. 100,000 or 256 MB cap. Results access when all done or after 24 hours, whichever comes first.
+
+<details><summary>In case you don't know about custom_id, it's the label you set so you can match each result to its request.</summary>Batch output order is random. Store custom_id like ticket-001 and join on it after download. Regex is 1 to 64 chars, letters, numbers, hyphen, underscore.</details>
+
+<details><summary>In case you don't know about .jsonl results, it's one JSON object per line you stream and parse.</summary>Files can be large. Stream, do not load all at once. Check result type: succeeded, errored, canceled, expired. Only succeeded bills.</details>
 
 **Keep this: Need it now, use realtime — can wait hours, use batch at 50% off.**
