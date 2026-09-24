@@ -7,18 +7,52 @@ draft: false
 
 Picture a fix that wins solo at midnight and locks 30 sessions at 10 a.m.
 
-A concurrency run with a realistic mix plus guardrail checks proves a change is safe to keep.
+Solo speed is not safety. Parallel work is the test.
+
+You can run SELECT. You have seen a query pass alone and watch it fail in the rush. This page proves a change holds when users pile on.
 
 Load testing is like a fire drill, except you run fake users against a copy so real users never feel the fault.
 
-<details><summary>In case you don't know about HammerDB, it's a free load runner with TPROC-C and TPROC-H style work for Oracle and other systems.</summary>It runs from hammerdbcli with Tcl scripts for repeatable capacity tests.</details>
+<details><summary>In case you don't know about HammerDB, it's a free load runner with TPROC-C and TPROC-H style work for Oracle and other systems.</summary>It runs from hammerdbcli with Tcl scripts for repeatable capacity tests. GPL-3.0, 786 stars, last push 2026-09-18, hosted by the TPC Council. Site: https://www.hammerdb.com/</details>
 
-<details><summary>In case you don't know about SQL Quarantine, it's Oracle's block that stops a known-bad plan from running again.</summary>Resource Manager plus quarantine views show terminations and blocks as proof.</details>
+## 1. One loader, one realistic mix
 
-Pick one loader. HammerDB is GPL-3.0, has 786 stars, last push 2026-09-18, and is hosted by the TPC Council. Swingbench is Oracle-focused with Order Entry and Call-Circle style mixes, charbench, oewizard data gen, plus a Docker image. It has 80 stars, last push 2026-05-26, and no license declared in the repo. Check rights before you ship it in CI.
+Plain claim: test the mix prod runs, not one hero query.
 
-Set guardrails first. DBMS_RESOURCE_MANAGER caps runaway work. Quarantine blocks repeat offenders. DBMS_SQLDIAG packages the failing case with DDL, stats, plan, and data samples through SQL Test Case Builder for an isolated DB. That bundle lets you repro without prod data.
+Worked example A — HammerDB guardrail run. Build a TPROC-C style schema on a test copy with fresh stats. Write one Tcl script that ramps users, holds peak, then cools down. Run it from hammerdbcli before your change. Save throughput, error count, and top waits. Apply your index or rewrite. Run the same script again with the same user counts and same length.
 
-Close the loop on revert. Restore stats, drop the patch or profile or baseline, then check plan hash returns.
+How to read it: same script twice gives two numbers you can trust. Throughput up with errors flat is good. Throughput up with lock waits up is not good. One run is noise — run twice per side and keep medians.
+
+Worked example B — Swingbench check for Oracle mixes. Swingbench ships Order Entry plus SH plus Call-Circle style mixes, with charbench for headless runs, oewizard for data gen, plus a Docker image. 80 stars, last push 2026-05-26, no license declared in the repo. Vendor page calls it a free load generator. Check rights before you ship it in CI. Pick one mix that looks like your app. Run it the same way: before change, after change, same users, same time. Unverified — test on your schema for exact Docker tags and data sizes.
+
+Decision it drives: faster solo plus slower mix means reject. Faster on both means move to guardrails.
+
+## 2. Guardrails first, repro without prod
+
+Plain claim: caps stop the bleed. A packaged case lets you repro without prod data.
+
+Worked example C — set caps before the load run. Use DBMS_RESOURCE_MANAGER to cap runaway work by CPU or calls or elapsed time. Use SQL Quarantine to block a known-bad plan from running again. Both write proof: V$RSRC views show terminations and throttles, quarantine views show blocks. If your after-change run trips quarantine, the plan is bad even if one timing looked good.
+
+How to read guardrail output: zero quarantine hits plus zero Resource Manager kills means the mix stayed inside bounds. One quarantine hit means that SQL ID plus plan hash is now blocked — read which line tripped it and why. Caps that fire on the before run too mean your caps are too tight, not that your change failed.
+
+Worked example D — pack the failure for isolation. SQL Test Case Builder via DBMS_SQLDIAG packages DDL, stats, plan, and data samples into a test case. That bundle moves to an isolated DB. You repro the bad plan there, not on prod. Docs: Performance Tuning Guide ch.22 plus DBMS_SQLDIAG ref (https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html). Exact export paths vary by release. Unverified — test on your schema for your directory objects.
+
+One aside: midnight wins love morning locks. Back to the mix.
+
+Decision it drives: quarantine hit means fix the plan or drop the change. Clean run plus clean repro case means you can defend the change in review.
+
+## 3. Close the loop on revert
+
+Plain claim: every change needs a one-command way back.
+
+Worked example E — stats restore check. Before you gather new stats on test, export or keep history via DBMS_STATS. After the load run, restore, then confirm plan hash returns to the before value with DISPLAY_CURSOR. If the hash does not return, your revert missed a patch, profile, or baseline.
+
+Worked example F — patch and baseline drop check. If you used a SQL patch (DBMS_SQLDIAG) or a profile or a baseline (DBMS_SPM), drop or disable that one object, then rerun the hero query plus the mix sampler. Same hash as before means the revert worked. New hash means something else still pins the plan — check fixed plans and evolve reports.
+
+How to read it: plan hash is the revert receipt. A-Rows vs E-Rows confirms the estimate path is back. Load errors at zero confirms users see no scar.
+
+Decision it drives: hash back plus mix clean means the revert is safe to document. Hash stuck means keep digging before you call it reverted.
+
+<details><summary>In case you don't know about SQL Quarantine, it's Oracle's block that stops a known-bad plan from running again.</summary>Resource Manager plus quarantine views show terminations and blocks as proof. Use them as the gate before you call a change safe.</details>
 
 **Keep this: Pass a parallel run with zero quarantine hits before you call it safe.**

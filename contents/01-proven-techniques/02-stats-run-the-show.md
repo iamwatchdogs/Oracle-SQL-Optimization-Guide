@@ -7,18 +7,90 @@ draft: false
 
 "Why did Oracle pick that bad plan? It guessed wrong about my data."
 
-Bad estimates cause bad plans. Fresh numbers fix the estimates.
+Take `employees(id,name,dept_id,salary)` with 10M rows. Dept 10 holds 40% of rows. You run `WHERE dept_id = 10`. Oracle picks `TABLE ACCESS FULL`. Good. You run `WHERE dept_id = 99`. Only 20 rows match. Oracle still picks `TABLE ACCESS FULL`. Bad. Same shape, different data. The difference is numbers about data. That is optimizer statistics.
 
-Fresh statistics are like a headcount before lunch, except Oracle counts rows and value spread to pick join order and access paths.
+Fresh counts are like a headcount before food orders, except Oracle counts rows and value spread to pick join order and access paths. Drop the catering now. Stats are estimates. Plans follow estimates.
 
-<details><summary>In case you don't know about a histogram, it's a note on how values spread in a column.</summary>Flat columns need no note. Skewed columns do. Oracle picks frequency, top-frequency, or hybrid by set rules.</details>
+<details><summary>In case you don't know about a histogram, it's a note on how values spread in a column.</summary>Flat columns need no note. Skewed columns do. Oracle picks frequency, top-frequency, or hybrid by set rules. Height-balanced is legacy. See TGSQL ch.11 [T-16].</details>
 
-<details><summary>In case you don't know about extended statistics, it's a note on columns used together.</summary>City plus state is the classic pair. Single-column numbers miss the link. Group numbers catch it.</details>
+<details><summary>In case you don't know about extended statistics, it's a note on columns used together.</summary>City plus state is the classic pair. Single-column numbers miss the link. Group numbers catch it. See TGSQL ch.14 [T-17].</details>
 
-Leave auto collection on. Change preferences, not scripts. The 19c gathering brief says that plainly. For large tables, follow the sample-size and parallelism guidance. Do not run 100% gathers by habit. For partitioned tables, set `SET_TABLE_PREFS(...,'INCREMENTAL','TRUE')` and keep global numbers via synopses. For load spikes, add concurrent gathering tied to Resource Manager. For hot DML tables, use Real-Time Statistics from 19c, with regression models added in 26ai. For bulk loads, rely on online gathering during CTAS and direct-path inserts.
+### 1. Keep auto collection on, tune the edges with care
 
-When estimates still miss, climb the ladder. Turn on dynamic statistics to sample at parse time. Add histograms only where skew meets the documented criteria. Height-balanced is legacy. Prefer the three current types. Add column-group stats for correlated predicates, or set `AUTO_STAT_EXTENSIONS` to ON for auto creation. Add expression stats for `UPPER(col)` style filters. Read `DBA_SQL_PLAN_DIRECTIVES` to see recorded misses.
+Plain claim: defaults win. Custom scripts lose unless you measure.
 
-Test risky refreshes with `PUBLISH=FALSE` and `PUBLISH_PENDING_STATS`. Keep restores ready. History retention bounds the window.
+Naive progression:
 
-**Keep this: Fix the estimate first; the plan follows.**
+```sql
+-- Naive: nightly 100% gather on a 500M-row table, window overruns, plans flip
+EXEC DBMS_STATS.GATHER_TABLE_STATS('HR','EMPLOYEES',estimate_percent=>100);
+-- Plan next morning: INDEX RANGE SCAN becomes TABLE ACCESS FULL, no code change
+```
+
+Fixed:
+
+```sql
+-- Fixed: leave the auto task on, set prefs per object
+EXEC DBMS_STATS.SET_TABLE_PREFS('HR','EMPLOYEES','ESTIMATE_PERCENT','AUTO_SAMPLE_SIZE');
+-- Check history, then compare plans with DISPLAY_CURSOR before/after
+```
+
+What the plan shows: after a correct gather, `INDEX RANGE SCAN` on `EMP_DEPT_IX` for `dept_id = 99` with E-Rows close to A-Rows. Docs: Best Practices for Gathering Optimizer Statistics 19c + TGSQL ch.13 Gathering Optimizer Statistics [T-09/T-10]. Manual sample-size and parallelism guidance lives there. Do not run 100% gathers by habit.
+
+For partitioned tables, set `SET_TABLE_PREFS(...,'INCREMENTAL','TRUE')` and keep global numbers via synopses (adaptive sampling, HyperLogLog) [T-11]. For tight windows, use concurrent gathering tied to Resource Manager [T-12]. For hot DML tables, turn on Real-Time Statistics (19c+, regression models added in 26ai) so DML updates feed the optimizer without waiting for night [T-13]. For bulk loads, rely on online gathering during `CREATE TABLE AS SELECT` and direct-path inserts [T-14]. For intra-day churn, add high-frequency auto collection on volatile objects only [T-23].
+
+Why it matters: stale stats are a documented root cause of bad plans (TGSQL ch.10). Volatile tables need a different path. AskTOM thread July 2026 records the trade-off [T-13].
+
+### 2. Fix skew and links: histograms, groups, expressions
+
+Plain claim: one-column flat numbers fail on skew and on correlated columns.
+
+Naive progression:
+
+```sql
+-- Naive: salary skew, no histogram
+SELECT * FROM employees WHERE salary > 180000;
+-- E-Rows=500K, A-Rows=800. Plan: TABLE ACCESS FULL. Wrong.
+```
+
+Fixed:
+
+```sql
+-- Fixed: histogram where criteria meet, then recheck
+EXEC DBMS_STATS.GATHER_TABLE_STATS('HR','EMPLOYEES',method_opt=>'FOR COLUMNS SIZE AUTO salary');
+SELECT * FROM employees WHERE salary > 180000;
+-- Plan: INDEX RANGE SCAN, E-Rows=900, A-Rows=800
+```
+
+What the plan shows: `INDEX RANGE SCAN` with E-Rows near A-Rows in `DISPLAY_CURSOR`. Docs: TGSQL ch.11 criteria per type [T-16]. Second shape: `WHERE city='Austin' AND state='TX'`. Single-column stats multiply selectivities and guess 10 rows when truth is 50K. Fix with a column group or `AUTO_STAT_EXTENSIONS=ON` [T-17]. Third shape: `WHERE UPPER(name)='KING'`. Fix with expression statistics on `UPPER(name)` [T-18]. Read `DBA_SQL_PLAN_DIRECTIVES` to see recorded misses and whether directives resolved them [T-19]. For missing or derived predicates, dynamic statistics (dynamic sampling, TGSQL ch.12) samples at parse time [T-15]. Prefer fixing stats first. Parse-time sampling costs each hard parse.
+
+Why it matters: this ladder fixes the E-Rows vs A-Rows gap from Measure First without touching SQL. Unverified on your schema — test on your schema.
+
+### 3. Test risky refreshes without breaking the app
+
+Plain claim: new numbers can cause regressions. Stage them.
+
+Naive progression:
+
+```sql
+-- Naive: gather straight into production, three reports flip plans at 9am
+EXEC DBMS_STATS.GATHER_TABLE_STATS('HR','EMPLOYEES');
+```
+
+Fixed:
+
+```sql
+-- Fixed: publish later, compare, then keep or drop
+EXEC DBMS_STATS.SET_TABLE_PREFS('HR','EMPLOYEES','PUBLISH','FALSE');
+EXEC DBMS_STATS.GATHER_TABLE_STATS('HR','EMPLOYEES');
+-- compare pending vs current with plan + V0, then:
+EXEC DBMS_STATS.PUBLISH_PENDING_STATS('HR','EMPLOYEES');
+-- rollback if bad:
+EXEC DBMS_STATS.RESTORE_TABLE_STATS('HR','EMPLOYEES',SYSDATE-1);
+```
+
+What the plan shows: pending plan hash vs current plan hash via compare, then `INDEX RANGE SCAN` stays or returns. Docs: TGSQL ch.15 pending stats [T-21], ch.16 restore + retention [T-22]. Run Optimizer Statistics Advisor monthly (task, findings, actions script) before hand-tuning policy [T-20].
+
+Why it matters: restore is the rollback primitive for every stats change. History retention bounds the window. No restore point, no gather. (One aside: I still double-check PUBLISH before I gather. Back to the numbers.)
+
+**Keep this: Fix the estimate first; the plan follows. Stage with pending, keep restore ready.**

@@ -5,19 +5,19 @@ order: 43
 draft: false
 ---
 
-"'why did new stats fix one query and break three others?'"
+Last quarter new stats fixed one query and broke three others. The gather ran at night. Nobody logged prefs. Morning brought new plans. Nobody knew which table tipped it. Rollback took hours.
 
-Stats are code; set prefs in text, test unpublished, then publish or roll back.
+You know basic SQL. You write DML each day. You fear Friday deploys because stats ship as invisible code. This file makes stats visible, testable, and reversible.
 
 A stats pipeline is like a thermostat, except it sets sample rules plus publish rules for the optimizer.
 
-<details><summary>In case you don't know about pending stats, it's gathered stats held aside until you publish them.</summary>Queries keep old plans until publish. You can test new plans first. Discard costs nothing.</details>
+<details><summary>In case you don't know about pending stats, it's gathered stats held aside until you publish them.</summary>Queries keep old plans until publish. You can test new plans first. Discard costs nothing. Flow documented at: https://docs.oracle.com/en/database/oracle/oracle-database/18/tgsql/controlling-the-use-of-optimizer-statistics.html</details>
 
-<details><summary>In case you don't know about RESTORE_TABLE_STATS, it's the call that brings back stats from 1 day ago.</summary>It needs history retention. Test the restore once in sandbox. Record the command.</details>
+<details><summary>In case you don't know about RESTORE_TABLE_STATS, it's the call that brings back stats from 1 day ago.</summary>It needs history retention. Test the restore once in sandbox. Record the command. Reference: https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html Unverified — run on your test DB.</details>
 
-Stats drive plans. Bad prefs cause bad plans. Scripted prefs stop that. You set INCREMENTAL to TRUE for big partitioned tables. You set STALE_PERCENT to 5. You gather with DEFAULT_DEGREE and cascade TRUE. Each value lives in a script. Each run repeats.
+## 1. Set prefs in script, then gather
 
-Pending stats add safety. You set PUBLISH to FALSE on HOT_TAB. You gather. You run the SPA compare with pending stats in place. You publish only on a win. You discard on a loss. Publish is the commit point.
+Plain claim: prefs as text stop silent drift.
 
 Use these exact lines for the base path:
 
@@ -27,6 +27,20 @@ EXEC DBMS_STATS.SET_TABLE_PREFS(USER, 'BIG_PART_TAB', 'STALE_PERCENT', '5');
 EXEC DBMS_STATS.GATHER_TABLE_STATS(USER, 'BIG_PART_TAB', degree => DBMS_STATS.DEFAULT_DEGREE, cascade => TRUE);
 ```
 
+Line by line: first SET_TABLE_PREFS sets INCREMENTAL TRUE on BIG_PART_TAB for partitioned objects. Second sets STALE_PERCENT 5 so gather triggers at 5% change. Third GATHER_TABLE_STATS collects with DEFAULT_DEGREE and cascade TRUE for indexes too. Each value lives in a script. Each run repeats. Call shapes follow DBMS_STATS docs. Unverified — run on your test DB.
+
+How to read success: prefs query shows TRUE and 5 stored. Gather log shows degree used and cascade done. Plans stay stable unless data truly moved.
+
+Rollback line: prefs are just rows. Reset them to prior values in script. Re-gather if needed. No data rows changed.
+
+Worked progression A — prefs to gather to check: set INCREMENTAL TRUE. Set STALE_PERCENT 5. Gather BIG_PART_TAB. Query prefs to confirm. Run SPA on your STS. Only a measured win moves forward.
+
+Worked progression B — stale gate in action: small daily loads stay under 5%. No gather fires. A big backfill crosses 5%. Gather fires once. You get one plan shift to review, not daily noise.
+
+## 2. Test with pending stats before publish
+
+Plain claim: PUBLISH FALSE turns a scary gather into a safe draft.
+
 Use these exact lines for test and rollback:
 
 ```sql
@@ -35,6 +49,32 @@ EXEC DBMS_STATS.PUBLISH_PENDING_STATS(USER, 'HOT_TAB');
 EXEC DBMS_STATS.RESTORE_TABLE_STATS(USER, 'HOT_TAB', SYSTIMESTAMP - INTERVAL '1' DAY);
 ```
 
-The advisor path helps too. Optimizer Statistics Advisor returns a script of fixes. Review it. Apply it in test. Measure it with SPA. Never publish blind on critical tables. Test DB first. Pending in prod. Human gate for risky publishes.
+Line by line: first line sets PUBLISH FALSE on HOT_TAB so new stats stay pending. Middle line publishes pending stats only after a win. Last line restores stats from 1 day ago if the publish hurts. Gather step between line one and line two is the same GATHER_TABLE_STATS call shape above. Publish is the commit point. Reference: https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html Unverified — run on your test DB.
+
+How to read success: pending views hold the new numbers. Published views still show old numbers until publish. SPA compare with pending in place shows no regression. You publish. If it regresses, you restore and the old plans return.
+
+Rollback line: before publish, run DELETE_PENDING_STATS to discard. After publish, run RESTORE_TABLE_STATS with the timestamp above. Test the restore once in sandbox before you need it.
+
+Worked progression A — prefs to gather to pending test to publish-or-restore: set PUBLISH FALSE on HOT_TAB. Gather HOT_TAB. Run SPA before and after on buffer_gets. If clean, run PUBLISH_PENDING_STATS. If dirty, discard pending and walk away. One script holds all four steps.
+
+Worked progression B — publish then regret: you published at 10am. At 11am two queries regressed. You run RESTORE_TABLE_STATS to yesterday. You confirm old plan hashes return. You log the lesson. Total harm is one hour, not one week.
+
+## 3. Let the advisor propose, you dispose
+
+Plain claim: advisor output is a proposal, never an accepted change.
+
+Optimizer Statistics Advisor returns a script of fixes. You review it. You apply it in test. You measure it with SPA. You never publish blind on critical tables. Test DB first. Pending in prod. Human gate for risky publishes.
+
+No new code here. The two blocks above are the code. The advisor adds judgment, not new calls.
+
+Line by line for the flow: advisor suggests prefs or gather choices. You copy them into your script. You run the pending-stats path above. SPA decides. Human approves publish on critical tables.
+
+How to read success: advisor script is short and specific. Each suggestion maps to one table. SPA shows no regressed statement. Publish log names who approved.
+
+Rollback line: same as section 2. Discard pending or restore published. Keep the advisor script in git so the retry is exact.
+
+Worked progression A — advisor to test to verdict: advisor suggests a histogram change. You stage it with PUBLISH FALSE. SPA shows one win and zero losses. You publish with a note.
+
+Worked progression B — advisor to reject: advisor suggests a broad gather. SPA shows three regressions on buffer_gets. You discard pending. You keep old stats. You log why the suggestion failed on your data.
 
 **Keep this: Prefs in script, gather in test, pending before publish, restore tested before need.**
