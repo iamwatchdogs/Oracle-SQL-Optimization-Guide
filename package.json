@@ -34,12 +34,17 @@
     "@astrojs/markdown-remark": "7.3.1",
     "@astrojs/mdx": "8.0.1",
     "@astrojs/sitemap": "3.7.4",
+    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/vite": "^4.3.3",
     "astro": "7.3.3",
     "astro-expressive-code": "0.44.2",
     "astro-mermaid": "2.1.0",
     "mermaid": "12.0.0",
+    "motion": "^13.4.2",
     "rehype-mathjax": "7.1.0",
     "remark-math": "6.0.0",
-    "sharp": "0.35.4"
+    "sharp": "0.35.4",
+    "tailwindcss": "^4.3.3",
+    "tw-animate-css": "^1.4.0"
   }
 }

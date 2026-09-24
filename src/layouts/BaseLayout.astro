@@ -1,0 +1,182 @@
+---
+import { Font } from 'astro:assets';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string | undefined;
+  /** Show the compact site header (running head + nav + toggle). */
+  bare?: boolean;
+}
+
+const { title, description, bare = false } = Astro.props;
+
+const fullTitle =
+  title === 'Oracle SQL Optimization for Junior Devs'
+    ? `${title} — Evidence-graded tuning`
+    : `${title} · Oracle SQL Optimization`;
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta
+      name="description"
+      content={
+        description ??
+        'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.'
+      }
+    />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={Astro.url.href} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+
+    {/* Fonts — Astro Fonts API */}
+    <Font cssVariable="--font-serif" preload />
+    <Font cssVariable="--font-sans" />
+    <Font cssVariable="--font-mono" />
+
+    {/* Theme init — dark default; light only from stored preference or OS */}
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'light') {
+            document.documentElement.dataset.theme = 'light';
+          }
+          /* dark is default; no prefers-color-scheme override */
+        } catch (e) {
+          /* dark default */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 btn-primary"
+    >
+      Skip to content
+    </a>
+
+    {!bare && (
+      <header class="sticky top-0 z-40 backdrop-blur-md bg-[color:var(--paper)]/90 border-b border-[color:var(--rule)]">
+        <div class="shell flex items-center justify-between h-12 gap-4">
+          <a
+            href="/"
+            class="running-head hover:text-[color:var(--accent)] transition-colors no-underline shrink-0"
+          >
+            Oracle SQL · Notebook
+          </a>
+
+          <nav
+            aria-label="Primary"
+            class="hidden md:flex items-center gap-1 text-[length:var(--text-ui)]"
+          >
+            <a
+              href="/00-preface/"
+              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
+            >
+              Preface
+            </a>
+            <a
+              href="/01-proven-techniques/"
+              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
+            >
+              Techniques
+            </a>
+            <a
+              href="/03-toolbox/"
+              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
+            >
+              Toolbox
+            </a>
+            <a
+              href="/04-recipes/"
+              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
+            >
+              Recipes
+            </a>
+          </nav>
+
+          <button
+            type="button"
+            id="theme-toggle"
+            class="btn-ghost !px-2.5 !py-1.5 gap-1.5"
+            aria-label="Toggle color theme"
+          >
+            <svg
+              class="theme-icon-dark"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <svg
+              class="theme-icon-light hidden"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+            </svg>
+            <span class="theme-label">Theme</span>
+          </button>
+        </div>
+      </header>
+    )}
+
+    <slot />
+
+    <script>
+      const root = document.documentElement;
+      const btn = document.querySelector<HTMLButtonElement>('#theme-toggle');
+
+      function current(): string {
+        return root.dataset['theme'] === 'light' ? 'light' : 'dark';
+      }
+
+      function syncIcons() {
+        const t = current();
+        const dark = document.querySelector('.theme-icon-dark');
+        const light = document.querySelector('.theme-icon-light');
+        if (dark && light) {
+          dark.classList.toggle('hidden', t === 'light');
+          light.classList.toggle('hidden', t === 'dark');
+        }
+      }
+
+      btn?.addEventListener('click', () => {
+        const next = current() === 'dark' ? 'light' : 'dark';
+        root.dataset['theme'] = next;
+        try {
+          localStorage.setItem('theme', next);
+        } catch {
+          /* ignore */
+        }
+        syncIcons();
+      });
+
+      syncIcons();
+    </script>
+  </body>
+</html>
