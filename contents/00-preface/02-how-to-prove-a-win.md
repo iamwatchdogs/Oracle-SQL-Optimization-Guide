@@ -50,7 +50,7 @@ Why it matters: Teams trust files, not memory. Your proof survives on-call hando
 
 Number: 18 papers, 6 Oracle briefs, 33 tools. Classes A1/A2/B1/B2/C1/C2/D. PROVEN = 2 sources or 1 strong source plus a rerun. Your file should show which path you took.
 
-<details><summary>In case you don't know about DBMS_SQLPA, it's Oracle's before-and-after compare tool.</summary>You run a task before the change. You run it again after. It reports improved, regressed, or unchanged per statement.</details>
+<details><summary>In case you don't know about DBMS_SQLPA, it's Oracle's before-and-after compare tool.</summary>SPA builds two versions of one frozen tuning set and grades each statement. You create the task, run test execute before, apply one change, run test execute after, set the comparison metric, run compare performance, and read the report. Exact shape: `EXEC :tname := DBMS_SQLPA.CREATE_ANALYSIS_TASK(sqlset_name => 'OPT_LOOP_WL');` then test execute for before_change and after_change, then `SET_ANALYSIS_TASK_PARAMETER` to buffer_gets, then compare performance, then `SELECT DBMS_SQLPA.REPORT_ANALYSIS_TASK(:tname, 'TEXT', 'TYPICAL', 'ALL') FROM dual;`. It needs ADVISOR privilege. Every change owner uses it. It drives the ship-or-stop verdict. Do not use explain plan only. That skips execution and ships a pretty plan with bad runtime. Sharp line: it turns hope into per-statement improved, regressed, unchanged. Example: an index cuts aggregate buffer_gets 12% with zero regressed rows. Ship. See [T-56] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html</details>
 
 Run V0 for each change. One at a time. Roll back on regression. No live DB was open here. sqlcl and sqlplus were missing. Nothing here claims a local run.
 

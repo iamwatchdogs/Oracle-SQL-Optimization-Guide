@@ -13,7 +13,7 @@ You can run SELECT. You have tuned one statement and watched another one slip. T
 
 Freezing work is like bagging evidence, except you store SQL text and binds so the next run tests the same case.
 
-<details><summary>In case you don't know about SQL Tuning Sets, it's a stored copy of SQL text, binds, and stats you can replay and move.</summary>DBMS_SQLTUNE and DBMS_SQLSET build it with CREATE_SQLSET, LOAD_SQLSET, UPDATE_SQLSET, plus transport. DBMS_SQLSET is the newer interface in 19c and needs no Tuning Pack for set calls. Guide: https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html</details>
+<details><summary>In case you don't know about SQL Tuning Sets, it's a stored copy of SQL text, binds, and stats you can replay and move.</summary>A tuning set freezes statements plus binds plus metrics for replay. `DBMS_SQLSET` is the newer interface in 19c and needs no Tuning Pack for set calls. You create a set such as SALES_JAN, load the top SQL from cache or AWR into it, and move it to test for isolation. Test leads use it before any claim. It drives one decision: is this the exact workload both runs graded. Do not compare live cache to live cache. Live traffic shifts binds and order, and the cost is a void verdict. Sharp line: same set in, fair compare out. Example: load the top sales SQL into SALES_JAN, then query `TABLE(DBMS_SQLSET.SELECT_SQLSET('SALES_JAN'))` for SQL_ID, ELAPSED_TIME, and BUFFER_GETS. See [T-06] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html</details>
 
 ## 1. Freeze the top SQL first
 
@@ -86,6 +86,6 @@ How to read it: SPA report gives per-statement verdicts. AWR gives workload trut
 
 Decision it drives: SPA green plus AWR green means ship with a revert note. SPA green plus AWR flat means recapture and rerun. Any red means stop.
 
-<details><summary>In case you don't know about SQL Performance Analyzer, it's Oracle's task runner that tests the same workload twice and grades each statement.</summary>DBMS_SQLPA drives it with CREATE_ANALYSIS_TASK, EXECUTE_ANALYSIS_TASK, REPORT_ANALYSIS_TASK, and SET_ANALYSIS_TASK_PARAMETER. Needs ADVISOR privilege. RAT licensing applies.</details>
+<details><summary>In case you don't know about SQL Performance Analyzer, it's Oracle's task runner that tests the same workload twice and grades each statement.</summary>SPA builds two versions of one frozen tuning set and grades each statement. You create the task, run test execute before, apply one change, run test execute after, set the comparison metric, run compare performance, and read the report. It needs ADVISOR privilege. Every change owner uses it. It drives the ship-or-stop verdict. Do not use explain plan only. That skips execution and ships a pretty plan with bad runtime. Sharp line: it turns hope into per-statement improved, regressed, unchanged. Example: an index cuts aggregate buffer_gets 12% with zero regressed rows. Ship. Report levels TYPICAL and CHANGED_PLANS plus SQL_IMPACT ordering come from the same call. See [T-56] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html</details>
 
 **Keep this: Test the same frozen set twice and keep the graded report.**

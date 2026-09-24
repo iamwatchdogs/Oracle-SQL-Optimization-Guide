@@ -13,7 +13,7 @@ You can run SELECT. You have seen a slow query. You know EXPLAIN PLAN exists. Th
 
 Measuring a query is like checking a race split sheet, except each plan line reports its own time and row counts.
 
-<details><summary>In case you don't know about DBMS_XPLAN, it's Oracle's package that prints plans from memory, history, and baselines.</summary>DISPLAY_CURSOR shows the executed plan. DISPLAY_AWR shows history. DISPLAY_SQL_PLAN_BASELINE shows baseline plans. Docs: https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html</details>
+<details><summary>In case you don't know about DBMS_XPLAN, it's Oracle's package that prints plans from memory, history, and baselines.</summary>It is Oracle's package that prints plans from memory, history, and baselines. It reads `V$SQL_PLAN` for you and formats rows, cost, and predicates. You call one function per source. Use `DISPLAY_CURSOR('sql_id', child_no)` for the run plan. Use `DISPLAY_AWR` for history. Use `DISPLAY_SQL_PLAN_BASELINE` for baselines. Add `ALLSTATS LAST` for run stats. Tuning devs use it on every change. It drives the verdict: hash plus predicates show if the plan moved. Do not use `EXPLAIN PLAN` alone. It misses binds and runtime choices and can show a plan you never ran. Sharp line: it turns cursor memory into readable plan evidence. Example: `SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR('gwp663cqh5qbf',0,'ALLSTATS LAST'));` shows hash, E-Rows, A-Rows, and Starts per line. Unverified — check your SQL ID. See [T-04] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html</details>
 
 ## 1. The run plan beats the guess plan
 
@@ -84,6 +84,6 @@ How to read trace output: parse, execute, fetch counts. Elapsed, CPU, disk, quer
 
 Decision it drives: high parse count means use binds or cursor sharing. High fetch count means cut columns or paginate. High wait on one event means fix that wait, not the plan.
 
-<details><summary>In case you don't know about E-Rows and A-Rows, it's estimated rows versus actual rows for one plan line.</summary>A large gap points to a bad estimate that pushed the optimizer to a bad plan. Quote both numbers plus plan hash before you name a cause.</details>
+<details><summary>In case you don't know about E-Rows and A-Rows, it's estimated rows versus actual rows for one plan line.</summary>They are two numbers on one plan line. E-Rows is the optimizer guess. A-Rows is what the line truly returned. Starts tells you how many times that line ran. You see them with run stats on: run with `/*+ GATHER_PLAN_STATISTICS */`, then print with `DISPLAY_CURSOR(NULL,NULL,'ALLSTATS LAST')`. SQL Monitor shows the same split in `V$SQL_MONITOR`. Devs use it when a join flips shape at random. It drives where to fix: a big gap on one line means fix stats for that table, while no gap but slow time means check waits or I/O. Do not use total elapsed alone. Totals hide the bad guess and send you to tune the wrong table. Sharp line: it pins the bad estimate to one line. Example: E-Rows 500 versus A-Rows 2M on an INDEX RANGE SCAN line. See [T-03][T-04].</details>
 
 **Keep this: Quote plan hash plus A-Rows versus E-Rows before you name a cause.**
