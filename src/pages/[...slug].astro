@@ -46,15 +46,6 @@ const { entry, prevEntry, nextEntry } = Astro.props;
 const { Content, headings } = await render(entry);
 const isHome = entry.id === 'index';
 
-const parts = isHome
-  ? []
-  : entry.id
-      .replace(/\.mdx?$/u, '')
-      .replace(/\/index$/u, '')
-      .split('/');
-
-// Section index entries → nine numbered contributions (home).
-// IDs may be `00-preface` or `00-preface/index` depending on loader.
 const all = (await getCollection('notebook', ({ data }) => !data.draft)).toSorted(
   (a, b) => (a.data.order ?? 9999) - (b.data.order ?? 9999),
 );
@@ -68,6 +59,24 @@ const contributions = all
     title: e.data.title,
     description: e.data.description,
   }));
+const currentSection = isHome
+  ? undefined
+  : contributions.find((section) => {
+      const sectionId = section.href.replaceAll(/^\/|\/$/gu, '');
+      return entry.id === sectionId || entry.id.startsWith(`${sectionId}/`);
+    });
+const sectionPosition = currentSection ? contributions.indexOf(currentSection) + 1 : undefined;
+const breadcrumbItems = isHome
+  ? []
+  : currentSection &&
+      entry.id.replaceAll(/\/index$/gu, '') !== currentSection.href.replaceAll(/^\/|\/$/gu, '')
+    ? [
+        { href: currentSection.href, title: currentSection.title },
+        { href: toUrl(entry.id), title: entry.data.title },
+      ]
+    : currentSection
+      ? [{ href: currentSection.href, title: currentSection.title }]
+      : [{ href: toUrl(entry.id), title: entry.data.title }];
 
 // Display-grade headings for TOC (h2/h3 only)
 const tocHeadings = headings
@@ -81,7 +90,12 @@ const tocHeadings = headings
 const description = entry.data.description;
 ---
 
-<BaseLayout title={entry.data.title} description={description}>
+<BaseLayout
+  title={entry.data.title}
+  description={description}
+  sections={contributions}
+  sectionPosition={sectionPosition}
+>
   {isHome ? (
     <>
       <HomeTitleBlock
@@ -97,16 +111,35 @@ const description = entry.data.description;
       />
 
       <main id="main" class="shell pb-20">
-        <div class="prose-notebook measure pt-4">
-          <Content />
-        </div>
+        <details class="home-method">
+          <summary>
+            <span class="home-method-title">Read the evidence primer</span>
+            <span class="home-method-note">Three claims · the path to a proven win</span>
+            <svg
+              class="home-method-caret"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 18l6-6-6-6"></path>
+            </svg>
+          </summary>
+          <div class="prose-notebook measure pt-8">
+            <Content />
+          </div>
+        </details>
       </main>
     </>
   ) : (
     <>
-      {/* Running head */}
-      <div class="shell-wide pt-4 pb-2" aria-hidden="true">
-        <div class="flex items-center justify-between gap-4 running-head">
+      <div class="shell-wide pt-4">
+        <div class="flex items-center justify-between gap-4 running-head" aria-hidden="true">
           <span>Oracle SQL Optimization</span>
           <span class="truncate max-w-[50%] text-right">{entry.data.title}</span>
         </div>
@@ -130,19 +163,18 @@ const description = entry.data.description;
                       Home
                     </a>
                   </li>
-                  {parts.map((part, i) => {
-                    const url = `/${parts.slice(0, i + 1).join('/')}/`;
-                    const isLast = i === parts.length - 1;
+                  {breadcrumbItems.map((item, i) => {
+                    const isLast = i === breadcrumbItems.length - 1;
                     return (
                       <li class="flex items-center gap-1">
                         <span aria-hidden="true">/</span>
                         {isLast ? (
                           <span class="text-[color:var(--ink-muted)] normal-case tracking-normal font-[family-name:var(--font-serif)] text-sm">
-                            {entry.data.title}
+                            {item.title}
                           </span>
                         ) : (
-                          <a href={url} class="hover:text-[color:var(--accent)] no-underline">
-                            {part.replace(/^\d+-/u, '').replaceAll('-', ' ')}
+                          <a href={item.href} class="hover:text-[color:var(--accent)] no-underline">
+                            {item.title}
                           </a>
                         )}
                       </li>
@@ -161,6 +193,13 @@ const description = entry.data.description;
                       {description}
                     </p>
                   )}
+                  <div class="interior-grade-key" aria-label="Evidence grade summary">
+                    <span class="running-head">Evidence grades</span>
+                    <span class="interior-grade-summary">
+                      A1/A2 Oracle · B1/B2 research · C1/C2 tools · D context only
+                    </span>
+                    <a href="/#evidence-key">Full key</a>
+                  </div>
                 </header>
 
                 <Content />

@@ -13,6 +13,12 @@ interface Contribution {
 
 type Zone = 'a' | 'b' | 'c' | 'd';
 
+interface GradeItem {
+  label: string;
+  zone: Zone;
+  meaning: string;
+}
+
 interface Props {
   title: string;
   description: string;
@@ -22,8 +28,23 @@ interface Props {
   gradeLabels?: string[];
 }
 
+const gradeMeanings: Record<string, string> = {
+  A1: 'Oracle versioned documentation',
+  A2: 'Oracle brief or whitepaper',
+  B1: 'Peer-reviewed research paper',
+  B2: 'Independent reproduction',
+  C1: 'Deterministic tool with repeatable output',
+  C2: 'Maintained open-source project',
+  D: 'Blog or forum — context only, never proof alone',
+};
+
 const { title, description, contributions, meta, gradeZones, gradeLabels } = Astro.props;
-const showGrades = gradeZones !== undefined && gradeLabels !== undefined && gradeZones.length > 0;
+const gradeItems: GradeItem[] = (gradeLabels ?? []).flatMap((label, index) => {
+  const zone = gradeZones?.[index];
+  const meaning = gradeMeanings[label];
+  return zone && meaning ? [{ label, zone, meaning }] : [];
+});
+const showGrades = gradeItems.length > 0;
 ---
 
 <section class="title-block" aria-labelledby="book-title">
@@ -45,18 +66,14 @@ const showGrades = gradeZones !== undefined && gradeLabels !== undefined && grad
           {description}
         </p>
 
-        <div class="rise rise-3 flex flex-wrap items-center gap-4">
+        <div class="rise rise-3">
           <a href="/00-preface/" class="btn-primary">
             Begin at Preface
             <span aria-hidden="true">→</span>
           </a>
-          <a href="/01-proven-techniques/" class="btn-ghost">
-            Jump to techniques
-          </a>
         </div>
       </div>
 
-      {/* Mono metadata margin — tabular figures + zone-ramp grade chips */}
       <aside
         class="rise rise-4 lg:text-right lg:border-l lg:border-[color:var(--rule)] lg:pl-8 pt-2 lg:pt-0"
         aria-label="Metadata"
@@ -71,9 +88,9 @@ const showGrades = gradeZones !== undefined && gradeLabels !== undefined && grad
                     class="inline-flex flex-wrap gap-1 justify-end"
                     aria-label="Evidence grades"
                   >
-                    {gradeLabels.map((label, gi) => (
-                      <span class="grade-chip" data-zone={gradeZones[gi]}>
-                        {label}
+                    {gradeItems.map((grade) => (
+                      <span class="grade-chip" data-zone={grade.zone}>
+                        {grade.label}
                       </span>
                     ))}
                   </span>
@@ -84,22 +101,71 @@ const showGrades = gradeZones !== undefined && gradeLabels !== undefined && grad
             </div>
           ))}
         </dl>
+
+        {showGrades && (
+          <details id="evidence-key" class="evidence-key">
+            <summary>
+              <span class="evidence-key-title">Evidence key</span>
+              <span class="evidence-key-note">Source strength, not a benchmark</span>
+              <svg
+                class="evidence-key-caret"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 18l6-6-6-6"></path>
+              </svg>
+            </summary>
+            <dl class="evidence-key-list">
+              {gradeItems.map((grade) => (
+                <div class="evidence-key-row">
+                  <dt>
+                    <span class="grade-chip" data-zone={grade.zone}>
+                      {grade.label}
+                    </span>
+                  </dt>
+                  <dd>{grade.meaning}</dd>
+                </div>
+              ))}
+            </dl>
+            <p class="evidence-key-rule">
+              <strong>PROVEN</strong> = 2 agreeing sources, or 1 A1/A2/B1 source + a repeatable
+              rerun.
+            </p>
+            <p class="evidence-key-links">
+              <a href="/00-preface/">How grades work</a>
+              <span aria-hidden="true">·</span>
+              <a href="/07-appendix-sources/">Source lookup</a>
+            </p>
+          </details>
+        )}
       </aside>
     </div>
   </div>
 </section>
 
-{/* Nine numbered contributions */}
+<script>
+  const evidenceKey = document.querySelector<HTMLDetailsElement>('#evidence-key');
+  if (window.location.hash === '#evidence-key' && evidenceKey) {
+    evidenceKey.open = true;
+  }
+</script>
+
 <section class="shell mt-0 pb-16" aria-labelledby="contributions-heading">
   <div class="max-w-[52rem]">
-    <div class="flex items-baseline justify-between gap-4 pt-10 pb-4 border-b border-[color:var(--rule-strong)]">
+    <div class="pt-10 pb-4 border-b border-[color:var(--rule-strong)]">
       <h2 id="contributions-heading" class="running-head !text-[color:var(--ink-muted)] !text-xs">
         Contents · nine sections
       </h2>
-      <span class="meta">09 entries</span>
     </div>
 
-    <ol class="list-none p-0 m-0">
+    <ol class="list-none p-0 m-0" aria-label="Book sections">
       {contributions.map((c, i) => (
         <li>
           <a href={c.href} class="contribution">

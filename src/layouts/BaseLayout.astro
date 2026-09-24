@@ -2,14 +2,35 @@
 import { Font } from 'astro:assets';
 import '../styles/global.css';
 
+interface SectionLink {
+  href: string;
+  title: string;
+  description?: string | undefined;
+}
+
 interface Props {
   title: string;
   description?: string | undefined;
   /** Show the compact site header (running head + nav + toggle). */
   bare?: boolean;
+  sections?: SectionLink[];
+  sectionPosition?: number | undefined;
 }
 
-const { title, description, bare = false } = Astro.props;
+const { title, description, bare = false, sections = [], sectionPosition } = Astro.props;
+const fallbackSections: SectionLink[] = [
+  { href: '/00-preface/', title: 'Preface' },
+  { href: '/01-proven-techniques/', title: 'Proven Techniques' },
+  { href: '/02-papers-behind-recipes/', title: 'Papers Behind Recipes' },
+  { href: '/03-toolbox/', title: 'Toolbox' },
+  { href: '/04-recipes/', title: 'Recipes' },
+  { href: '/05-feedback-loop/', title: 'Feedback Loop' },
+  { href: '/06-oss-guide/', title: 'OSS Guide' },
+  { href: '/07-appendix-sources/', title: 'Appendix: Sources' },
+  { href: '/08-bonus-batch-api/', title: 'Bonus: Batch API' },
+];
+const navigationSections = sections.length > 0 ? sections : fallbackSections;
+const currentPath = Astro.url.pathname;
 
 const fullTitle =
   title === 'Oracle SQL Optimization for Junior Devs'
@@ -66,43 +87,57 @@ const fullTitle =
 
     {!bare && (
       <header class="sticky top-0 z-40 backdrop-blur-md bg-[color:var(--paper)]/90 border-b border-[color:var(--rule)]">
-        <div class="shell flex items-center justify-between h-12 gap-4">
+        <div class="shell site-header-inner flex items-center justify-between h-12 gap-3">
           <a
             href="/"
-            class="running-head hover:text-[color:var(--accent)] transition-colors no-underline shrink-0"
+            class="site-wordmark running-head hover:text-[color:var(--accent)] transition-colors no-underline shrink-0"
           >
-            Oracle SQL · Notebook
+            Oracle SQL <span class="site-wordmark-detail">· Notebook</span>
           </a>
 
-          <nav
-            aria-label="Primary"
-            class="hidden md:flex items-center gap-1 text-[length:var(--text-ui)]"
-          >
-            <a
-              href="/00-preface/"
-              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
-            >
-              Preface
-            </a>
-            <a
-              href="/01-proven-techniques/"
-              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
-            >
-              Techniques
-            </a>
-            <a
-              href="/03-toolbox/"
-              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
-            >
-              Toolbox
-            </a>
-            <a
-              href="/04-recipes/"
-              class="px-3 py-1.5 rounded-sm text-[color:var(--ink-muted)] hover:text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)] transition-colors no-underline"
-            >
-              Recipes
-            </a>
-          </nav>
+          {navigationSections.length > 0 ? (
+            <details class="site-nav">
+              <summary class="site-nav-summary">
+                <span>Contents</span>
+                <span class="site-nav-count">
+                  {sectionPosition
+                    ? `Section ${String(sectionPosition).padStart(2, '0')} / ${String(navigationSections.length).padStart(2, '0')}`
+                    : `${String(navigationSections.length).padStart(2, '0')} sections`}
+                </span>
+                <svg
+                  class="site-nav-caret"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M9 18l6-6-6-6"></path>
+                </svg>
+              </summary>
+              <nav class="site-nav-panel" aria-label="Book sections">
+                {navigationSections.map((section, index) => {
+                  const isActive =
+                    currentPath === section.href || currentPath.startsWith(`${section.href}`);
+                  return (
+                    <a
+                      href={section.href}
+                      class="site-nav-link"
+                      aria-current={isActive ? 'location' : undefined}
+                      data-active={isActive ? 'true' : 'false'}
+                    >
+                      <span class="site-nav-number">{String(index + 1).padStart(2, '0')}</span>
+                      <span>{section.title}</span>
+                    </a>
+                  );
+                })}
+              </nav>
+            </details>
+          ) : null}
 
           <button
             type="button"
