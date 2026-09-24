@@ -44,6 +44,7 @@ Plain claim: one fast run proves nothing. Same workload twice proves a change.
 Worked example: load top SQL into one set with DBMS_SQLSET.CREATE_SQLSET plus LOAD_SQLSET, then build a task:
 
 ```sql
+VARIABLE tname VARCHAR2(64);
 EXEC :tname := DBMS_SQLPA.CREATE_ANALYSIS_TASK(sqlset_name => 'my_sts');
 EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(task_name => :tname, execution_type => 'test execute', execution_name => 'before_change');
 ```
@@ -58,7 +59,7 @@ Decision it drives: regressed means stop. Improved across the set means keep tes
 
 Plain claim: solo wins can fail at 10 a.m. with 30 sessions. Mechanical faults can fail before you even connect.
 
-Worked example A — load: drive a copy with HammerDB (GPL-3.0, 786 stars, last push 2026-09-18, https://www.hammerdb.com/) from hammerdbcli with a Tcl script. Watch Resource Manager caps and SQL Quarantine blocks. Zero quarantine hits is the gate.
+Worked example A — load: drive a copy with HammerDB (GPL-3.0, 786 stars, last push 2026-09-18, https://www.hammerdb.com/) from hammerdbcli with a Tcl script. Watch Resource Manager kills in `V$RSRC_*` plus Quarantine blocks in `DBA_SQL_QUARANTINE` set via `DBMS_SQLQ`. Zero quarantine hits is the gate. Kill is Manager. Block is Quarantine. Do not mix them.
 
 Worked example B — static: parse with sqlglot (`parse_one`, MIT, 9628 stars, https://github.com/tobymao/sqlglot), lint with SQLFluff (`sqlfluff lint --dialect oracle`, MIT, 9883 stars, https://docs.sqlfluff.com/). Unverified — test on your schema for exact config paths.
 

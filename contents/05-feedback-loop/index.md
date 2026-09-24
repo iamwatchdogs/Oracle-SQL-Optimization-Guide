@@ -29,7 +29,7 @@ Cost of skipping it: stats plus index land in one go. Statement 7 slows 8%. Debu
 
 Claim: run A/A first, then K reps, then a 95% interval.
 
-Walkthrough: aa_run_1 versus aa_run_2 on unchanged STS shows 3% spread on buffer_gets. That spread is the noise floor. Margin is max of 2x noise or 5%, so 6% here. Later change shows 12% median drop over K=10. Bootstrap gives 95% CI [-15%, -8%]. Zero sits outside. Win counts. With K=2 the CI is [-14%, +6%]. Verdict is reject.
+Walkthrough: aa_run_1 versus aa_run_2 on unchanged STS shows 3% spread on buffer_gets. That spread is the noise floor. Margin is max of 2x noise or 5%, so 6% here — engineering choice, calibrate it to your floor, do not ship it as Oracle truth. Later change shows 12% median drop over K=10. Bootstrap gives 95% CI [-15%, -8%]. Zero sits outside. Win counts. With K=2 the CI is [-14%, +6%]. Verdict is reject.
 
 Why this rule exists: SC15 requires reps plus variance reports [S58]. SPA defaults to elapsed_time and switches to buffer_gets [S06]. Primary is buffer_gets. Secondary is elapsed_time.
 
@@ -39,7 +39,7 @@ Cost of skipping it: one fast run ships. Prod load flips the result. You chase g
 
 Claim: five checks decide. Lessons block repeats. Stops end drift.
 
-Walkthrough: patch cuts aggregate 9% but one statement regresses 7% past a 6% margin. Gate fails. You drop the patch. DISPLAY_CURSOR must show the old hash again. Lesson stores class, signature, delta, reason. After N=3 straight rejects the run halts. Plateau, budget end, or quarantine event would also halt.
+Walkthrough: patch cuts aggregate 9% but one statement regresses 7% past a 6% margin. Gate fails. You drop the patch. DISPLAY_CURSOR must show the old hash again. Lesson stores class, signature, delta, reason. After N=3 straight rejects the run halts — N=3 is a starter, tune it to your budget. Plateau, budget end, or quarantine event would also halt.
 
 Why this rule exists: Real-Time SPM keeps the old plan when the new plan is not better [S11]. Reflexion feeds failure text forward [S56]. Quarantine blocks runaway plans [S40].
 

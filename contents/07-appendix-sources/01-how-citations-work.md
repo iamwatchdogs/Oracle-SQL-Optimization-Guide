@@ -19,7 +19,7 @@ Worked example: do an S-number lookup demo. First S60. Inline you write S60 afte
 
 Why it matters: short keeps reading fast. Full keeps audit fast. No ID means no trust.
 
-Sourced number: S60 sqlglot MIT 9,628 push 2026-09-21. S61 SQLFluff MIT 9,883 push 2026-09-21. S62 Calcite Apache-2.0 5,186 push 2026-09-21. S63 utPLSQL Apache-2.0 624 push 2026-09-18 needs 19c or newer. S64 python-oracledb 452 push 2026-09-19.
+Sourced number: S60 sqlglot MIT 9,628 push 2026-09-21. S61 SQLFluff MIT 9,883 push 2026-09-21. S62 Calcite Apache-2.0 5,186 push 2026-09-21. S63 utPLSQL Apache-2.0 624 push 2026-09-18 (latest README names 19c+, older runs went back to 11gR2). S64 python-oracledb 452 push 2026-09-19.
 
 ## 2. Mirror versus A1, weight decides
 
@@ -29,9 +29,15 @@ Worked example: run a mirror versus A1 demo. First the mirror. Third-party copy 
 
 Why it matters: mirrors rot silently. A1 pages carry E-numbers and dates you can pin. Review can verify in one click.
 
-Sourced number: 30+ A1 entries, 6 A2, 16 B1, 1 B2, 16 C, 8 D, total 75. S01 19c E96095-19 Apr 2025. S02 26ai Jan 2026. S08 stats brief 19c A2. S12 SPM brief A2.
+Sourced number: 30+ A1 entries, 6 A2, 19 B1, 1 B2, 16 C, 8 D, total 80. S01 19c E96095-19 Apr 2025. S02 26ai Jan 2026. S08 stats brief 19c A2. S12 SPM brief A2.
 
-## 3. C and B classes prove code and design, D only adds color
+## 3. T-number to chapter map — no hunting in research folders
+
+Plain claim: every T-ID lives in this book. No need to open `.agents/`.
+
+Worked example: T-01 AWR and T-02 ASH and T-57 ADDM live in `01-measure-first`. T-03 Monitor and T-04 XPLAN live in `03-toolbox/01`. T-06 STS plus T-56 SPA live in `03-toolbox/02` and `04-recipes/01-02`. T-05 Trace lives in `03-toolbox/01` section 3. T-07 Test Case Builder plus T-64 Quarantine and Resource Manager kill (part of T-64, S39) live in `03-toolbox/03`. T-08 SQLdb360 lives in `01-measure-first` section 3 — CONDITIONAL, cross-check it. T-09 to T-23 stats live in `04-recipes/03`. T-24 to T-33 plus T-67 compression plus T-68 parallel live in `01-indexes-and-layout`. T-34 to T-44 rewrites live in `01-let-oracle-rewrite` (T-39 Join factorization lives here, not in guardrails). T-45 hints to T-53 outlines live in `01-stabilize-and-ship`. T-54 Tuning Advisor to T-55 ADG live in `05-feedback-loop/01`. T-58 method to T-61 Transpiler live in preface plus `04-safe-ddl`. T-62 redefine to T-66 Repair live in `04-safe-ddl` plus `05-feedback-loop/03`. T-42 is a footnote to T-41, not a fix you apply. Full T text stays in research file 01. This map is the bridge.
+
+## 4. C and B classes prove code and design, D only adds color
 
 Plain claim: C proves runnable code, B proves peer design, D proves nothing alone.
 

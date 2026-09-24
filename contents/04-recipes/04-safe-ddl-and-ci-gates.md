@@ -13,7 +13,7 @@ An online redefine is like a road detour, except traffic keeps moving while you 
 
 <details><summary>In case you don't know about DBMS_REDEFINITION, it's the package that rebuilds a table online.</summary>DBMS_REDEFINITION rebuilds shape with users still connected. Flow is CAN_REDEF_TABLE check, START on interim T_INT, build indexes on T_INT, SYNC, FINISH swap. Abort path is ABORT_REDEF_TABLE before finish. Call shapes follow the package ref. Unverified — run on your test DB. Schema teams use it for compression, partition, or type changes without downtime. It drives one decision: swap now or abort and retry. Do not use blocking ALTER at peak. That queues writes and spikes latency, and the cost is an incident for a planned change. Sharp line: it keeps reads and writes moving while the new shape builds aside. Example: APP.T needs a new partition. CAN passes on the primary key, START links T_INT, the index builds on T_INT only, SYNC catches lag, FINISH swaps at low traffic. Queries never stop. See [T-62] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html</details>
 
-<details><summary>In case you don't know about utPLSQL, it's a test framework that asserts on results not speed.</summary>utPLSQL is a unit-test framework inside Oracle DB. Tests are PL/SQL packages that assert expected versus actual rows. It needs Oracle 19c or newer per the README. Teams use it after lint, before SPA. It drives one decision: stop the rewrite or book SPA time. Lint alone passes while rows drop from 400 to 380, and that gap costs a day of debug. A test costs 30 seconds. Sharp line: utPLSQL locks meaning, lint only checks shape. Example: expect 400 rows, get FAIL at 380, fix the predicate, get PASS. Green means semantics held, and speed comes later from SPA. See https://github.com/utplsql/utplsql and https://www.utplsql.org/ Apache-2.0, 624 stars, push 2026-09-18 [S63]. SQLFluff oracle dialect: https://docs.sqlfluff.com/en/stable/reference/dialects.html</details>
+<details><summary>In case you don't know about utPLSQL, it's a test framework that asserts on results not speed.</summary>utPLSQL is a unit-test framework inside Oracle DB. Tests are PL/SQL packages that assert expected versus actual rows. Latest README names 19c or newer — older runs went back to 11gR2, so match the README to your DB. Teams use it after lint, before SPA. It drives one decision: stop the rewrite or book SPA time. Lint alone passes while rows drop from 400 to 380, and that gap costs a day of debug. A test costs 30 seconds. Sharp line: utPLSQL locks meaning, lint only checks shape. Example: expect 400 rows, get FAIL at 380, fix the predicate, get PASS. Green means semantics held, and speed comes later from SPA. See https://github.com/utplsql/utplsql and https://www.utplsql.org/ Apache-2.0, 624 stars, push 2026-09-18 [S63]. SQLFluff oracle dialect: https://docs.sqlfluff.com/en/stable/reference/dialects.html</details>
 
 ## 1. Redefine online with an abort button
 
@@ -24,11 +24,13 @@ Use this exact flow:
 ```sql
 EXEC DBMS_REDEFINITION.CAN_REDEF_TABLE('APP','T', DBMS_REDEFINITION.CONS_USE_PK);
 EXEC DBMS_REDEFINITION.START_REDEF_TABLE('APP','T','T_INT');
+-- SKETCH: verify overload in your release ref. Skip it and FINISH drops triggers/grants.
+EXEC DBMS_REDEFINITION.COPY_TABLE_DEPENDENTS('APP','T','T_INT');
 EXEC DBMS_REDEFINITION.SYNC_INTERIM_TABLE('APP','T','T_INT');
 EXEC DBMS_REDEFINITION.FINISH_REDEF_TABLE('APP','T','T_INT');
 ```
 
-Line by line: CAN_REDEF_TABLE checks if APP.T can go online with CONS_USE_PK. START_REDEF_TABLE begins work on interim T_INT. You build indexes and constraints on T_INT here. SYNC_INTERIM_TABLE replays recent writes to T_INT. FINISH_REDEF_TABLE swaps names and ends the job. Abort path is ABORT_REDEF_TABLE with the same three names before finish. Call shapes follow the DBMS_REDEFINITION reference. Unverified — run on your test DB.
+Line by line: CAN_REDEF_TABLE checks if APP.T can go online with CONS_USE_PK. START_REDEF_TABLE begins work on interim T_INT. You build indexes and constraints on T_INT here, then run COPY_TABLE_DEPENDENTS so triggers and grants follow. SYNC_INTERIM_TABLE replays recent writes to T_INT. FINISH_REDEF_TABLE swaps names and ends the job. Abort path is ABORT_REDEF_TABLE with the same three names before finish. Call shapes follow the DBMS_REDEFINITION reference. Unverified — run on your test DB.
 
 How to read success: CAN returns clean. START creates the interim linkage. SYNC lag drops near zero. FINISH swaps fast. Queries keep running through all four steps.
 
@@ -60,7 +62,7 @@ Worked progression B — code path with measure: new edition holds fixed PL/SQL.
 
 Plain claim: five small gates beat one big Friday scare.
 
-Gate 1 lints with SQLFluff oracle dialect plus sqlglot parse. No DB needed. Gate 2 runs utPLSQL suites for result correctness on a clone. Gate 3 captures STS and runs SPA before and after, and fails on regression past threshold. Gate 4 runs HammerDB or Swingbench for concurrency and fails on quarantine events. Gate 5 promotes with AWR and ASH watch plus quarantine check. Tool names and gate order come from the research CI pattern. Unverified — run on your test DB.
+Gate 1 lints with SQLFluff oracle dialect plus sqlglot parse. No DB needed. Gate 2 runs utPLSQL suites for result correctness on a clone. Gate 3 captures STS and runs SPA before and after, and fails on regression past threshold. Gate 4 runs HammerDB or Swingbench for concurrency and fails on `DBA_SQL_QUARANTINE` hits set via `DBMS_SQLQ`. Gate 5 promotes with AWR and ASH watch plus quarantine check. Tool names and gate order come from the research CI pattern. Unverified — run on your test DB.
 
 No new PL/SQL here. Gate 3 reuses the SPA block from the prior file verbatim.
 

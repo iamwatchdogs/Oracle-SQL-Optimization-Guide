@@ -42,11 +42,11 @@ Number: 33 tools support V0. DBMS_SQLPA and DBMS_XPLAN are C1. C1 means determin
 
 Claim: Every proof points to a page you can open.
 
-Example: Read [S06] — Oracle. DBMS_SQLPA, 19c. https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html . S06 is the ID. A1 is the class. Do the same for [S01] and [S58]. Each [S##] maps to a full record. Learn that once. Use it for all 18 papers and 6 briefs.
+Example: Read [S06] — Oracle. DBMS_SQLPA, 19c. https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html . S06 is the ID. A1 is the class. Do the same for [S01] and [S58]. Each [S##] maps to a full record. Learn that once. Use it for all 19 papers and 6 briefs.
 
 Why it matters: You check version scope fast. 19c vs 26ai stops mattering once you see the date.
 
-Number: 18 papers, 6 Oracle briefs, 33 tools. PROVEN = 2 sources or 1 strong source plus a rerun.
+Number: 19 papers, 6 Oracle briefs, 33 tools. PROVEN = 2 sources or 1 strong source plus a rerun.
 
 <details><summary>In case you don't know about an execution plan, it's Oracle's chosen steps to run your query.</summary>It is the step list Oracle chose for your SELECT and JOIN. It names join order and how each table was read, plus row guesses and cost per line. You get it after you run the query with `SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR());`. `EXPLAIN PLAN FOR` only shows a compile guess and can miss binds. Devs and DBAs pull it when a query slows with no code change. It drives one decision. Same plan hash means look at data or load. New hash means the optimizer picked a new path. Do not use wall time alone. Wall time hides which line moved. Sharp line: it is the only proof of what ran, line by line. Example: save the hash before and after a stats job. Different hash means the job picked a new path. See [T-04][S05] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html</details>
 
