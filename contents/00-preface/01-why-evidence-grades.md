@@ -52,7 +52,7 @@ Why it matters: You audit fast. You also catch stale advice. A 2012 tip may not 
 
 Number: 18 papers plus 6 Oracle briefs plus 33 tools. PROVEN = 2 sources or 1 strong A1/A2/B1 plus a rerun. That rule built the 68-entry catalog in 8 groups.
 
-<details><summary>In case you don't know about optimizer statistics, it's the numbers Oracle keeps about your tables.</summary>Row counts. Value spread. Fresh numbers lead to sound plans. Old numbers lead to poor guesses.</details>
+<details><summary>In case you don't know about optimizer statistics, it's the numbers Oracle keeps about your tables.</summary>They are numbers Oracle keeps on your tables and indexes. Row counts, block counts, value spread, and clustering. Fresh numbers lead to sound plans. Old numbers lead to poor guesses. Setup is the auto task by default. Keep it on. Tune edges with `DBMS_STATS.SET_TABLE_PREFS` and `GATHER_TABLE_STATS` with AUTO_SAMPLE_SIZE. Owners and DBAs check them after loads and when plans flip overnight. They drive join order and access choice. Do not run 100% gathers on huge tables by habit. Full scans each night blow the window and can flip plans for no gain. Sharp line: stats fix the input the cost model reads. Example: a dept filter matches 20 rows but the plan shows FULL with E-Rows far from A-Rows. Fresh stats flip it to INDEX RANGE SCAN. See [T-09][T-10][S08].</details>
 
 The catalog was built bottom-up from docs to papers to tools. No remembered list. 68 entries passed. The rest stayed out. No live DB was open here. sqlcl and sqlplus were missing. Nothing here claims a local run.
 

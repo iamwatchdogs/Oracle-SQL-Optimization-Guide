@@ -13,7 +13,7 @@ You can run SELECT. You have pushed a rewrite that looked right and returned wro
 
 Static checks are like spell-check, except they check SQL shape and stored results before the database runs the full job.
 
-<details><summary>In case you don't know about sqlglot, it's a Python parser that reads 30-plus dialects including Oracle for rewrites and diffs.</summary>It exposes parse_one, transpile, and optimizer calls plus a CLI. MIT, 9,628 stars, last push 2026-09-21. Repo: https://github.com/tobymao/sqlglot</details>
+<details><summary>In case you don't know about sqlglot, it's a Python parser that reads 30-plus dialects including Oracle for rewrites and diffs.</summary>sqlglot is a Python SQL parser, transpiler, and optimizer. It reads Oracle text into a tree you can inspect. Install with `pip3 install sqlglot` per the README. Run `import sqlglot; sqlglot.parse_one("SELECT a FROM t WHERE x = 1", read="oracle")` to parse, and always pass `read="oracle"`. Teams use it in CI before any DB time: parse v1 and v2, then diff the trees. It drives one decision: fix text now or book DB time. Hand-reading misses a dropped predicate, and that miss costs a full scan in prod. Parse costs seconds. Sharp line: sqlglot catches shape faults without a connection. Example: `sqlglot.transpile("SELECT a FROM t", read="oracle", write="oracle")[0]` prints back Oracle text. Unverified — check the repo docs for edge-case config. See https://github.com/tobymao/sqlglot MIT, 9628 stars, push 2026-09-21, Oracle among 30+ dialects [S60].</details>
 
 ## 1. Parse before you run
 
@@ -68,6 +68,6 @@ Worked example F — scripted run with python-oracledb. python-oracledb (dual UP
 
 Decision it drives: stored-test fail means stop the rewrite. Stored-test pass plus lint pass means book SPA and load time with confidence.
 
-<details><summary>In case you don't know about utPLSQL, it's a unit-test framework that lives inside Oracle DB.</summary>Tests are PL/SQL packages. They assert expected versus actual. They need 19c or newer per the README. Run them before any SPA task.</details>
+<details><summary>In case you don't know about utPLSQL, it's a unit-test framework that lives inside Oracle DB.</summary>utPLSQL is a unit-test framework inside Oracle DB. Tests are PL/SQL packages that assert expected versus actual rows. It needs Oracle 19c or newer per the README. Install from source with `sqlplus` as SYSDBA per docs, or headless with `install_headless.sql`. Run tests with `ut.run` and serveroutput on. Teams use it after lint, before SPA. It drives one decision: stop the rewrite or book SPA time. Lint alone passes while rows drop from 400 to 380, and that gap costs a day of debug. A test costs 30 seconds. Sharp line: utPLSQL locks meaning, lint only checks shape. Example: expect 400 rows and a fixed sum, get FAIL at 380, fix the predicate, get PASS. CLI is `utPLSQL-cli` for CI. Unverified — check the repo docs for hook paths. See https://github.com/utplsql/utplsql Apache-2.0, 624 stars, push 2026-09-18 [S63].</details>
 
 **Keep this: Ship no rewrite without a lint pass plus a stored result test.**

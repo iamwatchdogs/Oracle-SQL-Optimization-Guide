@@ -13,7 +13,7 @@ You can run SELECT. You have seen a slow query. You have heard "it feels slow af
 
 A toolbox is like a test bench, except each tool checks one claim and writes down its proof.
 
-<details><summary>In case you don't know about deterministic, it's output you can repeat with machine-readable proof when inputs and DB state match.</summary>Our set lists only tools with docs checked on 2026-09-22.</details>
+<details><summary>In case you don't know about deterministic, it's output you can repeat with machine-readable proof when inputs and DB state match.</summary>It means same inputs plus same DB state gives the same class of output, with machine-readable proof attached. You set it up by freezing inputs: save SQL text, binds, and stats in a tuning set, run `DBMS_SQLPA` test execute before and after, and keep medians per Hoefler and Belli SC15. Loop builders use it when a claim says faster. It drives accept or rollback. Do not use one-off wall time. Single runs swing with cache and load and fake wins that vanish at 10 a.m. Sharp line: it makes a speed claim repeatable. Example: `REPORT_ANALYSIS_TASK` shows improved, regressed, or unchanged per SQL on the same frozen set. Unverified — check your noise floor. See [S06][S58] https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html</details>
 
 ## 1. Measure first, argue later
 
@@ -68,7 +68,7 @@ How to read it: load output gives throughput plus errors plus quarantine events.
 
 Decision it drives: quarantine hit means fix the plan. Lint hit means fix the text. Stored-result fail means the rewrite changed meaning.
 
-<details><summary>In case you don't know about SQL Tuning Sets, it's a stored copy of SQL text, binds, and stats you can replay and move.</summary>DBMS_SQLSET is the newer interface in 19c. Same calls work in DBMS_SQLTUNE. Move the set to test when you need isolation.</details>
+<details><summary>In case you don't know about SQL Tuning Sets, it's a stored copy of SQL text, binds, and stats you can replay and move.</summary>A tuning set freezes statements plus binds plus metrics for replay. `DBMS_SQLSET` is the newer interface in 19c. You create a set, capture the cursor cache over a window, then lock it. Both SPA runs read that same name. Test leads use it before any claim. It drives one decision: is this the exact workload both runs graded. Do not compare live cache to live cache. Live traffic shifts binds and order, and the cost is a void verdict. Sharp line: same set in, fair compare out. Example: capture 300 seconds at peak, inspect the top 20 by buffer_gets, and hand the set name to `DBMS_SQLPA.CREATE_ANALYSIS_TASK`. See [T-06] https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html</details>
 
 In this chapter:
 

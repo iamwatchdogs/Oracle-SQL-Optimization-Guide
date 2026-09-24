@@ -13,7 +13,7 @@ You can run SELECT. You have seen a query pass alone and watch it fail in the ru
 
 Load testing is like a fire drill, except you run fake users against a copy so real users never feel the fault.
 
-<details><summary>In case you don't know about HammerDB, it's a free load runner with TPROC-C and TPROC-H style work for Oracle and other systems.</summary>It runs from hammerdbcli with Tcl scripts for repeatable capacity tests. GPL-3.0, 786 stars, last push 2026-09-18, hosted by the TPC Council. Site: https://www.hammerdb.com/</details>
+<details><summary>In case you don't know about HammerDB, it's a free load runner with TPROC-C and TPROC-H style work for Oracle and other systems.</summary>HammerDB is an open-source database benchmark for load proof. It runs TPROC-C and TPROC-H style work for Oracle and more. Install via .deb, .rpm, or tar.gz per docs, then check libs with `./hammerdbcli` plus `librarycheck`, which needs the Oracle client `libclntsh.so` or `OCI.DLL`. Teams use it on a test copy after a rewrite passes unit tests. They run the same Tcl script before and after with the same users and time. It drives one decision: reject on mix regress or move to guardrails. Solo timing hides locks, and that hide costs a 10 a.m. stall. Sharp line: HammerDB proves concurrency, never logic. Example: build a TPROC-C schema, ramp users, hold peak, and compare throughput and waits, keeping medians. Unverified — check the repo docs for script paths. See https://www.hammerdb.com/ GPL-3.0, 786 stars, push 2026-09-18, hosted by the TPC Council [S65].</details>
 
 ## 1. One loader, one realistic mix
 
@@ -53,6 +53,6 @@ How to read it: plan hash is the revert receipt. A-Rows vs E-Rows confirms the e
 
 Decision it drives: hash back plus mix clean means the revert is safe to document. Hash stuck means keep digging before you call it reverted.
 
-<details><summary>In case you don't know about SQL Quarantine, it's Oracle's block that stops a known-bad plan from running again.</summary>Resource Manager plus quarantine views show terminations and blocks as proof. Use them as the gate before you call a change safe.</details>
+<details><summary>In case you don't know about SQL Quarantine, it's Oracle's block that stops a known-bad plan from running again.</summary>SQL quarantine blocks a plan that exceeded resource limits from running again. Resource Manager kills the runaway per plan directives, and quarantine records it. You check `DBA_SQL_QUARANTINE` after promote and treat any event as a hard fail. Unverified — run on your test DB. SRE and loop owners use it as the guardrail after each promote. It drives one decision: roll back now and blacklist this shape. Do not rely on app timeouts alone. Timeouts hide the plan and let it retry, and the cost is repeated blowups under traffic. Sharp line: it remembers the bad plan so the DB refuses to repeat it. Example: a new plan runs 40x over limit, Resource Manager kills it, quarantine logs the SQL ID, the loop halts, and the old baseline returns. See [T-64] https://oracle-base.com/articles/19c/sql-quarantine-19c</details>
 
 **Keep this: Pass a parallel run with zero quarantine hits before you call it safe.**
