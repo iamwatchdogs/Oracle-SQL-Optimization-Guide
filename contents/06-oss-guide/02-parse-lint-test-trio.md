@@ -69,7 +69,7 @@ SQLFluff is a mechanical gate, and the words that matter are **configured rules*
 sqlfluff lint --dialect oracle queries/sales_report.sql
 ```
 
-**MUTATING — ILLUSTRATIVE — local shell with SQLFluff installed; no database. `fix` rewrites the candidate file in place, so run it only where the rewrite is reviewable and revertible, and keep the `lint` result above as the record of what was wrong. Expected output: the files it rewrote, each reviewed as a diff. Not executed here.**
+**MUTATING — local shell with SQLFluff installed; no database. `fix` rewrites the candidate file in place, so run it only where the rewrite is reviewable and revertible, and keep the `lint` result above as the record of what was wrong. Expected output: the files it rewrote, each reviewed as a diff. Not executed here.**
 
 ```bash
 sqlfluff fix --dialect oracle queries/sales_report.sql
@@ -95,7 +95,7 @@ The measurement decision belongs to Oracle. Freeze the workload in a SQL Tuning 
 
 A driver is what makes the edges scriptable: capture, trial, poll, save, and fail loudly. It is a harness, and the distinction is worth defending in review, because a Python function that prints a comparison is not SQL Performance Analyzer.
 
-**MUTATING — ILLUSTRATIVE. Connects to a database and reads a saved report, so it needs a service and a schema. Not executed here. Substitute your own task name and confirm every argument on the installed release. Expected output: the saved comparison report's first lines.**
+**MUTATING. Connects to a database and reads a saved report, so it needs a service and a schema. Not executed here. Substitute your own task name and confirm every argument on the installed release. Expected output: the saved comparison report's first lines.**
 
 ```python
 import os
@@ -186,8 +186,4 @@ rollback artifact and its proof:           ____________________
 
 The offline blocks above are `ILLUSTRATIVE` shapes and the harness block is a `MUTATING` shape. None of them has been run, and the lane facts are repository records rather than results.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** parse the text, lint the configured rules, assert the meaning, and let Oracle measure the claim. A stage that has not run is a stage that has not passed.
-
-**Next required page:** [What Has No OSS Replacement](/06-oss-guide/03-what-has-no-oss-replacement/).

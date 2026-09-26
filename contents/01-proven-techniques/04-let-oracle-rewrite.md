@@ -37,6 +37,8 @@ The Core path is short on purpose. If you take nothing else from this page, take
 
 ## 1. The rule, and why it exists
 
+A spell checker only corrects a word when there is one obvious correction, and it still mangles the names it has never seen. That is the rule the optimizer works under, pointed at a query instead of a word. A hand-rewrite is the same edit typed with the checker switched off.
+
 The optimizer rewrites your SQL when it can prove the rewrite preserves the result. "Proves" is doing a lot of work in that sentence, and the whole discipline of this page lives in the cases where that proof does not hold.
 
 An optimizer that silently changed your result set would be unusable. So it refuses transforms whose preconditions do not obviously hold. That is why a query with an outer join, a `DISTINCT`, or an `OR` sometimes does not get the transformation you expected: the rewrite is not obviously safe, so it is not applied.
@@ -65,6 +67,8 @@ A view with aggregation, `DISTINCT`, set operations, or grouping cannot be merge
 
 **Error contract** — guarded by F6. A rewrite can change _when_ a query fails, not just what it returns. Dividing by a bind of `0` must keep raising the same Oracle error; swallowing it into an empty result set is a changed contract, and a silent one.
 
+One aside: all six breakages pass a code review, because a row-count check passes all six. Back to the fixtures.
+
 ## 3. Two examples, with expected results
 
 Example A uses the canonical [V0 fixture](/00-preface/02-how-to-prove-a-win/) plus one explicitly synthetic department row, labeled as such. Example B uses only the canonical fixture. Every expected result on this page is `SYNTHETIC` and derived from the fixture definition, not from a run.
@@ -73,9 +77,9 @@ Example A uses the canonical [V0 fixture](/00-preface/02-how-to-prove-a-win/) pl
 
 This example has two separate lessons, and they are easy to confuse. The first is about the SQL you write. The second is about the **subquery unnesting** transformation, catalog **T-37**. `NOT EXISTS` is not a transformation; it is a predicate you type. T-37 is the documented transformation the optimizer can apply to an eligible existence subquery, turning it into a semijoin or antijoin.
 
-**A fixture note you need before the example works.** The canonical [V0 fixture](/00-preface/02-how-to-prove-a-win/) has three departments: `10` Platform, `42` Finance, `99` Support. All three have at least one employee, so **the V0 fixture contains no department with zero employees**. To show the no-match case, this example adds one clearly separate, explicitly synthetic row. It is additive teaching data, it does not modify the canonical fixture, and the F1 to F6 contracts in section 4 are unaffected because they bind on `dept_id` and `:employee_id`, never on the synthetic department.
+**A fixture note you need before the example works.** The canonical [V0 fixture](/00-preface/02-how-to-prove-a-win/) has three departments: `10` Platform, `42` Finance, `99` Support. All three have at least one employee, so **the V0 fixture contains no department with zero employees**. To show the no-match case, this example adds one clearly separate, explicitly synthetic row. It is additive teaching data: it does not change the canonical fixture's **definition**, but it does add a fourth row to the `departments` table in your lab schema, so after this page that table holds four rows where the V0 page said three. The V0 page's "three department rows" describes the fixture as defined, not your table as it stands after later pages — and if you re-run any V0 step, drop this row first so the counts match. The F1 to F6 contracts in section 4 are unaffected because they bind on `dept_id` and `:employee_id`, never on the synthetic department.
 
-**SYNTHETIC — MUTATING — additional teaching row, not part of the canonical V0 fixture.** Run only in a disposable lab schema owned by `<object-owner-schema>`. Expected output: one added department row, committed. This block writes to the database, so it is not read-only and not `COPYABLE` for production. The canonical fixture is unchanged by this page; the `NOT IN`/`NOT EXISTS` contrast below depends on a department that has no employees, and the fixture has none without this row.
+**SYNTHETIC — additional teaching row, not part of the canonical V0 fixture.** Run only in a disposable lab schema owned by `<object-owner-schema>`. Expected output: one added department row, committed. This block writes to the database, so it is not read-only and not `COPYABLE` for production. The canonical fixture is unchanged by this page; the `NOT IN`/`NOT EXISTS` contrast below depends on a department that has no employees, and the fixture has none without this row.
 
 ```sql
 DEFINE object_owner_schema = <object-owner-schema>
@@ -226,7 +230,7 @@ Materialized-view query rewrite belongs to [indexes and layout](/01-proven-techn
 
 ## 8. Release-specific: the transpiler, and how to talk about any new feature
 
-The automatic SQL Transpiler, documented for 23ai/26ai, can convert eligible PL/SQL constructs used inside a SQL statement into SQL expressions. It is not a general PL/SQL optimizer. Eligibility rules decide which constructs qualify, and non-eligible constructs stay on the normal PL/SQL path. Treat its presence in a plan as something to verify on the installed release, not something to predict. [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf)
+The automatic SQL Transpiler, documented for 26ai, can convert eligible PL/SQL constructs used inside a SQL statement into SQL expressions. It is not a general PL/SQL optimizer. Eligibility rules decide which constructs qualify, and non-eligible constructs stay on the normal PL/SQL path. Treat its presence in a plan as something to verify on the installed release, not something to predict. [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf)
 
 The general rule, which applies to every feature in the book: a 26ai guide documents features introduced across releases, so a feature appearing in that guide is not automatically a 26ai introduction, and a 19c environment cannot use a 26ai feature no matter what the guide lists. The release label belongs next to the behavior. Where the exact introduction release is unverified, say so. The [version drift page](/07-appendix-sources/02-version-drift-survival/) keeps the boundaries, and the [evidence chapter](/00-preface/01-why-evidence-grades/) grades the sources.
 
@@ -256,8 +260,4 @@ For each candidate: the transformation name from the plan, the saved before and 
 
 Every result set and plan on this page is `SYNTHETIC`.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** make the query eligible, read the transformation, pass the fixtures, then measure. In that order.
-
-**Next required page:** [Stabilize and Ship Safely](/01-proven-techniques/05-stabilize-and-ship-safely/).

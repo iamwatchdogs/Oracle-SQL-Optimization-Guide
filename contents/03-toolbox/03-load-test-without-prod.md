@@ -13,9 +13,11 @@ An approved test plan names the target environment and its owner, the data volum
 
 > **Track:** Core (none) · Practice (1) · Recovery (5, 6) · Advanced / gated (2, 3, 4)
 >
-> **Prerequisites:** [Freeze Work With STS](/03-toolbox/02-freeze-work-with-sts/) and [Before and After With SPA](/04-recipes/02-before-after-with-spa/) behind you, plus a non-production target an owner has approved for load.
->
-> **Evidence status:** The tool rows are C1/C2 records from this guide's ledger: HammerDB [S65](https://www.hammerdb.com/) and Swingbench [S66](https://www.dominicgiles.com/swingbench/) for load generation. Resource Manager is A1 [S39](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-resources-with-oracle-database-resource-manager.html); SQL Quarantine is A1 plus class-D corroboration [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html), whose package reference was not retrieved firsthand. Tracing [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) and test-case packaging [S43](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html) are A1. Section 6's baseline caveat rests on A1 [S07] [S21]. **No live Oracle database was available for this page**, no load run was executed, and no number here is a measurement.
+> **Prerequisites:** [Freeze Work With STS](/03-toolbox/02-freeze-work-with-sts/) behind you, plus a non-production target an owner has approved for load. **That is the whole prerequisite list.** This gate does not wait on the SPA comparison, and the comparison does not wait on it either — they are two independent requirements, one of them conditional on the candidate rather than on the reading order. **This gate is required whenever the candidate affects contention or resource use — buffer cache, locks, CPU, or I/O**; the two sentences below carry the rest of the rule. A single-session timing result is the thing this gate exists to distrust: a statement that wins alone can lose when many sessions contend for the same buffer cache and locks.
+
+**The condition is a trigger, not the whole rule, and this page owns the rest of it.** Run this gate whenever the candidate affects contention or resource use — buffer cache, locks, CPU, or I/O. Run it _also_ when you have no Real Application Testing entitlement, because the [SPA page](/04-recipes/02-before-after-with-spa/) names this gate as the honest fallback in that case and Database Replay is out of reach with it. An absent `DBMS_SQLPA` package or a missing `ADVISOR` privilege is a different problem: fix the prerequisite, because the [comparison page](/04-recipes/02-before-after-with-spa/) and this gate both need a target you can actually run against. And if the condition does not apply and the comparison ran, this gate is genuinely optional: one candidate, one unchanged control, no resource claim is the whole result.
+
+> **Evidence status:** The tool rows are C1/C2 records from this guide's ledger: HammerDB [S65](https://github.com/TPC-Council/HammerDB) and Swingbench [S66](https://github.com/domgiles/swingbench-public) for load generation, the latter read from the repository because the product page cannot carry a licence claim. Resource Manager is A1 [S39](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-resources-with-oracle-database-resource-manager.html); SQL Quarantine is A1 plus class-D corroboration [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html), whose package reference was not retrieved firsthand. Tracing [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) and test-case packaging [S43](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html) are A1. Section 6's baseline caveat rests on A1 [S07] [S21]. **No live Oracle database was available for this page**, no load run was executed, and no number here is a measurement.
 >
 > **Next required page:** [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/).
 
@@ -35,7 +37,7 @@ An approved test plan names the target environment and its owner, the data volum
 
 ## 1. Build a realistic mix
 
-Use the application's real shape: concurrency, think time, bind distribution, DML versus queries, and the statements that dominate the incident. HammerDB offers TPROC-C and TPROC-H style workloads under GPL-3.0 [S65]. Swingbench offers Oracle-specific mixes such as Order Entry, SH, and call-style workloads, and its repository declares no license [S66](https://github.com/domgiles/swingbench-public). Neither is automatically representative of your application.
+Use the application's real shape: concurrency, think time, bind distribution, DML versus queries, and the statements that dominate the incident. HammerDB offers TPROC-C and TPROC-H style workloads under GPL-3.0 [S65](https://github.com/TPC-Council/HammerDB). Swingbench offers Oracle-specific mixes such as Order Entry, SH, and call-style workloads, and its repository declares no license [S66](https://github.com/domgiles/swingbench-public). Neither is automatically representative of your application.
 
 Keep the script fixed across the before and after runs:
 
@@ -167,8 +169,4 @@ A guarded load record:
 
 No load run was executed for this page, and no number in it is a measurement.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** a parallel run with armed guardrails is a safety check. It becomes a performance claim only when the same frozen workload, the same script, and the measured policy say so.
-
-**Next required page:** [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/).

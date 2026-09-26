@@ -64,7 +64,7 @@ Each page decides one question, so go to the row you are stuck on.
 
 ## Execution boundary and CI
 
-Static checks run with no database. Behavior tests and the SPA trials need a controlled target, the privileges named on each page, and a workload frozen before anything was applied. Load testing is optional for a change that cannot create contention or capacity risk, and required before promotion when it can.
+Static checks run with no database. Behavior tests and the SPA trials need a controlled target, the privileges named on each page, and a workload frozen before anything was applied. Load testing is required before promotion when the change affects contention or resource use — buffer cache, locks, CPU, or I/O, and optional when it cannot. That condition is a trigger rather than the whole rule, and the [load gate page](/03-toolbox/03-load-test-without-prod/) owns the rest of it, including the entitlement fallback.
 
 CI runs the stages in a fixed order owned by [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/); this chapter supplies the workload and DDL stages that follow, and the job table with what each gate can and cannot catch lives on [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/). What counts as a win is the [noise floor](/05-feedback-loop/02-noise-floor-and-repetition/) test, and the sentence about a green badge belongs to that static-checks page.
 
@@ -99,8 +99,4 @@ metric:          ____________________
 rollback cmd:    ____________________
 ```
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** run a sequence you can run twice, keep the evidence both runs produced, and let the gate judge it. Reproducibility is the whole difference between a setting and a recipe.
-
-**Next required page:** [Freeze With STS](/04-recipes/01-freeze-with-sts/).

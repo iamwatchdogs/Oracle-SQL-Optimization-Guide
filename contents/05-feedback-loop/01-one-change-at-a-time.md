@@ -33,6 +33,8 @@ This page owns the one-change rule and the change record it is tested under. How
 
 ## 1. Propose exactly one candidate
 
+A commit that moves a rename and fixes a bug in one diff is unreadable, and reviewing it produces no opinion about either change. Three advisor proposals applied in the same run are that commit.
+
 A candidate is one hypothesis with one target. It is not a pile of advice from an advisor report.
 
 Advisors return menus. On a set such as `OPT_LOOP_WL`, SQL Tuning Advisor may suggest a profile, SQL Access Advisor an index [S35], and Optimizer Statistics Advisor a gather [S27]. Record all three as proposals, pick one for this run, and leave the other two queued. Oracle's own plan management accepts a new plan only after verification, so a recommendation is a proposal and nothing more [S12] [S17].
@@ -62,6 +64,8 @@ discovered_version:   ____________________   -- same field name as the lesson re
 Two fields do the most work. The `change_class` selects the rollback row on the [gate page](/05-feedback-loop/03-accept-or-rollback-gate/) before anything is applied. The `rollback_primitive` is unusable until someone has executed it once on the isolated target, which is check five of that gate.
 
 Every later iteration gets a new `change_id`. It does not inherit the first candidate's record, its samples, or its verdict.
+
+One aside: a record filled in after the verdict describes what happened rather than deciding what to do. Back to the form.
 
 ## 3. Gate semantics before spending database time
 
@@ -117,8 +121,4 @@ A single candidate record:
 
 The change record above is `PLACEHOLDER`, and no block on this page has been executed.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** one candidate, one record, one re-baselined workload. If you cannot name the change in a sentence, you are not ready to measure it.
-
-**Next required page:** [Noise Floor and Repetition](/05-feedback-loop/02-noise-floor-and-repetition/).

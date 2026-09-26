@@ -51,6 +51,8 @@ The rule that follows from the table is the one worth remembering: a monitoring 
 
 ## Route the question before the tool
 
+> **"What did Oracle actually do?"**
+
 Five questions, and more tools than questions. Name the question first, because the same tool answers some of them badly and one of them badly enough to mislead you.
 
 | Question                            | What the evidence has to be                                             | Reach for                                                                           |
@@ -65,18 +67,18 @@ Five questions, and more tools than questions. Name the question first, because 
 
 ## Claim to tool
 
-| Claim                                                   | Minimum evidence                                                                                              | Tool + S-ID                                                                        |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| This plan changed                                       | The two `DISPLAY_CURSOR` plans themselves, diffed line by line, plus the row-source statistics on both sides  | DBMS_XPLAN [S05]                                                                   |
-| This statement is faster                                | Same statement, same binds and workload, before and after test-execute, repeated runs, medians and CI         | DBMS_SQLPA [S06] + repetition policy [S58]                                         |
-| This workload got faster                                | Same STS, AWR deltas over comparable windows                                                                  | STS [S18] + AWR/ASH [S03]; Statspack [S93] on snapshots                            |
-| The estimate was wrong for this line                    | `E-Rows` vs `A-Rows` per line                                                                                 | SQL Monitor / `DISPLAY_CURSOR ALLSTATS LAST` [S01] [S05]                           |
-| The change is semantically safe                         | Regression tests on the SQL's results; logical equivalence check where feasible                               | utPLSQL [S63]; CANDIDATE provers [S48] [S49] [S50] [S51]                           |
-| This estimate was wrong and I need to know why          | `E-Rows` vs `A-Rows` per line, plus when statistics last changed and what `REPORT_COL_USAGE` recorded         | `DISPLAY_CURSOR` + `GATHER_PLAN_STATISTICS` [S01] [S05] + DBMS_STATS [S82]         |
-| I cannot think of a better way to write this            | Generated rewrite, hint, and index cases, each executed and ranked by measured statistics                     | A rewrite engine [S84]; Oracle SQL Tuning Advisor for optimizer-native cases [S17] |
-| This service is expensive and I do not know which query | Wait-time and top-SQL history correlated to the calling application                                           | AWR/ASH/ADDM [S03], or Statspack [S93] on snapshots                                |
-| The change is safe to keep under load                   | Same script both sides; throughput, errors, latency in the repetition policy; RM + quarantine events recorded | HammerDB/Swingbench [S65] [S66] + Resource Manager [S39] + Quarantine [S40]        |
-| The regression is reverted                              | Restored stats, dropped patch, profile, or baseline; plan hash returns                                        | DBMS_STATS restore [S29] + DBMS_SQLDIAG [S43] + DBMS_SPM [S07]                     |
+| Claim                                                   | Minimum evidence                                                                                              | Tool + S-ID                                                                                                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| This plan changed                                       | The two `DISPLAY_CURSOR` plans themselves, diffed line by line, plus the row-source statistics on both sides  | DBMS_XPLAN [S05]                                                                                                                                                |
+| This statement is faster                                | Same statement, same binds and workload, before and after test-execute, repeated runs, medians and CI         | DBMS_SQLPA [S06] + repetition policy [S58]                                                                                                                      |
+| This workload got faster                                | Same STS, AWR deltas over comparable windows                                                                  | STS [S18] + AWR/ASH [S03]; Statspack [S93] on snapshots                                                                                                         |
+| The estimate was wrong for this line                    | `E-Rows` vs `A-Rows` per line                                                                                 | SQL Monitor / `DISPLAY_CURSOR ALLSTATS LAST` [S01] [S05]                                                                                                        |
+| The change is semantically safe                         | Regression tests on the SQL's results; logical equivalence check where feasible                               | utPLSQL [S63]; CANDIDATE provers [S48] [S49] [S50] [S51]                                                                                                        |
+| This estimate was wrong and I need to know why          | `E-Rows` vs `A-Rows` per line, plus when statistics last changed and what `REPORT_COL_USAGE` recorded         | `DISPLAY_CURSOR` + `GATHER_PLAN_STATISTICS` [S01] [S05] + DBMS_STATS [S82](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html) |
+| I cannot think of a better way to write this            | Generated rewrite, hint, and index cases, each executed and ranked by measured statistics                     | A rewrite engine [S84]; Oracle SQL Tuning Advisor for optimizer-native cases [S17]                                                                              |
+| This service is expensive and I do not know which query | Wait-time and top-SQL history correlated to the calling application                                           | AWR/ASH/ADDM [S03], or Statspack [S93] on snapshots                                                                                                             |
+| The change is safe to keep under load                   | Same script both sides; throughput, errors, latency in the repetition policy; RM + quarantine events recorded | HammerDB/Swingbench [S65] [S66] + Resource Manager [S39] + Quarantine [S40]                                                                                     |
+| The regression is reverted                              | Restored stats, dropped patch, profile, or baseline; plan hash returns                                        | DBMS_STATS restore [S29] + DBMS_SQLDIAG [S43] + DBMS_SPM [S07]                                                                                                  |
 
 The rows separate three kinds of question: what one execution did, what a workload did, and what the SQL means. No timing answers the third kind. The last row is the undo path, and it is only usable if you recorded the change class before you applied anything.
 
@@ -99,7 +101,7 @@ One ordering note. When you are holding new SQL text rather than an existing pla
 
 Several rows carry an entitlement or license check before you use them, especially against production.
 
-This book prints no pack table, and that is a decision rather than a gap. Oracle's feature documentation tells you what a feature does; it does not tell you what you must license, and the other public source is a tuning-pack datasheet old enough that the product line it describes has been repackaged several times since. Neither is license text [S90]. The entitlement depends on your release, your edition, and whether you are on-premises or on a cloud service.
+This book prints no pack table, and that is a decision rather than a gap. Oracle's feature documentation tells you what a feature does; it does not tell you what you must license, and the other public source is a tuning-pack datasheet old enough that the product line it describes has been repackaged several times since. Neither is license text [S90](https://docs.oracle.com/en/database/oracle/oracle-database/19/dblic/Licensing-Information.html). The entitlement depends on your release, your edition, and whether you are on-premises or on a cloud service.
 
 So the rule is one sentence: **confirm the entitlement against the Oracle licensing guide for your exact release and deployment, and never repeat a pack requirement as a universal fact.**
 
@@ -109,7 +111,7 @@ SQL Performance Analyzer and Database Replay both depend on the Real Application
 
 The S-ID links source the feature documentation rather than the license text: [S03](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/) for AWR and ASH, [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) for SQL Monitor and tracing, [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) for the analyzer, [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html) for tuning sets, and [S39](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-resources-with-oracle-database-resource-manager.html) [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html) for the guardrails.
 
-The load generators are external tools with their own terms: HammerDB is GPL-3.0 and hosted by the TPC Council [S65](https://www.hammerdb.com/), while the Swingbench repository declares no license [S66](https://github.com/domgiles/swingbench-public). Commercial instruments carry their own terms too, and a rewrite engine that executes generated SQL against your instance is a licensed tool whether or not the SQL is [S84]. Check release, edition, entitlement, and tool license before you plan a run.
+The load generators are external tools with their own terms: HammerDB is GPL-3.0 and hosted by the TPC Council [S65](https://github.com/TPC-Council/HammerDB), read from the repository rather than from the product page, while the Swingbench repository declares no license [S66](https://github.com/domgiles/swingbench-public). Commercial instruments carry their own terms too, and a rewrite engine that executes generated SQL against your instance is a licensed tool whether or not the SQL is [S84]. Check release, edition, entitlement, and tool license before you plan a run.
 
 ## Artifact
 
@@ -119,8 +121,4 @@ Behind it, the four pages produce their own artifacts: a saved executed plan and
 
 The rows above name instruments and the artifacts they produce; none of them is a result.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** write the claim first, then take the row that can reject it. A tool you cannot put a claim against is a habit, not evidence.
-
-**Next required page:** [Measure With XPLAN and Monitor](/03-toolbox/01-measure-with-xplan-and-monitor/).

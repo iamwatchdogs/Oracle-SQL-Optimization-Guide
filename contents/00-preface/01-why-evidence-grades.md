@@ -21,12 +21,12 @@ A source grade is a map legend, not the territory. The exception is simple: a ma
 
 ## How this page is banded
 
-| Band                 | Sections                                                            |
-| -------------------- | ------------------------------------------------------------------- |
-| **Core**             | Working terms · One claim, one evidence sequence · Missing evidence |
-| **Practice**         | Compact worked example · Practical evidence handoff                 |
-| **Recovery**         | none                                                                |
-| **Advanced / gated** | The source labels, after the decision · `PROVEN` is a catalog label |
+| Band                 | Sections                                                                                     |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| **Core**             | Working terms before the claim · One claim, one evidence sequence · When evidence is missing |
+| **Practice**         | A compact worked example · Practical evidence handoff                                        |
+| **Recovery**         | none                                                                                         |
+| **Advanced / gated** | The source labels, after the decision · `PROVEN` is a catalog label                          |
 
 - **Core:** the four working terms, the seven-step sequence from claim to wording, and what to do when the result is missing. Read these in order; the sequence is the policy and the grade is one label inside it.
 - **Practice:** the worked example and the handoff list. Use them on a real ticket, because a claim does not leave your desk until the handoff is complete.
@@ -43,6 +43,8 @@ A source grade is a map legend, not the territory. The exception is simple: a ma
 ## One claim, one evidence sequence
 
 Use the same sequence every time. The sequence is the policy; the grade is only one label inside it.
+
+One aside: nobody has ever quoted you the sequence. Back to step one.
 
 **SYNTHETIC — toy query and toy schema.** This is a teaching fixture, not a result. The client would be SQLcl or SQL*Plus with a bind-aware session, and the account would need `SELECT` on the lab-owned `employees` table.
 
@@ -76,7 +78,7 @@ Record the boundaries before reading the result:
 - Representative bind values, data distribution, and time window.
 - The metric, repetition budget, semantic fixture, and rollback owner.
 
-A source about 19c does not automatically describe 23ai, 26ai, or a different edition. A documented procedure is scoped too.
+A source about 19c does not automatically describe 26ai or a different edition. A documented procedure is scoped too.
 
 ### 4. Procedure
 
@@ -162,7 +164,7 @@ A D source can point you toward an A1 source. It cannot carry an Oracle behavior
 
 This book's toolbox is full of statements about _features_ and about _tools_, and the table above sorts neither cleanly. Two rules close the gap.
 
-**A licensing claim is not a behavior claim, and the label that carries it is not the label that carries a feature.** Whether a feature needs a licensed pack depends on your release, your edition, and whether you are on-premises or on a cloud service, and it changes between releases. Oracle's feature documentation tells you what a feature does. It does not tell you what you are required to pay for, and neither does a datasheet written a decade ago for a product line that has been repackaged since. So: **this book asserts no pack requirement as fact.** Where a page needs one, it tells you to confirm it against the licensing guide for your exact release and deployment, and it points you at the pack-free substitute so the method still works if the answer is no [S90]. An entitlement is a fact about your contract, and only your contract settles it.
+**A licensing claim is not a behavior claim, and the label that carries it is not the label that carries a feature.** Whether a feature needs a licensed pack depends on your release, your edition, and whether you are on-premises or on a cloud service, and it changes between releases. Oracle's feature documentation tells you what a feature does. It does not tell you what you are required to pay for, and neither does a datasheet written a decade ago for a product line that has been repackaged since. So: **this book asserts no pack requirement as fact.** Where a page needs one, it tells you to confirm it against the licensing guide for your exact release and deployment, and it points you at the pack-free substitute so the method still works if the answer is no [S90](https://docs.oracle.com/en/database/oracle/oracle-database/19/dblic/Licensing-Information.html). An entitlement is a fact about your contract, and only your contract settles it.
 
 **A vendor document records what a product claims, not what the product does.** Class C1 covers a deterministic tool with documented output, and that is the right class for a tool manual. A product page, a datasheet, or a case study is a different thing: it is written to make you buy something, and it settles exactly one question — _does this product exist and what is it for_. It cannot settle a version claim, a licensing claim, or a performance claim about your database. The [version drift page](/07-appendix-sources/02-version-drift-survival/) states the general rule; this is the case that needs it most, because the commercial section of the [toolbox map](/03-toolbox/) is where a reader is most likely to accept a vendor sentence as a measurement.
 
@@ -207,6 +209,8 @@ Reading-only or no-database readers should inspect the V0 procedure and its pass
 
 ## When evidence is missing
 
+A function that returns a placeholder and marks itself unfinished is honest; a function that returns a plausible wrong value is a bug that ships. `CANDIDATE` and `NOT-VERIFIED` are the first kind, and this section is the whole argument for keeping them.
+
 Do not fill the gap with confidence. Do this instead:
 
 1. Mark the claim `CANDIDATE` or `NOT-VERIFIED`.
@@ -244,8 +248,4 @@ A claim record with: the falsifiable claim sentence, its source class with relea
 
 A missing local result is a status, not a defect in the method. The absence of a live run in this repository is expected; pretending otherwise would be worse.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** Evidence earns the right to test a claim, not the right to ship it. If the procedure or local result is missing, keep the claim `CANDIDATE/NOT-VERIFIED`.
-
-**Next required page:** [How to prove a win](/00-preface/02-how-to-prove-a-win/).

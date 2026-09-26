@@ -28,16 +28,18 @@ Two warnings before you start, because both produce a confident wrong answer. `p
 | **Recovery**         | none       |
 | **Advanced / gated** | 3, 4, 5, 8 |
 
-- **Core (1, 2):** tag the session and read the executed cursor. Both need only a read session, and neither changes database state.
+- **Core (1, 2):** tag the session and read the executed cursor. Both read like lookups, but section 1 tags the session, so its first block writes a client identifier and is `MUTATING`. Section 2 only reads.
 - **Practice (6, 7):** compare two saved plans on a real ticket, then route what you saw to a cause class and a next test. The artifacts already exist, so the work is judgment rather than entitlement.
 - **Recovery (none):** this page produces evidence, not a rollback. The revert path belongs to the change class that applied the candidate.
 - **Advanced / gated (3, 4, 5, 8):** Real-Time SQL Monitoring, ASH, and AWR carry entitlement questions, and SQL Trace needs tracing privileges while adding overhead. Section 8 is the ungated alternative for anyone without a pack. Confirm release, edition, and entitlement before you reach for the first four.
 
 ## 1. Tag the execution
 
+A shared drive where every file is named `final.docx` is a drive nobody can measure a change on. Module and action are the two fields that stop that: one names the workflow, the other names the trial, and two runs that differ only in the second field are the only kind you can still compare next week.
+
 Use both module and action. `SET_MODULE` identifies the application or workflow; `SET_ACTION` identifies the trial. Without the action, every before/after run collapses into the same attribution bucket.
 
-**MUTATING — session and package state. ILLUSTRATIVE, not executed. SQLcl or SQL\*Plus, run in the session under test. Expected output: no rows returned; the session now reports these values to monitoring views.**
+**MUTATING — session and package state. Not executed here. SQLcl or SQL\*Plus, run in the session under test. Expected output: no rows returned; the session now reports these values to monitoring views.**
 
 ```sql
 EXEC DBMS_APPLICATION_INFO.SET_MODULE('APP_REPORT', 'baseline');
@@ -93,9 +95,11 @@ Sort by lifetime totals and you will rank statements by how long the instance ha
 
 ## 2. Display the plan that ran
 
+Turning on verbose logging across the whole application to understand one function is the debugging move everybody tries once, and the bill arrives everywhere except the function. `GATHER_PLAN_STATISTICS` on the one statement you are actually asking about is the scoped version, and this section is built on it.
+
 For the current session, `DISPLAY_CURSOR` can use its defaults. For a specific execution, pass the SQL ID and the child number:
 
-**ILLUSTRATIVE — PLACEHOLDER — SQLcl or SQL\*Plus. Replace `&sql_id` and `&child_number` with values read in section 1. Requires read access to `V$SQL_PLAN`, `V$SESSION`, and `V$SQL_PLAN_STATISTICS_ALL`. Expected output: the plan for the named child, with runtime statistics when they were gathered.**
+**PLACEHOLDER — SQLcl or SQL\*Plus. Replace `&sql_id` and `&child_number` with values read in section 1. Requires read access to `V$SQL_PLAN`, `V$SESSION`, and `V$SQL_PLAN_STATISTICS_ALL`. Expected output: the plan for the named child, with runtime statistics when they were gathered.**
 
 ```sql
 SELECT * FROM TABLE(
@@ -103,11 +107,12 @@ SELECT * FROM TABLE(
     sql_id => '&sql_id',
     cursor_child_no => &child_number,
     format => 'ALLSTATS LAST +PEEKED_BINDS'
+
   )
 );
 ```
 
-`ALLSTATS` adds I/O and memory statistics when the required plan statistics are available. `LAST` limits those statistics to the last execution. `PEEKED_BINDS` shows which bind values shaped the plan.
+`ALLSTATS` adds I/O and memory statistics when the required plan statistics are available. `LAST` limits those statistics to the last execution. `PEEKED_BINDS` shows which bind values shaped the plan. One label this format string needs: `PEEKED_BINDS` works on 19c, but it is **not enumerated** in the printed format list in either the 19c or the 26ai `DBMS_XPLAN` reference — an Oracle documentation gap, not a release boundary. Check it on your own instance before you build a runbook around it, and do not cite a reference page as proof that it exists.
 
 If your display has no actual rows, you do not have a question yet, you have a plan shape. Fix that first: runtime statistics are what separate a measurement from an opinion.
 
@@ -117,7 +122,7 @@ Row-source statistics have to be collected before `ALLSTATS` has anything to pri
 
 Put the hint on the statement:
 
-**ILLUSTRATIVE — PLACEHOLDER — the hint goes in the statement under test. The text after `/*+` is Oracle's, not a comment to you. Expected output: the statement behaves normally, and its row-source statistics are retained in the dynamic performance views for `ALLSTATS` to read.**
+**PLACEHOLDER — the hint goes in the statement under test. The text after `/*+` is Oracle's, not a comment to you. Expected output: the statement behaves normally, and its row-source statistics are retained in the dynamic performance views for `ALLSTATS` to read.**
 
 ```sql
 SELECT /*+ GATHER_PLAN_STATISTICS */ /* your real statement */ ...
@@ -196,11 +201,13 @@ That is the rule: **client settings are benchmark inputs.** If you change one be
 
 Real-Time SQL Monitoring is useful when a statement is long-running, parallel, or explicitly monitored. It shows plan-line actual rows, timing, memory, and temporary-space use. It does not replace the cursor-cache plan for every short statement.
 
+**If the report comes back empty where you expect a statement, check configuration before you blame the plan.** Real-Time SQL Monitoring depends on the `CONTROL_MANAGEMENT_PACK_ACCESS` initialization parameter, which is not at its permissive default in every deployment, and on a licensed option. Neither of those is a plan problem, and this book prints no pack table — the licensing guide for your exact release and deployment is the authority [S90]. If the parameter is right and the option is absent, section 8 below is the ungated path that answers the same question.
+
 It also starts on its own. Oracle begins monitoring qualifying statements automatically, which includes parallel SQL and statements that have burned several seconds of CPU or I/O. You do not switch it on per statement, and a statement that finished in 40 ms may never appear at all. `not monitored` is a normal result with a normal reason, and the reason belongs in the artifact.
 
 Read the active execution from the monitoring view while it runs:
 
-**ILLUSTRATIVE — PLACEHOLDER — SQLcl or SQL\*Plus against `V$SQL_MONITOR`. Replace `&sql_id` with the identity read in section 1. Requires the documented read access to the monitoring views. Confirm the column list and the entitlement for your release before you rely on the report. Expected output: one row for the monitored execution.**
+**PLACEHOLDER — SQLcl or SQL\*Plus against `V$SQL_MONITOR`. Replace `&sql_id` with the identity read in section 1. Requires the documented read access to the monitoring views. Confirm the column list and the entitlement for your release before you rely on the report. Expected output: one row for the monitored execution.**
 
 ```sql
 SELECT sql_id, status, elapsed_time, buffer_gets
@@ -216,7 +223,7 @@ A practical sequence is:
 4. Save the report with the SQL ID, child number, timestamp, and candidate change.
 5. Compare the plan-line evidence with the controlled trials.
 
-The feature is documented in chapter 21 of the 19c SQL Tuning Guide [S01], with the per-line detail in `V$SQL_PLAN_MONITOR`. Monitoring thresholds, privileges, and entitlement rules still apply. Check the licensing guide for your release rather than assuming a pack list: this book deliberately prints none, because the sources that state one are feature documentation and a decade-old datasheet, and neither is license text [S90].
+The feature is documented in chapter 21 of the 19c SQL Tuning Guide [S01], with the per-line detail in `V$SQL_PLAN_MONITOR`. Monitoring thresholds, privileges, and entitlement rules still apply. Check the licensing guide for your release rather than assuming a pack list: this book deliberately prints none, because the sources that state one are feature documentation and a decade-old datasheet, and neither is license text [S90](https://docs.oracle.com/en/database/oracle/oracle-database/19/dblic/Licensing-Information.html).
 
 One substitution to refuse. If the monitoring entitlement is not there, the answer is `DISPLAY_CURSOR` with the `GATHER_PLAN_STATISTICS` hint, or a session trace, not "we will use the monitor because it is free to click." A tool you do not have licensed is not a plan, and an unlicensed report is not evidence.
 
@@ -224,7 +231,7 @@ One substitution to refuse. If the monitoring entitlement is not there, the answ
 
 ASH samples active sessions once per second. It is useful for finding where time accumulated over a window, but it cannot account for every sub-second execution. The live view exposes `SQL_PLAN_LINE_ID`:
 
-**ILLUSTRATIVE — PLACEHOLDER — SQLcl or SQL\*Plus against `V$ACTIVE_SESSION_HISTORY`. Replace `&sql_id` with the identity read in section 1. Requires the diagnostic entitlement and the documented view access. Expected output: one row per plan line and wait event, ordered by sample count.**
+**PLACEHOLDER — SQLcl or SQL\*Plus against `V$ACTIVE_SESSION_HISTORY`. Replace `&sql_id` with the identity read in section 1. Requires the diagnostic entitlement and the documented view access. Expected output: one row per plan line and wait event, ordered by sample count.**
 
 ```sql
 SELECT sql_id, sql_plan_line_id, event, COUNT(*) AS samples
@@ -237,7 +244,7 @@ ORDER  BY samples DESC;
 
 For retained history, use the DBA view:
 
-**ILLUSTRATIVE — PLACEHOLDER — SQLcl or SQL\*Plus against `DBA_HIST_ACTIVE_SESS_HISTORY`. Replace `&sql_id` and the two bind timestamps. Expected output: the sampled activity for that statement across the declared window.**
+**PLACEHOLDER — SQLcl or SQL\*Plus against `DBA_HIST_ACTIVE_SESS_HISTORY`. Replace `&sql_id` and the two bind timestamps. Expected output: the sampled activity for that statement across the declared window.**
 
 ```sql
 SELECT sample_time, sql_id, sql_plan_line_id, event
@@ -247,11 +254,13 @@ AND    sql_id = '&sql_id'
 ORDER  BY sample_time;
 ```
 
-The line ID gives ASH a join key to the plan you already captured. Without it you have a list of active SQL. With it you can ask whether a nested loop, hash join, or index line was actually active under the load. ASH and its window-based views are documented in the 19c Performance Tuning Guide [S03]. Confirm the entitlement for your release before you query them; the licensing guide, not a feature page, settles it [S90].
+The line ID gives ASH a join key to the plan you already captured. Without it you have a list of active SQL. With it you can ask whether a nested loop, hash join, or index line was actually active under the load. ASH and its window-based views are documented in the 19c Performance Tuning Guide [S03]. Confirm the entitlement for your release before you query them; the licensing guide, not a feature page, settles it [S90](https://docs.oracle.com/en/database/oracle/oracle-database/19/dblic/Licensing-Information.html).
 
 ASH is evidence of sampled presence, not an exact total. If the question is "how many rows did this line return?", use SQL Monitor or plan statistics. If the question is "where were active sessions observed?", use ASH.
 
 ### AWR and ADDM answer a different question
+
+> **"When did performance change?"**
 
 ASH samples. AWR aggregates across snapshots, and ADDM reads those aggregates and hands you findings for an interval. Neither replaces an exact trace for a single request.
 
@@ -273,7 +282,7 @@ SQL Trace plus `tkprof` can break down parse, execute, and fetch counts, recursi
 
 Enable it as narrowly as the interface allows:
 
-**ILLUSTRATIVE — PLACEHOLDER — this is the mutating pair. Replace `&sid` and `&serial_no` with the values for the session under test. `waits => TRUE` records wait events, `binds => TRUE` records bind values, and `plan_stat` records plan statistics. Expected output: no rows; a server-side trace file is being written for that session only. Requires the tracing privilege.**
+**PLACEHOLDER — this is the mutating pair. Replace `&sid` and `&serial_no` with the values for the session under test. `waits => TRUE` records wait events, `binds => TRUE` records bind values, and `plan_stat` records plan statistics. Expected output: no rows; a server-side trace file is being written for that session only. Requires the tracing privilege.**
 
 ```sql
 BEGIN
@@ -328,27 +337,31 @@ The purchase case for it is narrow and worth stating plainly: reach for it when 
 
 Save the before and after `DISPLAY_CURSOR` output and diff them yourself: the plan lines, access paths, predicates, `E-Rows`, `A-Rows`, `Starts`, `A-Time`, work area, and the row-source statistics on both sides. That path works on every release this guide supports, and it needs no package beyond the one you already used.
 
-Do not diff the plan hash and call it done. A `plan_hash_value` is a fingerprint of the plan shape, and it is an insufficient proxy in both directions: a reworded but identical plan moves it, and two plans that differ only where it cannot see can share it. The hash tells you _whether_ to look. The rows tell you what you found.
+Do not diff the plan hash and call it done. The 19c reference describes comparing two `PLAN_HASH_VALUE` values as the cheap way to find out whether two plans are the same, without reading them line by line — and that is exactly what it is good for. What it cannot do is tell you **which** line changed. The hash is computed over the plan, not over your SQL text, so rewording the statement leaves it alone while a structurally different plan moves it. The hash tells you _whether_ to look. The rows tell you what you found. See the [19c `V$SQL_PLAN` reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/V-SQL_PLAN.html).
 
-`DBMS_XPLAN` also ships two comparison functions, and on this guide's primary path you cannot call either one. `COMPARE_PLANS` is documented from 23ai onward and the 19c reference does not carry it; `DIFF_PLAN` is release-checked. If you are on 19c, the function you want does not exist and the error you get will not say so. Their parameters and availability are owned by [Measure First](/01-proven-techniques/01-measure-first/); this page does not repeat them.
+`DBMS_XPLAN` also ships two comparison functions, and **both are callable on this guide's primary path.** `COMPARE_PLANS` is documented in the 19c reference at §224.5.1 and is absent from the 12.2 reference, so 19c introduced it; `DIFF_PLAN`'s signature changed between 12.2 and 19c, so the signature is what you release-check. Their parameters are owned by [Measure First](/01-proven-techniques/01-measure-first/); this page does not repeat them.
 
-Verify the name, the signature, and the availability of each function against the package reference for your installed release before you call it. The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why, and this is the case that proves the rule: **a later release extending an API is not the same as a later release introducing it, and a feature that arrived after your release cannot be copied out of a newer manual.**
+Verify the name, the signature, and the availability of each function against the package reference for your installed release before you call it, and read the subprogram table rather than the Overview. The 19c Overview lists only the package's five table functions, so a plain function like `COMPARE_PLANS` looks missing there while being present in Table 224-2. The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why, and plan comparison is a live case of the rule: **a later release extending an API is not the same as a later release introducing it** — and the corollary that this book once got wrong, which is that a function missing from an Overview's prose list is not a function missing from the package.
+
+One aside: the hash is free to compute and the line-by-line diff is not, which is why the cheap answer wins so often. Back to the plan.
 
 ## 7. From the reading to a hypothesis
 
+> **"Is this statement globally expensive, or only occasionally slow?"**
+
 You now have numbers. Numbers do not name a cause, and guessing here is how three hours disappear before a release. This is the routing table from measurement to cause class to the next deterministic test.
 
-| What you saw                                     | What it usually means                                           | The next test                                                                                                        |
-| ------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| First big `E-Rows` versus `A-Rows` divergence    | The optimizer's row estimate is wrong                           | Histograms, extended column-group or expression statistics, bind selectivity, and when statistics last changed [S82] |
-| High `Starts` multiplied by the inner row source | A nested loop is amplifying, or a scalar subquery is re-running | An alternative join method or join order, or preaggregate the inner side                                             |
-| High `Buffers`, low `Reads`                      | Inefficient logical work, not slow storage                      | Access path, join order, partition pruning, or a rewrite                                                             |
-| High `Reads` with low `Buffers`                  | A direct-path read or a genuinely large scan                    | Partition or index strategy, storage throughput, parallelism                                                         |
-| `TempSpc` above zero                             | The work area was too small for the input                       | Fix the cardinality, preaggregate, change the join method, or test a larger work area                                |
-| Parallel servers badly unbalanced                | Distribution or data skew, not bad SQL                          | Partition key, join distribution, DOP, and the skew in the data itself                                               |
-| Lock, cluster, or commit waits dominating        | A concurrency problem, not a text problem                       | The blocking session, the cluster waits, and the commit rate. A rewrite will not fix this                            |
-| Many parses, many child cursors                  | Cursor sharing, bind typing, or environment drift               | `V$SQL_SHARED_CURSOR`, the bind types, and whether the application reuses the statement text                         |
-| Fast database time, slow client elapsed          | Fetch, network, or client-side work                             | Trace round trips, array size, result volume, and the application's own profile                                      |
+| What you saw                                     | What it usually means                                           | The next test                                                                                                                                                                                             |
+| ------------------------------------------------ | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First big `E-Rows` versus `A-Rows` divergence    | The optimizer's row estimate is wrong                           | Histograms, extended column-group or expression statistics, bind selectivity, and when statistics last changed [S82](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html) |
+| High `Starts` multiplied by the inner row source | A nested loop is amplifying, or a scalar subquery is re-running | An alternative join method or join order, or preaggregate the inner side                                                                                                                                  |
+| High `Buffers`, low `Reads`                      | Inefficient logical work, not slow storage                      | Access path, join order, partition pruning, or a rewrite                                                                                                                                                  |
+| High `Reads` with low `Buffers`                  | A direct-path read or a genuinely large scan                    | Partition or index strategy, storage throughput, parallelism                                                                                                                                              |
+| `TempSpc` above zero                             | The work area was too small for the input                       | Fix the cardinality, preaggregate, change the join method, or test a larger work area                                                                                                                     |
+| Parallel servers badly unbalanced                | Distribution or data skew, not bad SQL                          | Partition key, join distribution, DOP, and the skew in the data itself                                                                                                                                    |
+| Lock, cluster, or commit waits dominating        | A concurrency problem, not a text problem                       | The blocking session, the cluster waits, and the commit rate. A rewrite will not fix this                                                                                                                 |
+| Many parses, many child cursors                  | Cursor sharing, bind typing, or environment drift               | `V$SQL_SHARED_CURSOR`, the bind types, and whether the application reuses the statement text                                                                                                              |
+| Fast database time, slow client elapsed          | Fetch, network, or client-side work                             | Trace round trips, array size, result volume, and the application's own profile                                                                                                                           |
 
 Two of those rows are the ones people skip, and both are worth the habit. The last row is the most common real cause of "the database is fine but the page is slow": the query finished in 40 ms and the client spent 3 seconds moving the rows. You will never find that in a plan, because the plan is not where the time went.
 
@@ -389,8 +402,4 @@ A saved evidence set, not a screenshot:
 
 Every block above is `ILLUSTRATIVE`, `PLACEHOLDER`, or `MUTATING`, and every scenario is invented for teaching.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** quote the executed plan, the actual rows, and the measured delta before you name a cause, and keep the release label next to any comparison API you print.
-
-**Next required page:** [Freeze Work With STS](/03-toolbox/02-freeze-work-with-sts/).

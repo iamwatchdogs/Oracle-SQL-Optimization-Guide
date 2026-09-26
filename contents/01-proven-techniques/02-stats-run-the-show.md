@@ -37,6 +37,8 @@ The band table is ordered to match the page's numeric section order: Core covers
 
 ## 1. The vocabulary, in the order you will need it
 
+A GPS does not drive your car: it reads a map somebody else drew and hands you a confident route, and a wrong map produces a wrong route you cannot see from the road. Oracle's optimizer is the GPS, the statistics are the map, and the gap between the estimate and the answer is the wrong map made visible.
+
 Seven words. Learn them in this order, because each one is the answer to the previous one.
 
 **Cost model.** The rule set Oracle uses to price a plan. It estimates how much work each option will cost, then picks the cheapest. It does not run anything to find out.
@@ -102,6 +104,8 @@ The [index page](/01-proven-techniques/03-indexes-and-layout/) continues the sam
 
 **Separate hypothetical, not the fixture.** At production scale the same failure mode reads differently: "estimated 2% selectivity on a column that is actually 99.98% one value." That is a hypothetical shape for recognizing the pattern in a real system. It is not the V0 example, it was not measured, and it does not replace the canonical `:dept_id = 42` gap used everywhere else on this page.
 
+One aside: the estimate-versus-actual gap is the number every plan reader already has on screen and almost nobody puts in the ticket. Back to the line.
+
 ## 3. The fix ladder, in first-use order
 
 Work down this ladder. Each rung is a bigger intervention than the one above it, and each rung needs its own plan and metric comparison.
@@ -116,7 +120,7 @@ Work down this ladder. Each rung is a bigger intervention than the one above it,
 
 **5. Use dynamic sampling only when the information genuinely does not exist at parse time.** Dynamic sampling is a compensation mechanism, not a fix. It samples during hard parse, so repeated parse work can erase the benefit. Prefer a durable statistics fix.
 
-**SKETCH — MUTATING — release-checked shape, not a copyable script.** The documented way to create a column group or an expression statistic is `DBMS_STATS.CREATE_EXTENDED_STATS(ownname, tabname, extension)`, where `extension` is a column group such as `(c1, c2)` or an expression such as `(c1 + c2)`. The 19c `DBMS_STATS` reference documents no `CREATE_COLUMN_STATS` subprogram, so this block does not print one.
+**SKETCH — release-checked shape, not a copyable script.** The documented way to create a column group or an expression statistic is `DBMS_STATS.CREATE_EXTENDED_STATS(ownname, tabname, extension)`, where `extension` is a column group such as `(c1, c2)` or an expression such as `(c1 + c2)`. The 19c `DBMS_STATS` reference documents no `CREATE_COLUMN_STATS` subprogram, so this block does not print one.
 Every argument below is a placeholder, which is what makes it a shape.
 
 **ILLUSTRATIVE — the shape, with every argument a placeholder.** Fill in the owner, the table, and the real column group or expression before you run anything. The `AUTO_STAT_EXTENSIONS` preference that governs automatic creation, and the exact overload, are release-dependent; verify the installed release signature with the DBA. Expected output shape: the new extension's name.
@@ -155,13 +159,13 @@ Everything in this section is behind a gate. Read it. Do not paste it. The gate 
 **Real-Time Statistics.** _What it does:_ keeps estimates closer to recent DML for tables that change between maintenance windows. _Boundary:_ the 19c SQL Tuning Guide, _Statistics Concepts_, is the record that documents it from 19c [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/). The 26ai guide's table of contents notes regression models for real-time statistics, and that is the record that carries this detail [S02](https://docs.oracle.com/en/database/oracle/oracle-database/26/tgsql/index.html).
 It is TOC-verified only, so treat the regression-model behavior as **unverified** and do not build a recommendation on it. _Gate:_ compare the estimate, the plan, and the cost on the actual workload before enabling it broadly.
 
-**Optimizer Statistics Advisor.** _What it does:_ reviews statistics practices and issues findings and recommendations. _What it does not do:_ gather statistics, and it does not decide for you. It reads the statistics management state and reports on it; it does not collect a new statistics set as a side effect of being run, and the output is a proposal. That boundary matters before you point it at a shared object. [S27], _Analyzing Statistics Using Optimizer Statistics Advisor_, a chapter of the SQL Tuning Guide; the record now carries a chapter URL from a later release, so verify the chapter against your own release's guide.
+**Optimizer Statistics Advisor.** _What it does:_ reviews statistics practices and issues findings and recommendations. _What it does not do:_ gather statistics, and it does not decide for you. It reads the statistics management state and reports on it; it does not collect a new statistics set as a side effect of being run, and the output is a proposal. That boundary matters before you point it at a shared object. [S27], _Analyzing Statistics Using Optimizer Statistics Advisor_, a chapter of the SQL Tuning Guide; that bibliography record is TOC-verified and carries no chapter URL, so this page names the chapter instead of printing an anchor, and you should verify the chapter against your own release's guide.
 
 ### Ask the database when statistics changed
 
 Two questions come up on almost every statistics ticket, and the book's own worksheet was making you answer both from memory: _which statistics does this object actually have_, and _when did they last change_.
 
-Oracle answers both directly, and you should ask rather than infer [S82]:
+Oracle answers both directly, and you should ask rather than infer [S82](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_STATS.html):
 
 - **`DBMS_STATS.REPORT_COL_USAGE`** reports recorded predicate and join-column usage — which columns the optimizer has actually seen in filters, joins, and groupings. This is the input that tells you where a column or column-group statistic would earn its maintenance cost, instead of you guessing which columns are skewed.
 - **`DBMS_STATS.REPORT_STATS_OPERATIONS`** and the `DBA_OPTSTAT_OPERATIONS` view report which statistics operations ran, on what, over which window, and whether they succeeded. This is the answer to "it got slow after the nightly job", and it replaces a guess based on `last_analyzed`.
@@ -185,7 +189,7 @@ The documented sources describe the mechanism, not your data, and neither suppli
 This is the one statistics workflow worth memorizing, because it makes a statistics change reversible before you commit to it.
 
 The mechanism: gather with `PUBLISH=FALSE`, and the new statistics are held pending rather than published. **Publishing is the commit point.** But gathering pending does not by itself make the optimizer use them. You have to say so explicitly, or you will measure the old statistics and report it as a pending test.
-**ILLUSTRATIVE — MUTATING — PLACEHOLDER — SQLcl or SQL\*Plus, pending-statistics shape.** Requires the object owner or an authorized DBA role, plus the documented `DBMS_STATS` privileges for the target. Replace `<object-owner-schema>` with the owner-supplied value that matches the [V0 fixture contract](/00-preface/02-how-to-prove-a-win/), so the same `object_owner_schema` boundary is used on both the statistics calls and the V0 capture.
+**MUTATING — SQLcl or SQL\*Plus, pending-statistics shape.** Requires the object owner or an authorized DBA role, plus the documented `DBMS_STATS` privileges for the target. Replace `<object-owner-schema>` with the owner-supplied value that matches the [V0 fixture contract](/00-preface/02-how-to-prove-a-win/), so the same `object_owner_schema` boundary is used on both the statistics calls and the V0 capture.
 
 ```sql
 DEFINE object_owner_schema = <object-owner-schema>
@@ -211,7 +215,7 @@ For the repeatable version of the workflow, use the SPA Optimizer Statistics pat
 
 Statistics history is retained for a bounded period. If the setting is not long enough, your restore point expires.
 
-**ILLUSTRATIVE — MUTATING — PLACEHOLDER — SQLcl or SQL\*Plus, retention and restore shape.** Requires the documented `DBMS_STATS` privileges and the applicable retention setting.
+**MUTATING — SQLcl or SQL\*Plus, retention and restore shape.** Requires the documented `DBMS_STATS` privileges and the applicable retention setting.
 Reuse the same `<object-owner-schema>` placeholder as section 6 so the retention read, the gather, and the [V0 capture](/00-preface/02-how-to-prove-a-win/) all name one owner.
 Expected output shape: the current `PUBLISH` preference, the retention in days, the history floor, and the restore anchor; then a restore back to a retained historical statistics set.
 Verify the exact `RESTORE_TABLE_STATS` signature and its retention prerequisites on the installed release, and do not copy the call shape from another release.
@@ -318,8 +322,4 @@ A statistics decision record with: the full statement identity tuple (`sql_id`, 
 
 Every example and number on this page is `SYNTHETIC` or `ILLUSTRATIVE`.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** the optimizer is not making bad decisions. It is making decisions on the numbers you gave it. Give it better numbers before you ask for a better plan.
-
-**Next required page:** [Indexes and Layout](/01-proven-techniques/03-indexes-and-layout/).

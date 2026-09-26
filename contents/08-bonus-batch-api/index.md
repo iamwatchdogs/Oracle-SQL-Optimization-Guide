@@ -57,7 +57,7 @@ That is the one rule on the page that is not negotiable, because every other mis
 
 The shape below is the documented Python flow: create with a list of requests, poll until processing has ended, then stream the results. The model name is the one used in the documentation's own examples, and both it and the pricing table are dated facts. [Batch processing](https://platform.claude.com/docs/en/build-with-claude/batch-processing) (accessed 2026-09-26) Check the current model list before you copy either.
 
-**MUTATING — ILLUSTRATIVE. Creates a real batch against a paid API and polls it, so it costs money and cannot be undone. Not executed here. Substitute your own key, model, and request content. Expected output: one line per request, keyed by `custom_id`.**
+**MUTATING. Creates a real batch against a paid API and polls it, so it costs money and cannot be undone. Not executed here. Substitute your own key, model, and request content. Expected output: one line per request, keyed by `custom_id`.**
 
 ```python
 import time
@@ -132,5 +132,3 @@ documentation accessed:        ____________________   -- the date you re-read it
 That record is also the thing that makes the route auditable: it says which path a workload took and why, which is the decision this page is actually about. Prices, windows, and limits above are dated statements from the vendor's documentation and will need a re-read before they are quoted again, which is why that last field is blank rather than pre-filled.
 
 **Decision:** route by whether the caller can wait, join every result on `custom_id`, and treat the 24-hour window as a cutoff. Nothing on this page is Oracle evidence.
-
-**Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.

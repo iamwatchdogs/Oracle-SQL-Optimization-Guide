@@ -9,37 +9,39 @@ One fast run is an anecdote. V0 is the first controlled state transition: create
 
 This page assumes you have read the [environment and setup hub](/00-preface/). A reader without a database can inspect the synthetic V0 procedure and its pass/fail contracts. Do not run the blocks and call the result local.
 
-> **Track:** Core (Start here: the 10-step core path) · Practice (1, 2, 3, 4, 5, 11A) · Recovery (12, 13) · Advanced / gated (Block taxonomy · Terms · 6 · 7 · 8 · 9 · 10 · 11B · 14 · Manifest · Handoff)
+> **Track:** Core (Start here: the 10-step core path · 1 · 2 · 3 · 4 · 5 · 11A) · Practice (6 · 7 · 8 · 9 · 10) · Recovery (12 · 13) · Advanced / gated (Block taxonomy · The terms used by the lab · 11B · 14 · Evidence-pack manifest · The evidence handoff)
 >
 > **Prerequisites:** Basic SQL, a safe non-production target, and the [setup checklist](/00-preface/).
 >
 > **Evidence status:** Oracle procedures are ILLUSTRATIVE. Toy data, plans, and performance numbers are SYNTHETIC. Research and catalog counts are repository metadata. **No live Oracle database was available**, so every block below is a procedure and pass/fail contract rather than an executed run.
 >
-> **Next required page:** [Measure With XPLAN and Monitor](/03-toolbox/01-measure-with-xplan-and-monitor/).
+> **Next required page:** [The proven-technique groups](/01-proven-techniques/) — the route puts them immediately after this lab, and the measurement pages you will want next all declare them as their own prerequisite.
 
 ## How this page is banded
 
-| Band                 | Sections                                                                    |
-| -------------------- | --------------------------------------------------------------------------- |
-| **Core**             | Start here: the 10-step core path                                           |
-| **Practice**         | 1 · 2 · 3 · 4 · 5 · 11A                                                     |
-| **Recovery**         | 12 · 13                                                                     |
-| **Advanced / gated** | Block taxonomy · Terms · 6 · 7 · 8 · 9 · 10 · 11B · 14 · Manifest · Handoff |
+| Band                 | Sections                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Core**             | Start here: the 10-step core path · 1 · 2 · 3 · 4 · 5 · 11A                                           |
+| **Practice**         | 6 · 7 · 8 · 9 · 10                                                                                    |
+| **Recovery**         | 12 · 13                                                                                               |
+| **Advanced / gated** | Block taxonomy · The terms used by the lab · 11B · 14 · Evidence-pack manifest · The evidence handoff |
 
-- **Core (Start here: the 10-step core path):** the decision map and the gate vocabulary. Read it once; it names every section below and the order they run in.
-- **Practice (1, 2, 3, 4, 5, 11A):** the ordered execution up to the intervention. These are the sections a database reader runs on a real lab, with an owner in the loop.
+**Advanced evidence appendix** is a container, not a band. It is the `##` wrapper that holds every section from **Block taxonomy** through **The evidence handoff**; the bands above are on the sections inside it, and the appendix itself claims none.
+
+- **Core (the decision map, then 1, 2, 3, 4, 5, 11A):** the decision map names every section and the order they run in; then the ordered execution up to the intervention. **These are the sections a database reader runs on a real lab**, and the Core band is deliberately placed so that everything a reader acts on alone is inside it. The one ordering wrinkle is section 11A, which prints after section 6 because it belongs to the regression workload; section 6 says so and sends you back. The decision map is the only Core section outside the **Advanced evidence appendix** container.
+- **Practice (6, 7, 8, 9, 10):** the intervention and everything after it. Section 6 is where the write happens, so it needs an authorized owner; 7 to 10 are the read-back and the comparison.
 - **Recovery (12, 13):** the recovery rehearsal, the candidate rollback, and the owner-approved cleanup. These **undo** and **preserve**; they do not improve a result.
-- **Advanced / gated (Block taxonomy, The terms used by the lab, 6, 7, 8, 9, 10, 11B, 14, Evidence-pack manifest, The evidence handoff):** read before you need them. Each names a privilege, an owner, an entitlement, or a release check you must confirm on the installed release.
+- **Advanced / gated (Block taxonomy, The terms used by the lab, 11B, 14, Evidence-pack manifest, The evidence handoff):** read before you need them. Each names a privilege, an owner, an entitlement, or a release check you must confirm on the installed release. These are the only banded sections that sit directly under **Advanced evidence appendix** without a numbered parent.
 
 ## Start here: the 10-step core path
 
-This is a **non-executing decision map**, not a runnable script. Do not execute the numbered items in this section. Use it to understand the gates, then execute the advanced appendix in this canonical two-pass order.
+This section is a **map**, not the lab. Every item below is a _Plan_ step: it names the section that does the work and the order the work runs in. Nothing here executes, because the executable version of each step is a numbered section later on this same page. Read this once, then go and run sections 1 to 5 and 11A, which are the Core band.
 
 First pass, up to the intervention: section 1 **Choose one target**, section 2 **Create the toy fixture**, section 3 **Formal capture and STS inspection**, section 4 **Identify the statement without using cumulative counters**, section 5 **Incumbent A/A and before-side baseline plus noise floor (SPA)**, and section 11A **Regression incumbent and semantic baseline**.
 
 Second pass, from the intervention to the verdict: section 6 **Intervention boundary**, section 7 **Capture the after side and report**, section 8 **Compare the plan pair**, section 9 **Keep raw samples and map artifacts to trials**, section 10 **Candidate semantic comparison**, section 11B **Regression candidate comparison**, section 12 **Recovery rehearsal and candidate recovery**, section 13 **Final lab cleanup (default preserve accepted state)**, and section 14 **Make the final verdict**.
 
-Section 11A, including incumbent F1–F6 semantics, must finish before section 6. Section 11B and candidate semantics resume only after sections 7 and 10.
+Section 11A, including incumbent F1–F6 semantics, must finish before section 6. **11A prints later on this page than 6 does**, because it belongs to the regression workload; section 6 opens by sending you back to it. Section 11B and candidate semantics resume only after sections 7 and 10.
 
 1. **Choose one target and target identity.** Record the symptom, statement, representative bind family, metric, window, and owner. Section 4, **Identify the statement without using cumulative counters**, defines the exact `sql_id`/`child_number`/`parsing_schema_name`/`con_id`/`con_id_reason`/applicable `instance_id`/`instance_scope_reason`/`session_instance_id`/`plan_hash_value` identity to use after capture.
 2. **Plan the toy fixture.** Record the disposable schema, expected rows, and bind cases.
@@ -52,7 +54,11 @@ Section 11A, including incumbent F1–F6 semantics, must finish before section 6
 9. **Plan the regression candidate comparison and preliminary decision.** Section 11B resumes after sections 7 and 10, compares every `REG-01`–`REG-03` row with its own floor, uses the write A/A artifacts and locked thresholds, records `PRELIMINARY_GATE_FAILURE` or `BLOCKED_PENDING_DECISION` when a gate cannot pass, and then maps the evidence at the single preliminary decision gate to `ACCEPT_CANDIDATE`, `REJECT_CANDIDATE`, or `INCONCLUSIVE`.
 10. **Plan recovery, final cleanup, and the final verdict.** Section 12 handles candidate recovery, section 13 handles owner-approved cleanup, and section 14 records final `ACCEPT`, `REJECT`, or `INCONCLUSIVE` only after recovery and cleanup state are known.
 
-> **Core boundary:** The ten steps are a beginner decision map only. The SQL blocks and formal evidence details below are an **advanced evidence appendix**; execute them only in the canonical order and with the stated client, release, privilege, entitlement, and owner approvals.
+> **Core boundary:** The ten steps above are a decision map and nothing more. The lab itself is sections 1 to 5 and 11A. **Read the one thing below before you run any of it.**
+>
+> Section 2 creates two tables and inserts fourteen rows — three departments and eleven employees. That is `MUTATING` work, and it is inside Core on purpose — a disposable lab schema is the right place for it, and a reader who cannot create a fixture cannot run this lab at all. What Core does **not** include is anything touching a database you did not create: section 6's index DDL, the SPA analysis task, and every privilege below need an authorized owner. If your schema is not one you just created from scratch, stop here and go to the [setup checklist](/00-preface/).
+>
+> Four things Core needs that Core does not hand you: the `ADVISOR` privilege to create an analysis task, `DBMS_SQLPA` in the installed release, a `SQL Tuning Set` you can write to, and a service connection you can reconnect through. Each is requested at the [setup checklist](/00-preface/), not here. A reading-only reader can still do all of Core as a paper exercise — the pass/fail contracts are written to be checkable without a database — but a database reader needs those four first.
 
 **Preliminary candidate gate:** Semantic, read, write, and measurement checks before the gate use only `PRELIMINARY_GATE_FAILURE` for a complete failed check or `BLOCKED_PENDING_DECISION` for missing evidence, thresholds, or samples. At the single gate after section 11B, record exactly one preliminary decision: `ACCEPT_CANDIDATE`, `REJECT_CANDIDATE`, or `INCONCLUSIVE`. A complete semantic/read/write gate that passes, including separate `write_elapsed_threshold` and `write_buffer_gets_threshold` checks, maps to `ACCEPT_CANDIDATE`; `PRELIMINARY_GATE_FAILURE` maps to `REJECT_CANDIDATE`; `BLOCKED_PENDING_DECISION` maps to `INCONCLUSIVE`. This is not the final verdict.
 
@@ -79,15 +85,16 @@ The advanced sections are:
 
 ### Block taxonomy
 
-These labels answer different questions. A block can combine them.
+These labels answer different questions, and only three of them tell you what you may _do_ with a block: `MUTATING`, `PLACEHOLDER`, and `COPYABLE`. The rest describe evidence status.
 
 - **ILLUSTRATIVE:** A procedure shape with the client, privilege assumptions, and expected output described. It was not executed here.
 - **SKETCH:** An incomplete procedure. It needs an owner decision or a missing capability before it becomes an experiment.
 - **SYNTHETIC:** Invented data, plans, output, or numbers for teaching. It is never a local result.
-- **PLACEHOLDER:** A literal token such as `<known-sql-id>` that must be replaced with an owner-supplied value. A block with an unresolved placeholder is not `COPYABLE`.
-- **COPYABLE:** A complete, disposable, non-production procedure block with an explicit client, no unresolved placeholders (or no placeholder needed), required privileges, and an expected output shape. `COPYABLE` describes the block contract, not a live execution or result. This page uses it only for the synthetic fixture; experiment blocks remain `ILLUSTRATIVE`.
+- **MUTATING:** The block changes database, session, or plan state — it creates, alters, gathers, publishes, restores, drops, starts, stops, or traces. Read the rollback for that change class before you run it. A `MUTATING` block is never read-only, whatever else it is labeled. The [rollback matrix](/05-feedback-loop/03-accept-or-rollback-gate/) maps each change class to its undo.
+- **PLACEHOLDER:** The block contains at least one value only you can supply, so it cannot be run as printed. Most such values are literal tokens such as `<known-sql-id>`, but the label is broader than that: a block is `PLACEHOLDER` when it needs a schema, an owner, a `sql_id`, a date range, or any other fact this book cannot know. A block with an unresolved placeholder is not `COPYABLE`, and one that names no token at all is still `PLACEHOLDER` if it asks you for something.
+- **COPYABLE:** A complete, disposable, non-production procedure block with an explicit client, no unresolved placeholders (or no placeholder needed), required privileges, and an expected output shape. `COPYABLE` describes the block contract, not a live execution or result. The book's only `COPYABLE` block is the [noise-floor harness](/05-feedback-loop/02-noise-floor-and-repetition/); experiment blocks remain `ILLUSTRATIVE`.
 
-A `COPYABLE — SYNTHETIC FIXTURE` block is a complete disposable setup procedure, not a measured result. An `ILLUSTRATIVE — PLACEHOLDER` block gives a procedure that an owner must complete.
+Two labels are allowed, from two different axes. The **action axis** says what you may do with the block — `MUTATING` outranks `PLACEHOLDER`, outranks `COPYABLE`. The **evidence axis** says what kind of artifact it is — `SYNTHETIC` outranks `ILLUSTRATIVE`. One from each, as [Freeze With STS](/04-recipes/01-freeze-with-sts/) does with `MUTATING — SKETCH`, because that block both writes and is incomplete. Two from the same axis is a real ambiguity, and the higher one wins. Everything else a block needs to know — client, privileges, expected output, whether it ran — is in the sentence under the label, not in another label.
 
 ### The terms used by the lab
 
@@ -106,6 +113,7 @@ A `COPYABLE — SYNTHETIC FIXTURE` block is a complete disposable setup procedur
 - **E-Rows:** The optimizer's estimated rows for a plan step. It is an estimate, not a measurement.
 - **A-Rows:** Actual rows processed for a plan step when runtime statistics are available. Compare it with E-Rows to look for estimate error, but do not treat a small ratio as a win by itself.
 - **Noise floor:** The spread or uncertainty in unchanged A/A results for the same target, binds, metric, and window. V0 shows a deterministic range for teaching; the formal gate is the [K>=5 and bootstrap policy](/05-feedback-loop/02-noise-floor-and-repetition/).
+- **The three owner names.** This lab separates three roles, and most of its confusion comes from collapsing them. **`sts_owner_schema`** owns the SQL Tuning Set — the account that creates and populates it, and the session the `DBMS_SQLSET` calls run in or the one the documented `sqlset_owner` argument names. **`object_owner_schema`** owns the tables and indexes the statements touch, and it is the parsing schema a capture filter names. The fixture DDL below is unqualified, so it lands in whichever schema you connect as — connect as this owner, or owner-qualify the statements. **`task_owner_schema`** owns the SPA analysis task and runs the `CREATE_ANALYSIS_TASK` / `SET_ANALYSIS_TASK_PARAMETER` / `EXECUTE_ANALYSIS_TASK` / `DROP_ANALYSIS_TASK` calls. All three may be one account, and in a disposable lab they usually are — but they are three roles, and the create privilege for one is not the create privilege for another.
 - **Semantic fixture:** A small input case with an expected row, null, ordering, or error contract. The incumbent and candidate must agree on the contract before their timings are compared.
 
 V0 is a minimal range-based teaching lab. A formal performance claim uses at least K>=5 comparable raw samples per side, preferably 10–15, a complete V0 regression workload SPA pass per side, and an external median-difference bootstrap 95% confidence interval. A smaller illustrative set can teach the workflow, but it cannot satisfy the formal gate by itself.
@@ -132,7 +140,7 @@ A report query, an online transaction processing (OLTP) statement, and a batch j
 
 Do not invent object names at the measurement step. Use this small disposable fixture in a lab schema owned by the lab user or an approved data-definition language (DDL) owner.
 
-**COPYABLE — MUTATING — SYNTHETIC FIXTURE.** Oracle Database 19c-compatible SQLcl or SQL\*Plus setup. Run only in a disposable lab schema with permission to create and populate toy tables. Expected output shape: three department rows and eleven employee rows: ten distinct employee IDs, with `employee_id = 5` inserted twice, followed by a committed fixture. This is a copyable setup procedure, not a live result.
+**MUTATING — the disposable lab fixture.** Oracle Database 19c-compatible SQLcl or SQL\*Plus setup. Run only in a disposable lab schema with permission to create and populate toy tables. Expected output shape: three department rows and eleven employee rows: ten distinct employee IDs, with `employee_id = 5` inserted twice, followed by a committed fixture. This is a copyable setup procedure, not a live result.
 
 ```sql
 CREATE TABLE departments (
@@ -195,7 +203,7 @@ COMMIT;
 
 The `employees` table has no primary key so the intentional duplicate physical row remains visible. The fixture contains 11 physical employee rows and 10 distinct employee IDs. The target statement is a report over one bind.
 
-**ILLUSTRATIVE — SYNTHETIC DATA.** SQLcl or SQL\*Plus. The connected lab user needs `SELECT` on `employees`. Expected output shape: one row per matching employee; no live output is supplied.
+**SYNTHETIC — toy fixture data.** SQLcl or SQL\*Plus. The connected lab user needs `SELECT` on `employees`. Expected output shape: one row per matching employee; no live output is supplied.
 
 ```sql
 SELECT employee_id,
@@ -274,7 +282,7 @@ The account needs an owned STS privilege (`ADMINISTER SQL TUNING SET` or owner s
 
 Expected output: `V0_EMP_WL` exists under `&sts_owner_schema`, the capture filter names `&object_owner_schema`, and the capture records the declared 30-second window, subject to the bind-completeness gate below.
 
-**ILLUSTRATIVE — MUTATING — PLACEHOLDER — release-checked DBA cursor-cache capture for SQL\*Plus.** The capture call polls the shared SQL area for `time_limit` seconds, pausing `repeat_interval` seconds between samples, and applies `basic_filter` to each sample. The set name is this lab's own `V0_EMP_WL`; the filter names `&object_owner_schema` as the parsing schema. Not executed here; confirm the overload, the argument names, and the `basic_filter` predicate on the installed release before you run it. Expected output: no rows returned, and a set that now holds the captured statements.
+**MUTATING — release-checked DBA cursor-cache capture for SQL\*Plus.** The capture call polls the shared SQL area for `time_limit` seconds, pausing `repeat_interval` seconds between samples, and applies `basic_filter` to each sample. The set name is this lab's own `V0_EMP_WL`; the filter names `&object_owner_schema` as the parsing schema. Not executed here; confirm the overload, the argument names, and the `basic_filter` predicate on the installed release before you run it. Expected output: no rows returned, and a set that now holds the captured statements.
 
 ```sql
 DEFINE sts_owner_schema = <sts-owner-schema>
@@ -312,7 +320,7 @@ The file must not contain production credentials, customer rows, or unredacted c
 
 For SQL*Plus inspection, set the owner substitution in the same session before calling the owner-qualified collection functions.
 
-**ILLUSTRATIVE — PLACEHOLDER — SQL\*Plus STS owner binding.**
+**PLACEHOLDER — SQL\*Plus STS owner binding.**
 
 ```sql
 DEFINE sts_owner_schema = <sts-owner-schema>
@@ -336,7 +344,7 @@ Neither `V$SQL` nor `GV$SQL` returns `session_instance_id`; obtain that value fr
 
 If the installed view or session cannot supply `CON_ID`, record `con_id = N/A`, `con_id_reason = <reason>`, and the current container scope separately; do not call the tuple global.
 
-**ILLUSTRATIVE — PLACEHOLDER — single-instance/container-local `V$SQL` plan identity artifact.** Use this path when the installed 19c view exposes `CON_ID`. The query must return exactly one row for the known SQL ID, child number, parsing schema, and container ID. `instance_id` is deliberately `N/A`; do not substitute an `INSTANCE_NUMBER` column that `V$SQL` does not expose.
+**PLACEHOLDER — single-instance/container-local `V$SQL` plan identity artifact.** Use this path when the installed 19c view exposes `CON_ID`. The query must return exactly one row for the known SQL ID, child number, parsing schema, and container ID. `instance_id` is deliberately `N/A`; do not substitute an `INSTANCE_NUMBER` column that `V$SQL` does not expose.
 
 ```sql
 DEFINE parsing_schema_name = <known-parsing-schema>
@@ -359,7 +367,7 @@ WHERE sql_id = '<known-sql-id>'
   AND con_id = &con_id;
 ```
 
-**ILLUSTRATIVE — PLACEHOLDER — RAC/multiple-instance `GV$SQL` plan identity artifact.** Use `GV$SQL` when the capture spans instances. `INST_ID` is the instance identity; it is not `V$SQL.INSTANCE_NUMBER`. The container and instance predicates are both required.
+**PLACEHOLDER — RAC/multiple-instance `GV$SQL` plan identity artifact.** Use `GV$SQL` when the capture spans instances. `INST_ID` is the instance identity; it is not `V$SQL.INSTANCE_NUMBER`. The container and instance predicates are both required.
 
 ```sql
 DEFINE parsing_schema_name = <known-parsing-schema>
@@ -384,7 +392,7 @@ WHERE sql_id = '<known-sql-id>'
   AND inst_id = &instance_id;
 ```
 
-**ILLUSTRATIVE — PLACEHOLDER — session-container fallback when `CON_ID` is unavailable.** This fallback is valid only for the connected container/session and is not a global cross-container lookup. If `SYS_CONTEXT` cannot return a container ID, save `con_id = N/A` with a reason instead of claiming a global tuple.
+**PLACEHOLDER — session-container fallback when `CON_ID` is unavailable.** This fallback is valid only for the connected container/session and is not a global cross-container lookup. If `SYS_CONTEXT` cannot return a container ID, save `con_id = N/A` with a reason instead of claiming a global tuple.
 
 ```text
 sql_id,child_number,parsing_schema_name,con_id,con_id_reason,instance_id,instance_scope_reason,session_instance_id,plan_hash_value,cursor_view,container_scope
@@ -419,7 +427,7 @@ Stop if either owner is unresolved, an STS operation cannot run in the `sts_owne
 ### 4. Identify the statement without using cumulative counters
 
 Use monitoring, the application runner, or the DBA to provide the known SQL ID, child number, parsing schema owner, and container scope. Add `instance_id` only when the capture uses `GV$SQL` across instances; a single-instance `V$SQL` lookup records `instance_id = N/A` with a reason.
-**ILLUSTRATIVE — PLACEHOLDER.** SQLcl or SQL\*Plus. Use the single-instance `V$SQL` or RAC `GV$SQL` identity query from section 3, including the known `CON_ID` and, when applicable, `INST_ID AS instance_id`.
+**PLACEHOLDER.** SQLcl or SQL\*Plus. Use the single-instance `V$SQL` or RAC `GV$SQL` identity query from section 3, including the known `CON_ID` and, when applicable, `INST_ID AS instance_id`.
 
 ```sql
 SELECT INSTANCE_NUMBER AS session_instance_id
@@ -428,7 +436,7 @@ FROM V$INSTANCE;
 
 Compare `session_instance_id` with the manifest's `instance_id` for a `GV$SQL` artifact. For the single-instance `V$SQL` path, save the session instance identity with the artifact but do not invent a `V$SQL` instance column.
 
-**ILLUSTRATIVE — PLACEHOLDER.** Requires the least-privilege `SELECT` or release-approved read access to `V$INSTANCE`, `V$SQL`, `V$SQL_PLAN`, `V$SESSION`, and `V$SQL_PLAN_STATISTICS_ALL`; the owner may provide scoped direct grants or confirm an appropriate catalog role for these fixed views, not a blanket `DBA` grant. Expected output: the plan for the named child, with runtime statistics when available.
+**PLACEHOLDER.** Requires the least-privilege `SELECT` or release-approved read access to `V$INSTANCE`, `V$SQL`, `V$SQL_PLAN`, `V$SESSION`, and `V$SQL_PLAN_STATISTICS_ALL`; the owner may provide scoped direct grants or confirm an appropriate catalog role for these fixed views, not a blanket `DBA` grant. Expected output: the plan for the named child, with runtime statistics when available.
 
 ```sql
 SELECT *
@@ -453,7 +461,7 @@ The account needs the `ADVISOR` privilege for SPA analysis-task interfaces, plus
 
 The five named records below are the minimal teaching shape. A formal claim needs K>=5 separately extracted raw samples per side, a complete V0 regression workload SPA pass, and the external statistical gate described below.
 
-**ILLUSTRATIVE — MUTATING — SQL\*Plus before-side procedure.** Oracle Database 19c-compatible `DBMS_SQLPA` calls. Requires an existing `V0_EMP_WL` set owned by `&sts_owner_schema`, the `ADVISOR` privilege or owner support, and an owner-confirmed entitlement. Create and execute the task in the `&task_owner_schema` task-owner session. Expected output: one task handle, five `aa_01`–`aa_05` SPA trial reports, and five `before_01`–`before_05` SPA trial reports. These records are not automatically raw per-execution samples. This block was not executed here.
+**MUTATING — SQL\*Plus before-side procedure.** Oracle Database 19c-compatible `DBMS_SQLPA` calls. Requires an existing `V0_EMP_WL` set owned by `&sts_owner_schema`, the `ADVISOR` privilege or owner support, and an owner-confirmed entitlement. Create and execute the task in the `&task_owner_schema` task-owner session. Expected output: one task handle, five `aa_01`–`aa_05` SPA trial reports, and five `before_01`–`before_05` SPA trial reports. These records are not automatically raw per-execution samples. This block was not executed here.
 
 ```sql
 DEFINE sts_owner_schema = <sts-owner-schema>
@@ -539,7 +547,7 @@ SPA `test execute` can repeat SQL and aggregate runtime statistics. Its named re
 run_id,task_name,execution_name,statement_id,sql_id,child_number,parsing_schema_name,con_id,con_id_reason,instance_id,instance_scope_reason,session_instance_id,bind_case_id,metric,metric_value,unit,started_at_utc,finished_at_utc,aggregation_level,source_artifact,status
 ```
 
-A row is raw only when `aggregation_level` is `per_execution`, the `statement_id` and `bind_case_id` identities are exact, and the source artifact is saved. A row extracted from an SPA report without that evidence remains `SPA_TRIAL_REPORT`. If the runner cannot prove one execution per row, the performance claim is `BLOCKED_PENDING_DECISION`.
+Note before you grep for it: `aggregation_level` is a column in **this book's evidence schema, not an Oracle column.** You populate it yourself; Oracle does not supply it, and it appears in no `V$` view. A row is raw only when `aggregation_level` is `per_execution`, the `statement_id` and `bind_case_id` identities are exact, and the source artifact is saved. A row extracted from an SPA report without that evidence remains `SPA_TRIAL_REPORT`. If the runner cannot prove one execution per row, the performance claim is `BLOCKED_PENDING_DECISION`.
 
 #### Calculate the noise floor deterministically
 
@@ -555,6 +563,8 @@ relative_noise_floor = noise_floor / median(A/A samples)
 Use the same metric and units on both sides. This range is the V0 teaching floor. For a formal verdict, use the canonical [K>=5 and bootstrap policy](/05-feedback-loop/02-noise-floor-and-repetition/): at least five comparable raw samples per side, 10–15 preferred, a complete V0 regression workload SPA pass per side, and an external median-difference bootstrap 95% confidence interval. A team may choose a stricter rule, but it must be written before the candidate runs.
 
 ### 6. Intervention boundary
+
+> **Read this before you start section 6.** The incumbent state is not complete until **section 11A** has run, and 11A is further down this page under _Complete V0 regression workload_. Go and do 11A first, then come back. Skipping it means comparing the candidate against a regression baseline that does not exist, which is the one failure this lab exists to prevent.
 
 Everything above is the incumbent state. Everything below is the candidate state. Do not hide a second change in this boundary.
 
@@ -589,7 +599,7 @@ WHERE OWNER = '&object_owner_schema'
   AND TABLE_NAME = 'EMPLOYEES';
 ```
 
-**ILLUSTRATIVE — MUTATING — SQLcl or SQL\*Plus.** Requires the object owner or an authorized DDL role with the owner-confirmed privilege to create an index in `&object_owner_schema`. Expected output: one successful DDL operation and no row change to the owner-qualified `EMPLOYEES` table. Do not run this in production.
+**MUTATING — SQLcl or SQL\*Plus.** Requires the object owner or an authorized DDL role with the owner-confirmed privilege to create an index in `&object_owner_schema`. Expected output: one successful DDL operation and no row change to the owner-qualified `EMPLOYEES` table. Do not run this in production.
 
 ```sql
 DEFINE object_owner_schema = <object-owner-schema>
@@ -628,7 +638,7 @@ If the object is missing, invalid, or points at another column, stop. The candid
 
 Run the same STS, bind manifest, client assumptions, metric, comparison method, and `DISABLE_MULTI_EXEC` setting. Run five after-candidate SPA trial reports, compare the named before and after trials, and request the full report. These reports are not automatically raw per-execution samples.
 
-**ILLUSTRATIVE — MUTATING — SQL\*Plus after-side procedure.** Requires the task created before the intervention in the `&task_owner_schema` task-owner session, the `ADVISOR` privilege or owner support, owner-confirmed entitlement, and permission to use `DBMS_SQLPA`. Expected output: five `after_01`–`after_05` SPA trial reports, a `cmp_elapsed` comparison, and a text report. This block was not executed here.
+**MUTATING — SQL\*Plus after-side procedure.** Requires the task created before the intervention in the `&task_owner_schema` task-owner session, the `ADVISOR` privilege or owner support, owner-confirmed entitlement, and permission to use `DBMS_SQLPA`. Expected output: five `after_01`–`after_05` SPA trial reports, a `cmp_elapsed` comparison, and a text report. This block was not executed here.
 
 ```sql
 DEFINE sts_owner_schema = <sts-owner-schema>
@@ -846,7 +856,7 @@ After the candidate and section 7, run the same six binds and queries, save `sem
 
 The six canonical fixtures are **F1** through **F6**, defined here and restated on the [rewrite page](/01-proven-techniques/04-let-oracle-rewrite/). This section owns them. One block below is one fixture: one statement, one bind, one expected result, and the owner boundary that says who owns the objects. Run all six on the incumbent, save the six results, then run the same six on the candidate and compare.
 
-**ILLUSTRATIVE — SYNTHETIC — F1 null fixture.** Bind `:dept_id` to `NULL`. Expected result: exactly one row, employee `6`, with a null `dept_id` and a null `salary`. A candidate that collapses the two branches, or turns `= NULL` into `IS NULL` on the wrong side, changes which rows exist. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
+**SYNTHETIC — F1 null fixture.** Bind `:dept_id` to `NULL`. Expected result: exactly one row, employee `6`, with a null `dept_id` and a null `salary`. A candidate that collapses the two branches, or turns `= NULL` into `IS NULL` on the wrong side, changes which rows exist. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
 
 ```sql
 SELECT employee_id,
@@ -857,7 +867,7 @@ WHERE (:dept_id IS NULL AND dept_id IS NULL)
    OR dept_id = :dept_id;
 ```
 
-**ILLUSTRATIVE — SYNTHETIC — F2 duplicate fixture.** Bind `:dept_id` to `99`. Expected result: two rows, both `employee_id = 5`, `dept_id = 99`, `salary = 300`. Row order is not part of this contract; the row count and the repeated `employee_id` are. A candidate that adds `DISTINCT`, or that uses `UNION` where `UNION ALL` was intended, returns one row and fails. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
+**SYNTHETIC — F2 duplicate fixture.** Bind `:dept_id` to `99`. Expected result: two rows, both `employee_id = 5`, `dept_id = 99`, `salary = 300`. Row order is not part of this contract; the row count and the repeated `employee_id` are. A candidate that adds `DISTINCT`, or that uses `UNION` where `UNION ALL` was intended, returns one row and fails. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
 
 ```sql
 SELECT employee_id,
@@ -867,7 +877,7 @@ FROM employees
 WHERE dept_id = :dept_id;
 ```
 
-**ILLUSTRATIVE — SYNTHETIC — F3 outer-join fixture.** Bind `:employee_id` to `9`. Expected result: one row with employee `9`, department `77`, and a null `dept_name`. That row exists only because the join is a `LEFT JOIN`; moving the filter between `ON` and `WHERE` keeps or drops the null-extended row. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
+**SYNTHETIC — F3 outer-join fixture.** Bind `:employee_id` to `9`. Expected result: one row with employee `9`, department `77`, and a null `dept_name`. That row exists only because the join is a `LEFT JOIN`; moving the filter between `ON` and `WHERE` keeps or drops the null-extended row. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
 
 ```sql
 SELECT e.employee_id,
@@ -880,7 +890,7 @@ WHERE e.employee_id = :employee_id
 ORDER BY e.employee_id;
 ```
 
-**ILLUSTRATIVE — SYNTHETIC — F4 ordering fixture.** Bind `:dept_id` to `42`. Expected result: employee IDs `3, 4, 7, 8` in exactly that order. The ordering clause is the contract, so a candidate that drops or weakens it fails even when the row set is unchanged. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
+**SYNTHETIC — F4 ordering fixture.** Bind `:dept_id` to `42`. Expected result: employee IDs `3, 4, 7, 8` in exactly that order. The ordering clause is the contract, so a candidate that drops or weakens it fails even when the row set is unchanged. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
 
 ```sql
 SELECT employee_id,
@@ -891,7 +901,7 @@ WHERE dept_id = :dept_id
 ORDER BY employee_id;
 ```
 
-**ILLUSTRATIVE — SYNTHETIC — F5 aggregate fixture with its declared tolerance.** Bind `:dept_id` to `42`. Expected result: one row with `avg_salary = 200.00`, and the comparison rule is a tolerance, not an equality: the candidate passes when the absolute difference from `200.00` is at most `0.01`. Substituting an approximate function here is a fail, not a pass. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
+**SYNTHETIC — F5 aggregate fixture with its declared tolerance.** Bind `:dept_id` to `42`. Expected result: one row with `avg_salary = 200.00`, and the comparison rule is a tolerance, not an equality: the candidate passes when the absolute difference from `200.00` is at most `0.01`. Substituting an approximate function here is a fail, not a pass. **Owner boundary:** the object owner is `<object-owner-schema>`; this unqualified form requires that schema to be the current schema.
 
 ```sql
 SELECT ROUND(AVG(salary), 2) AS avg_salary
@@ -899,7 +909,7 @@ FROM employees
 WHERE dept_id = :dept_id;
 ```
 
-**ILLUSTRATIVE — SYNTHETIC — F6 error fixture.** Bind `:zero` to `0`. Expected result: the statement raises `ORA-01476`, divide by zero, and you record the error code and message. The bind must be the number `0`; a `NULL` bind returns `NULL` instead of raising, which is a different contract. A candidate that swallows the error into an empty result, or raises a different error, fails. **Owner boundary:** no lab object is read, so the object-owner boundary does not apply; the statement selects from `dual` only.
+**SYNTHETIC — F6 error fixture.** Bind `:zero` to `0`. Expected result: the statement raises `ORA-01476`, divide by zero, and you record the error code and message. The bind must be the number `0`; a `NULL` bind returns `NULL` instead of raising, which is a different contract. A candidate that swallows the error into an empty result, or raises a different error, fails. **Owner boundary:** no lab object is read, so the object-owner boundary does not apply; the statement selects from `dual` only.
 
 ```sql
 SELECT 1 / :zero AS must_raise_01476
@@ -908,9 +918,42 @@ FROM dual;
 
 ### 11. Complete V0 regression workload
 
+**Run 11A before section 6, even though 6 prints first on this page.** The incumbent regression baseline and the write A/A floor are locked here, and section 6 is not a valid intervention boundary until they exist.
+
 This section owns the V0 regression workload — the separate `V0_REGRESSION_WL` set, its three declared statement paths, the incumbent and candidate regression passes, and the write-cost probe they gate — so that the candidate is judged against the work the target does not cover. Record `42` as the representative aggregate case and include at least one no-match or null-equivalent case in the owner-approved `dept_id` bind family. Update the regression bind manifest and acceptance language together; do not silently substitute a literal.
 
 Create `V0_REGRESSION_WL` with the same chosen capture mode and 19c `DBMS_SQLSET` contract, using the same owner-supplied schema/module/action filters and the three declared statement paths. The inspection gate must show `statement_count = 3` and all three statement bind contracts/cases: `REG-01` uses `dept_id`, `REG-02` uses `employee_id`, and `REG-03` uses the aggregate `dept_id` contract.
+
+Those three paths are named here so the `PASS` gate at the end of this section is something you can actually execute rather than a name you have to take on trust. Each is a different shape on purpose: a single-row lookup by department, a single-row lookup by employee, and a per-department aggregate. A candidate that speeds up one and slows down another must be rejected, and you cannot know that without three statements.
+
+**SKETCH — the three declared regression statement paths.** `SELECT`-only; no block here writes. These are the paths the target application issues, written against the toy fixture in section 2. If your application labels its statements differently, keep the three _shapes_ — department-keyed row lookup, employee-keyed row lookup, per-department aggregate — and record the real text in the bind manifest. Expected output shape: `REG-01` returns one department name; `REG-02` returns one employee row for most ids and **two** for `employee_id = 5`, because the fixture deliberately duplicates that row and `employees` has no primary key; `REG-03` returns one aggregate row per bind value, and no row at all for a department with no employees — so the no-match case is where it earns its place in the set.
+
+```sql
+-- REG-01: department-keyed single-row lookup. Bind: dept_id (:dept_id)
+SELECT dept_name
+FROM   departments
+WHERE  dept_id = :dept_id;
+
+-- REG-02: employee-keyed single-row lookup. Bind: employee_id (:employee_id)
+-- Returns 2 rows for :employee_id = 5. That duplicate is a semantic fixture, not a bug.
+SELECT employee_id,
+       dept_id,
+       salary
+FROM   employees
+WHERE  employee_id = :employee_id;
+
+-- REG-03: per-department aggregate. Bind: dept_id (:dept_id)
+SELECT dept_id,
+       COUNT(*)        AS employee_count,
+       SUM(salary)     AS salary_total,
+       AVG(salary)     AS salary_mean
+FROM   employees
+WHERE  dept_id = :dept_id
+GROUP  BY dept_id;
+```
+
+Include at least one no-match or null-equivalent case in the owner-approved bind family for each path, so a candidate cannot pass by never returning a row.
+
 **SKETCH — regression STS collection handoff.** Inputs are `sts_owner_schema`, a `regression_cursor` of the release-documented `SQLSET_ROW` type for `REG-01`–`REG-03`, and the owner-approved bind manifest.
 
 ```sql
@@ -926,7 +969,7 @@ If the application cannot label those paths, stop and ask the owner to supply a 
 
 The target `V0_EMP_WL` task is not the complete V0 regression workload. Create a separate SPA task from `V0_REGRESSION_WL`, run `CREATE_ANALYSIS_TASK`, `SET_ANALYSIS_TASK_PARAMETER`, `EXECUTE_ANALYSIS_TASK`, and `DROP_ANALYSIS_TASK` in the task-owner session, and save the task handle, owner, STS, bind manifest, and every named execution. `REPORT_ANALYSIS_TASK` may use the documented `task_owner` argument when the installed release supports it. The external per-bind runner remains the authority for bind mapping; the regression STS supplies the workload and report rows.
 
-**SKETCH — MUTATING — the regression task handle, declared and assigned here.** The cleanup path in section 13 drops this task by the same bind, so the handle is created once, in the task-owner session, and never retyped by hand. Expected output: one task handle in `:reg_tname`, beside the target handle already bound as `:tname`.
+**MUTATING — the regression task handle, declared and assigned here.** The cleanup path in section 13 drops this task by the same bind, so the handle is created once, in the task-owner session, and never retyped by hand. Expected output: one task handle in `:reg_tname`, beside the target handle already bound as `:tname`.
 
 ```sql
 DEFINE sts_owner_schema = <sts-owner-schema>
@@ -1026,7 +1069,7 @@ The rehearsal copies the target's predeclared write floors and locked thresholds
 
 A read-only snapshot can preserve baseline evidence, but it cannot satisfy this rehearsal gate. This rehearsal tests recovery of the accepted state; it does not turn the target run into a new result. The target remains unchanged while the clone is rehydrated and tested.
 
-**SKETCH — PLACEHOLDER — owner/release-provided clone rehydration.** No safe generic restore command is assumed. The lab owner supplies the clone identity, source snapshot, connection, and release-specific rehydration procedure.
+**PLACEHOLDER — owner/release-provided clone rehydration.** No safe generic restore command is assumed. The lab owner supplies the clone identity, source snapshot, connection, and release-specific rehydration procedure.
 
 ```text
 CLONE_ID=<owner-supplied-clone-id>
@@ -1098,7 +1141,7 @@ WHERE OWNER = '&object_owner_schema'
   AND INDEX_NAME = 'IDX_EMP_DEPT_ID_CANDIDATE';
 ```
 
-**ILLUSTRATIVE — MUTATING — SQL\*Plus conditional rollback DDL.** Requires the object owner or an authorized role with the owner-confirmed drop privilege and a prior owner-filtered count of exactly one. `SET SERVEROUTPUT ON` is required for the status line. Expected output: `candidate_index_dropped` after a successful drop, or `already_absent` when the owner-filtered count is zero. Execute only in the toy or approved non-production target.
+**MUTATING — SQL\*Plus conditional rollback DDL.** Requires the object owner or an authorized role with the owner-confirmed drop privilege and a prior owner-filtered count of exactly one. `SET SERVEROUTPUT ON` is required for the status line. Expected output: `candidate_index_dropped` after a successful drop, or `already_absent` when the owner-filtered count is zero. Execute only in the toy or approved non-production target.
 
 ```sql
 DEFINE object_owner_schema = <object-owner-schema>
@@ -1150,7 +1193,7 @@ ORDER BY c.column_position;
 
 After a successful drop, record `candidate_index_dropped` and run the post-rollback workload, plan, semantic, and write checks. If the precondition was `already_absent`, record that result and run the same checks without repeating the DDL. Do not stop at a successful `DROP INDEX` alone.
 
-**ILLUSTRATIVE — MUTATING — SQL\*Plus post-rollback procedure.** Requires the existing task handle, the same `&task_owner_schema` task-owner session, and the same approved package access. Run `CREATE_ANALYSIS_TASK`, `SET_ANALYSIS_TASK_PARAMETER`, `EXECUTE_ANALYSIS_TASK`, and `DROP_ANALYSIS_TASK` in that task-owner session. If the report is collected from another authorized session, only the documented `REPORT_ANALYSIS_TASK` call may use its `task_owner` argument; verify the installed release contract. Expected output: five `rollback_01`–`rollback_05` SPA trial reports on the same STS and bind manifest; keep any separately extracted raw samples in their own artifact.
+**MUTATING — SQL\*Plus post-rollback procedure.** Requires the existing task handle, the same `&task_owner_schema` task-owner session, and the same approved package access. Run `CREATE_ANALYSIS_TASK`, `SET_ANALYSIS_TASK_PARAMETER`, `EXECUTE_ANALYSIS_TASK`, and `DROP_ANALYSIS_TASK` in that task-owner session. If the report is collected from another authorized session, only the documented `REPORT_ANALYSIS_TASK` call may use its `task_owner` argument; verify the installed release contract. Expected output: five `rollback_01`–`rollback_05` SPA trial reports on the same STS and bind manifest; keep any separately extracted raw samples in their own artifact.
 
 ```sql
 DEFINE sts_owner_schema = <sts-owner-schema>
@@ -1199,7 +1242,7 @@ Final cleanup is not candidate rollback. Run it only after the preliminary decis
 - After preliminary `INCONCLUSIVE`, preserve the target and disposable objects unless the owner separately approves cleanup.
 
 **Canonical owner/session rule.** For ordinary cleanup, object-owner work uses the explicit `&object_owner_schema` session or an authorized DDL role/DBA with the owner-confirmed DDL privilege; task drops run in `&task_owner_schema`; STS drops run in `&sts_owner_schema` or use the documented `sqlset_owner` argument. For accepted-state destruction, the same `&object_owner_schema` boundary and owner-confirmed `DROP ANY INDEX`/`DROP ANY TABLE` privilege apply, but only under the separate destruction approval, read-only dependency preflight, and one-DDL-step-at-a-time contract. No role or DBA silently substitutes another schema.
-**ILLUSTRATIVE — PLACEHOLDER — conditional final-cleanup preflight.** Run object checks against the explicit `&object_owner_schema` using owner-filtered `ALL_*` views, then run task-existence checks in the `&task_owner_schema` session. The object owner, STS owner, and task owner are separate boundaries.
+**PLACEHOLDER — conditional final-cleanup preflight.** Run object checks against the explicit `&object_owner_schema` using owner-filtered `ALL_*` views, then run task-existence checks in the `&task_owner_schema` session. The object owner, STS owner, and task owner are separate boundaries.
 
 ```sql
 DEFINE object_owner_schema = <object-owner-schema>
@@ -1252,7 +1295,7 @@ Use the owner/catalog check to decide whether the task and each STS still exist,
 - Leave the accepted candidate index and toy tables in place unless the separate accepted-state destruction decision below is approved.
 - Do not repeat the candidate-index drop from section 12. The rejected-candidate rollback record owns that state transition.
 
-**ILLUSTRATIVE — MUTATING — SQL\*Plus task-owner conditional cleanup.** Run this block only in the `task_owner_schema` session after the task-existence preflight. It checks each exact task row, drops only a proven existing task, and records `already_absent` for an ordinary cleanup that finds it gone. `SET SERVEROUTPUT ON` is required for the status lines.
+**MUTATING — SQL\*Plus task-owner conditional cleanup.** Run this block only in the `task_owner_schema` session after the task-existence preflight. It checks each exact task row, drops only a proven existing task, and records `already_absent` for an ordinary cleanup that finds it gone. `SET SERVEROUTPUT ON` is required for the status lines.
 
 ```sql
 SET SERVEROUTPUT ON
@@ -1296,7 +1339,7 @@ The [19c SQL Tuning Guide](https://docs.oracle.com/en/database/oracle/oracle-dat
 Expected output: `regression_set_dropped` and `target_set_dropped`, one `*_already_absent` line per set that is already gone, or `ORA-20021`/`ORA-20022` when a set exists with an ambiguous name or an unexpected statement count.
 An unexpected statement count stops the run rather than dropping a set you did not recognize.
 
-**ILLUSTRATIVE — MUTATING — SQL\*Plus STS-owner existence-and-statement-count precheck and conditional drop.** It reads `USER_SQLSET` once, before the drop, and drops each named set only when it exists with the expected statement count. It does not re-read the view afterward; the `*_dropped` and `*_already_absent` lines are the cleanup record.
+**MUTATING — SQL\*Plus STS-owner existence-and-statement-count precheck and conditional drop.** It reads `USER_SQLSET` once, before the drop, and drops each named set only when it exists with the expected statement count. It does not re-read the view afterward; the `*_dropped` and `*_already_absent` lines are the cleanup record.
 
 ```sql
 DEFINE sts_owner_schema = <sts-owner-schema>
@@ -1351,7 +1394,7 @@ This is a separate state-destruction decision, not rejected-candidate rollback a
 Do not run any DDL below until the owner has recorded a separate destruction approval, the accepted-state clone rehearsal is complete, the read-only preflight below matches the exact expected objects, and the owner-provided `dependency-attestation` artifact is `PASS` for the exact owner and object scope.
 
 `ALL_DEPENDENCIES` is one signal, not complete dependency proof. Idempotent zero-count handling is reserved for ordinary final cleanup and rejected-candidate rollback; it is not allowed in this approved accepted-state destruction path.
-**ILLUSTRATIVE — PLACEHOLDER — read-only accepted-state destruction preflight.** Run against the explicit `&object_owner_schema`. It requires owner-confirmed `SELECT` access to `ALL_OBJECTS`, `ALL_INDEXES`, `ALL_IND_COLUMNS`, `ALL_TABLES`, `ALL_TAB_COLUMNS`, and `ALL_DEPENDENCIES`.
+**PLACEHOLDER — read-only accepted-state destruction preflight.** Run against the explicit `&object_owner_schema`. It requires owner-confirmed `SELECT` access to `ALL_OBJECTS`, `ALL_INDEXES`, `ALL_IND_COLUMNS`, `ALL_TABLES`, `ALL_TAB_COLUMNS`, and `ALL_DEPENDENCIES`.
 
 ```sql
 DEFINE object_owner_schema = <object-owner-schema>
@@ -1449,7 +1492,7 @@ dependency_attestation_id,object_owner,owner_scope,connection_ref,release,checke
 
 The owner-provided `dependency-attestation` artifact must identify the exact owner and object scope and the evidence source for constraints/foreign keys, triggers, views/materialized views, grants/synonyms, and external references. Set `dependency_attestation_status` to `PASS` only when each check is evidenced; otherwise set it to `STOP` and record `dependency_attestation_stop_reason`. Do not synthesize it from `ALL_DEPENDENCIES`; a zero count is only one signal.
 
-**ILLUSTRATIVE — PLACEHOLDER — separate destruction approval record.** This is a decision artifact, not a SQL or DDL block. Approval must identify the exact connection, objects, clone rehearsal, approver, and UTC timestamp.
+**PLACEHOLDER — separate destruction approval record.** This is a decision artifact, not a SQL or DDL block. Approval must identify the exact connection, objects, clone rehearsal, approver, and UTC timestamp.
 
 ```text
 DESTRUCTION_APPROVAL_ID=<owner-supplied-approval-id>
@@ -1634,8 +1677,4 @@ The primary references for this page are [S18](https://docs.oracle.com/en/databa
 
 A V0 evidence pack with the ten decision-map steps answered in order and these named entries: target, fixture, capture, statement identity, incumbent baseline, candidate, semantic result, regression result, rollback or rehearsal result, final cleanup, verdict, sources, and unknowns. The evidence-pack manifest in section 14 is the field list; a pack missing one of those entries is not ready for review.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** Before the single preliminary decision gate, use only `PRELIMINARY_GATE_FAILURE` for a complete failed check and `BLOCKED_PENDING_DECISION` for missing evidence, thresholds, samples, or scope reasons, and map those statuses at that gate to exactly one `preliminary_decision`. Section 14 owns what each final verdict then requires.
-
-**Next required page:** [Measure With XPLAN and Monitor](/03-toolbox/01-measure-with-xplan-and-monitor/).

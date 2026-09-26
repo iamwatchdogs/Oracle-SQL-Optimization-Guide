@@ -15,7 +15,7 @@ This page is the capture runbook: choose a representative window, create and cap
 >
 > **Evidence status:** The capture and inspection steps below follow A1 sources: _Managing SQL Tuning Sets_ in the 19c SQL Tuning Guide [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html) and the 19c `DBMS_SQLPA` package reference [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html). Blocks are labeled `ILLUSTRATIVE`. **No live Oracle database was available**, so no capture below has been run. Confirm the capture API, privileges, entitlement, and workload window on a test or staging database.
 >
-> **Next required page:** [Before and After With SPA](/04-recipes/02-before-after-with-spa/), then [Load Test Without Prod](/03-toolbox/03-load-test-without-prod/) when the candidate can affect contention or resource use.
+> **Next required page:** [Load Test Without Prod](/03-toolbox/03-load-test-without-prod/) if the candidate affects contention or resource use — buffer cache, locks, CPU, or I/O — it needs only the frozen set behind you, not the comparison. [Before and After With SPA](/04-recipes/02-before-after-with-spa/) is required on every candidate either way.
 
 ## How this page is banded
 
@@ -32,6 +32,8 @@ This page is the capture runbook: choose a representative window, create and cap
 - **Advanced / gated (4):** analysis tasks need the `ADVISOR` privilege plus the entitlement that Real Application Testing and the tuning features require. Confirm them before you create the task.
 
 ## 1. Choose a representative window
+
+Polling the three people you already agree with produces a confident result and settles nothing, and the bias is invisible from inside the sample. A hand-curated capture is that poll: useful for isolation, and unable to answer a question about the workload you did not select.
 
 Do not hand-pick three statements because they are convenient. Capture the window that represents the decision you need to make: peak traffic, the batch job, the problematic bind family, or the full application slice.
 
@@ -73,6 +75,8 @@ Check the count, SQL IDs, bind coverage, plans, and execution context. If the se
 
 A useful set has more than one bind shape when the application has skew, more than one plan when the workload legitimately uses them, and the right module and action boundary. Rare statements still matter; one execution does not make a statement unimportant.
 
+One aside: a capture that ran is not a capture that was read. Back to the set.
+
 ## 4. Use the set on both sides
 
 Build the analysis task from the frozen name, give every trial a name, and run both sides against that one set. The task, trial, comparison, and report calls are owned by the [Before and After With SPA recipe](/04-recipes/02-before-after-with-spa/), which this page does not repeat.
@@ -99,12 +103,12 @@ Keep the raw trial samples, the task name, the set name, and the comparison metr
 
 ## Decision table
 
-| Result                                                      | Action                       |
-| ----------------------------------------------------------- | ---------------------------- |
-| Aggregate and key statements improve beyond the noise floor | Move to load testing         |
-| One statement regresses beyond the threshold                | Reject or isolate the change |
-| Only a plan hash changes                                    | Keep investigating           |
-| Trial counts or workload context differ                     | Void the comparison          |
+| Result                                                      | Action                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Aggregate and key statements improve beyond the noise floor | Move to load testing whenever the candidate affects contention or resource use — buffer cache, locks, CPU, or I/O. Otherwise the comparison result stands, unless you have no Real Application Testing entitlement, in which case the load gate is the fallback |
+| One statement regresses beyond the threshold                | Reject or isolate the change                                                                                                                                                                                                                                    |
+| Only a plan hash changes                                    | Keep investigating                                                                                                                                                                                                                                              |
+| Trial counts or workload context differ                     | Void the comparison                                                                                                                                                                                                                                             |
 
 ## Artifact
 
@@ -112,8 +116,4 @@ A frozen workload record: the set name and owner, the capture window and filter,
 
 The block above is an `ILLUSTRATIVE` procedure shape, not a result.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** same set in, fair comparison out. If the two sides did not see the same workload, there is no comparison to report.
-
-**Next required page:** [Before and After With SPA](/04-recipes/02-before-after-with-spa/), then [Load Test Without Prod](/03-toolbox/03-load-test-without-prod/) when the candidate can affect contention or resource use.

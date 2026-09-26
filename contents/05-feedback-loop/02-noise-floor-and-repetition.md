@@ -39,7 +39,7 @@ Cache state is on that list because leaving it off is the most common way a care
 
 The [preface](/00-preface/02-how-to-prove-a-win/) defines the A/A control and states this guide's K>=5 and bootstrap discipline. This page adds the operating order: floor first, repetitions second, margin third. A floor taken on one host is not automatically the floor for another host.
 
-**ILLUSTRATIVE — synthetic spread and derived margin, not a measured floor.**
+**ILLUSTRATIVE — synthetic spread and derived margin, not a measured floor.** These `3%` and `9%` are placeholder inputs, not numbers to copy. The V0 lab prints a _worked floor calculation_ of its own — a `3.75%` relative elapsed floor on its synthetic table — which is a different kind of number from these two: that one is arithmetic you can check, these are values you replace with whatever your own unchanged control measured. Do not reconcile the two against each other.
 
 | Metric                                        | A/A spread (floor) | Margin `max(2x floor, 5%)` | Required improvement `>= floor + margin` |
 | --------------------------------------------- | ------------------ | -------------------------- | ---------------------------------------- |
@@ -205,8 +205,4 @@ A measurement record another engineer can recompute:
 
 The Python calculation is `COPYABLE`; the tables above are `ILLUSTRATIVE`. No sample set on this page came from a run.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** the floor sets the bar, the repetitions set the uncertainty, and the interval decides whether there is anything there at all.
-
-**Next required page:** [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/).

@@ -56,7 +56,7 @@ END;
 
 **The interim table must exist before the start call.** [S41](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html) is explicit: you create an empty interim table, in the same schema, carrying the desired attributes of the post-redefinition table. Create it now and save the DDL in the run manifest:
 
-**MUTATING — ILLUSTRATIVE. Creates the empty interim table in the owning schema. SQLcl or SQL\*Plus; the column list is a stand-in for your own post-redefinition definition. Record this DDL in the manifest. Expected output: table created.**
+**MUTATING. Creates the empty interim table in the owning schema. SQLcl or SQL\*Plus; the column list is a stand-in for your own post-redefinition definition. Record this DDL in the manifest. Expected output: table created.**
 
 ```sql
 CREATE TABLE APP.ORDERS_INT (
@@ -68,7 +68,7 @@ CREATE TABLE APP.ORDERS_INT (
 
 With eligibility passed and the interim table present, start the redefinition:
 
-**MUTATING — SKETCH. Starts a redefinition in the owning schema. SQLcl or SQL\*Plus as the table owner or an authorized account. Not executed here; confirm the signature, the `options_flag` values, and the rollback parameter on the installed package reference. Expected output: no rows returned, with the redefinition in progress.**
+**MUTATING. Starts a redefinition in the owning schema. SQLcl or SQL\*Plus as the table owner or an authorized account. Not executed here; confirm the signature, the `options_flag` values, and the rollback parameter on the installed package reference. Expected output: no rows returned, with the redefinition in progress.**
 
 ```sql
 EXEC DBMS_REDEFINITION.START_REDEF_TABLE(
@@ -89,7 +89,7 @@ Keep the column mapping explicit when names differ, and record the exact DDL and
 1. Let the package clone the dependents you want, then inspect the returned error count.
 2. Create the indexes, constraints, triggers, and grants on the interim table yourself, and register them with the release-verified dependent-object APIs.
 
-**MUTATING — SKETCH. Clones dependent objects onto the interim table and reports an error count. SQLcl or SQL\*Plus as in section 2. Not executed here; confirm the overload and the copy flags on the installed package reference. Expected output: no rows returned; read `copy_errors` from the variable.**
+**MUTATING. Clones dependent objects onto the interim table and reports an error count. SQLcl or SQL\*Plus as in section 2. Not executed here; confirm the overload and the copy flags on the installed package reference. Expected output: no rows returned; read `copy_errors` from the variable.**
 
 ```sql
 DECLARE
@@ -121,7 +121,7 @@ The copy call also has a `copy_statistics` flag, and it defaults to `FALSE` [S41
 
 Long work on the interim table creates a synchronization backlog. Catch it up before the finish phase:
 
-**MUTATING — ILLUSTRATIVE. Synchronizes the interim table with the original. SQLcl or SQL\*Plus as in section 2. Not executed here; confirm the argument names on the installed release. Expected output: no rows returned.**
+**MUTATING. Synchronizes the interim table with the original. SQLcl or SQL\*Plus as in section 2. Not executed here; confirm the argument names on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_REDEFINITION.SYNC_INTERIM_TABLE(
@@ -131,7 +131,7 @@ EXEC DBMS_REDEFINITION.SYNC_INTERIM_TABLE(
 
 The interim table has no statistics of its own until you give it some, and a measurement taken against an unmeasured table is not a before/after. Gather on the interim object before anything measures it:
 
-**MUTATING — ILLUSTRATIVE. Gathers statistics for the interim table. SQLcl or SQL\*Plus as in section 2. Not executed here; confirm the signatures on the installed release. Expected output: no rows returned.**
+**MUTATING. Gathers statistics for the interim table. SQLcl or SQL\*Plus as in section 2. Not executed here; confirm the signatures on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_STATS.GATHER_TABLE_STATS(
@@ -150,7 +150,7 @@ The measured before/after lives where the name resolves to the candidate: on the
 
 If the redefinition must be abandoned before the commit point:
 
-**MUTATING — ILLUSTRATIVE. Aborts an in-progress redefinition. SQLcl or SQL\*Plus as in section 2; run it once in a sandbox first. Not executed here; confirm the argument names on the installed release. Expected output: no rows returned, original table unchanged.**
+**MUTATING. Aborts an in-progress redefinition. SQLcl or SQL\*Plus as in section 2; run it once in a sandbox first. Not executed here; confirm the argument names on the installed release. Expected output: no rows returned, original table unchanged.**
 
 ```sql
 EXEC DBMS_REDEFINITION.ABORT_REDEF_TABLE(
@@ -164,19 +164,19 @@ EXEC DBMS_REDEFINITION.ABORT_REDEF_TABLE(
 
 The order of the candidate-text stages is owned by [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/); this section does not restate it. The mapping is one job per stage group: the commit gate wraps that order's text stages, the test-database gate wraps its assertion stage, the workload gate wraps its controlled-comparison stage, and the load gate wraps its load stage. The table below records what each job runs, catches, and cannot catch.
 
-| Job                      | Runs                                                   | Catches                                                   | Cannot catch                                 |
-| ------------------------ | ------------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------- |
-| Commit gate, no database | Parse and lint of the migration or candidate SQL       | Malformed text and the configured rule violations         | Semantic change, plan shape, or runtime cost |
-| Test-database gate       | Result assertions against controlled fixtures          | Changed rows, ordering, duplicates, nulls, error behavior | Performance of any kind                      |
-| Workload gate            | Frozen set, named trials, comparison report            | Statement or aggregate regressions beyond the threshold   | Concurrency, memory, locks, and I/O          |
-| Load gate, optional      | Concurrency run with guardrails armed before it starts | Contention and capacity failure under a realistic mix     | Correctness of the returned results          |
-| Promotion                | Controlled rollout plus the observation window         | Late plan changes and guardrail events after cutover      | Anything the earlier stages never ran        |
+| Job                                  | Runs                                                   | Catches                                                   | Cannot catch                                 |
+| ------------------------------------ | ------------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------- |
+| Commit gate, no database             | Parse and lint of the migration or candidate SQL       | Malformed text and the configured rule violations         | Semantic change, plan shape, or runtime cost |
+| Test-database gate                   | Result assertions against controlled fixtures          | Changed rows, ordering, duplicates, nulls, error behavior | Performance of any kind                      |
+| Workload gate                        | Frozen set, named trials, comparison report            | Statement or aggregate regressions beyond the threshold   | Concurrency, memory, locks, and I/O          |
+| Load gate, on trigger or entitlement | Concurrency run with guardrails armed before it starts | Contention and capacity failure under a realistic mix     | Correctness of the returned results          |
+| Promotion                            | Controlled rollout plus the observation window         | Late plan changes and guardrail events after cutover      | Anything the earlier stages never ran        |
 
-The load gate is optional for a change that cannot create contention or capacity risk, and a busy pipeline is no reason to skip it when it can. A no-regression result says only that the threshold held. Whether anything improved is the [noise floor](/05-feedback-loop/02-noise-floor-and-repetition/) test, and the sentence about a green badge earning database time rather than promotion belongs to [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/).
+The load gate is required when the change affects contention or resource use — buffer cache, locks, CPU, or I/O, and a busy pipeline is no reason to skip it when it can. That is a trigger rather than the whole rule, and the [load gate page](/03-toolbox/03-load-test-without-prod/) owns the rest of it, including the entitlement fallback. A no-regression result says only that the threshold held. Whether anything improved is the [noise floor](/05-feedback-loop/02-noise-floor-and-repetition/) test, and the sentence about a green badge earning database time rather than promotion belongs to [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/).
 
 ## 6. Make the promotion reversible
 
-Before production, record the path you took, the dependency strategy you chose, the behavior-test result, the comparison report with section `ALL` for per-statement evidence, the optional load report, and the observation window with its owner.
+Before production, record the path you took, the dependency strategy you chose, the behavior-test result, the comparison report with section `ALL` for per-statement evidence, the load report where the trigger or the entitlement called for one, and the observation window with its owner.
 
 **Name the rollback artifact before you finish, and name its expiry with it.** The table path offers five moves, and each stops working at a stated moment. Confirm every call and parameter in this table against the installed release [S41]:
 
@@ -190,7 +190,7 @@ Before production, record the path you took, the dependency strategy you chose, 
 
 **Each callable row of that table has a block below.** Rehearse them in the sandbox, at the lifecycle point the row names, before you rely on any of them:
 
-**MUTATING — ILLUSTRATIVE. Section 2's start with the rollback option enabled, the only form that creates the window. SQLcl or SQL\*Plus on the sandbox copy. Not executed here; confirm the parameter name and its type on the installed release. Expected output: no rows returned, redefinition in progress.**
+**MUTATING. Section 2's start with the rollback option enabled, the only form that creates the window. SQLcl or SQL\*Plus on the sandbox copy. Not executed here; confirm the parameter name and its type on the installed release. Expected output: no rows returned, redefinition in progress.**
 
 ```sql
 EXEC DBMS_REDEFINITION.START_REDEF_TABLE(
@@ -202,7 +202,7 @@ EXEC DBMS_REDEFINITION.START_REDEF_TABLE(
 );
 ```
 
-**MUTATING — ILLUSTRATIVE. Rolls the redefinition back to the original definition and keeps the DML. SQLcl or SQL\*Plus, sandbox only; confirm the argument names on the installed release. Expected output: no rows returned.**
+**MUTATING. Rolls the redefinition back to the original definition and keeps the DML. SQLcl or SQL\*Plus, sandbox only; confirm the argument names on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_REDEFINITION.ROLLBACK(
@@ -210,7 +210,7 @@ EXEC DBMS_REDEFINITION.ROLLBACK(
 );
 ```
 
-**MUTATING — ILLUSTRATIVE. Closes the rollback window and cleans up the objects that enable it. SQLcl or SQL\*Plus, sandbox only; confirm the argument names on the installed release. Expected output: no rows returned.**
+**MUTATING. Closes the rollback window and cleans up the objects that enable it. SQLcl or SQL\*Plus, sandbox only; confirm the argument names on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_REDEFINITION.ABORT_ROLLBACK(
@@ -218,7 +218,7 @@ EXEC DBMS_REDEFINITION.ABORT_ROLLBACK(
 );
 ```
 
-**MUTATING — ILLUSTRATIVE. Finish with the rollback cleanup taken in the same call. SQLcl or SQL\*Plus, in the approved window. Not executed here; confirm the parameter name and type on the installed release, because the 19c reference prints this one inconsistently. Expected output: no rows returned.**
+**MUTATING. Finish with the rollback cleanup taken in the same call. SQLcl or SQL\*Plus, in the approved window. Not executed here; confirm the parameter name and type on the installed release, because the 19c reference prints this one inconsistently. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_REDEFINITION.FINISH_REDEF_TABLE(
@@ -240,7 +240,7 @@ Two things must already exist before this section runs: the gate record from sec
 
 When the candidate is approved and the window is open:
 
-**MUTATING — ILLUSTRATIVE. Completes the redefinition. SQLcl or SQL\*Plus in the approved window; human approval belongs before this line. Not executed here; confirm the parameter names and types on the installed release. Expected output: no rows returned.**
+**MUTATING. Completes the redefinition. SQLcl or SQL\*Plus in the approved window; human approval belongs before this line. Not executed here; confirm the parameter names and types on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_REDEFINITION.FINISH_REDEF_TABLE(
@@ -278,10 +278,6 @@ A promotion record:
 - [ ] Audit policies checked on both tables after finish; incumbent copy's keep-or-drop decision recorded
 - [ ] "No regression" kept distinct from "performance win" in the verdict text
 
-Every DDL block above is `MUTATING`; the section 2 start and the section 3 dependency call carry `SKETCH`, the section 6 rehearsal blocks carry `ILLUSTRATIVE`, and none of them has been executed against a target in this guide.
-
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+Every DDL block above is a `MUTATING` shape, and none of them has been executed against a target in this guide. Their signatures, option values, and argument names are confirm-on-release.
 
 **Decision:** gate first, name the rollback artifact second, finish last, and keep the expiry of every option you used next to the artifact itself.
-
-**Next required page:** [Feedback Loop That Proves It](/05-feedback-loop/).

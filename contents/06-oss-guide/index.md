@@ -128,8 +128,4 @@ install decision:       yes / no
 
 The dated per-tool inventory is on the [vetting page](/06-oss-guide/01-how-to-vet-oss/); this record is the decision, not the catalogue. A row with a blank licence or a blank snapshot date is a lead, not a dependency.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** "it is open source" is a licence fact, not an adoption reason. Vet the tool, date the facts, and let Oracle make the decision the tool cannot.
-
-**Next required page:** [The Four Gates for Vetting Any OSS Repo](/06-oss-guide/01-how-to-vet-oss/).

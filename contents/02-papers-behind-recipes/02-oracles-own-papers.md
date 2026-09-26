@@ -136,8 +136,4 @@ An evidence ladder for any claim you are about to publish. Fill the second colum
 
 Every status on this page describes how a source was read, not what a database did.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** cite the Oracle source that owns the mechanism, keep its status label, and let the measurement on your instance be the only thing that claims a result.
-
-**Next required page:** [What Doesn't Transfer to Oracle](/02-papers-behind-recipes/03-what-doesnt-transfer-to-oracle/).

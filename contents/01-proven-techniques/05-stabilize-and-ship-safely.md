@@ -19,7 +19,7 @@ Each mechanism below needs a prerequisite, an owner, and a tested rollback, and 
 >
 > **Evidence status:** Mechanisms and release boundaries are documented and cited. Its blocks are labeled `ILLUSTRATIVE`, `SYNTHETIC`, `SKETCH`, or `PLACEHOLDER`; every ship packet, plan, and timing is `SYNTHETIC`. **No live Oracle database was available**, so no production rollout and no incident on this page happened either.
 >
-> **Next required page:** [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/), then [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/).
+> **Next required page:** [Open the toolbox map](/03-toolbox/), which is where the route goes next. The [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/) and [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/) are both worth having behind you before you ship, and the route reaches them at steps 8 and 9.
 
 ## How this page is banded
 
@@ -107,7 +107,7 @@ For a profile, keep the incident ID, the owner, the expiry, the test result, and
 
 ### F-2 and F-4 are not the same control
 
-The table puts a profile at F-2 and a baseline at F-4, and the difference between them decides which one you pick, so it is worth one sentence of semantics rather than one sentence of syntax. Oracle's own optimizer team has written up the same distinction, and it is the shortest available statement of it [S88].
+The table puts a profile at F-2 and a baseline at F-4, and the difference between them decides which one you pick, so it is worth one sentence of semantics rather than one sentence of syntax. The 19c plan-management guide states the distinction in a subsection of its own, and Oracle's optimizer team writes up the same point as corroboration [S21](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html) [S88].
 
 **A SQL profile adds information to the optimizer. It does not force a plan.** A profile carries auxiliary statistics, bind information, and sometimes hints, and the optimizer is free to accept or ignore all of it. That is exactly why it is the right control for F-2: your estimate is wrong, you cannot change the data or the SQL text, and you want to hand the optimizer better numbers rather than a decision.
 
@@ -118,7 +118,7 @@ So the failure modes differ too, and this is the part that gets people. A profil
 ## 5. SQL Plan Management: the plan as a governed artifact
 
 SQL Plan Management gives a critical statement a plan history. You capture the known plan, use the baseline as the stability boundary, and let candidates be evaluated through the plan-management workflow rather than run silently in production.
-**SKETCH — MUTATING — PLACEHOLDER — advanced owner/release action, not a junior step.** SQLcl or SQL\*Plus, plan-capture shape for the DBA. Requires the `DBMS_SPM` privileges and a release that supports baseline capture.
+**PLACEHOLDER — advanced owner/release action, not a junior step.** SQLcl or SQL\*Plus, plan-capture shape for the DBA. Requires the `DBMS_SPM` privileges and a release that supports baseline capture.
 
 Two facts about the 19c interface shape this block. First, every documented `DBMS_SPM.LOAD_PLANS_FROM_CURSOR_CACHE` overload is a **function** whose return value is the **number of plans loaded**.
 Nothing returns a SQL handle, so `:n_plans` is a count and must never be passed to a baseline display as a handle.
@@ -179,7 +179,7 @@ That boundary matters for how you read evidence. A regressing execution still fi
 
 ### Adaptive plans
 
-Adaptive plans defer or adjust runtime decisions when the workload and statistics justify it. The benefit is workload-dependent. Do not keep them on or off from a slogan. Run the candidate with the feature in each state, compare elapsed time and `buffer_gets`, inspect the final branch the optimizer chose, and record the result. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) [S73](https://blogs.oracle.com/optimizer/optimizer-adaptive-features-in-oracle-database-12c-release-2)
+Adaptive plans defer or adjust runtime decisions when the workload and statistics justify it. The benefit is workload-dependent. Do not keep them on or off from a slogan. Run the candidate with the feature in each state, compare elapsed time and `buffer_gets`, inspect the final branch the optimizer chose, and record the result. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) carries the claim; [S73](https://blogs.oracle.com/optimizer/optimizer-adaptive-features-in-oracle-database-12c-release-2) is an **Oracle Optimizer blog post on 12c Release 2** and is class D, so it corroborates the mechanism and settles nothing about your release.
 
 ## 6. Advisors propose; the gate decides
 
@@ -187,7 +187,7 @@ SQL Tuning Advisor can analyze SQL text you paste in, a SQL ID from the shared p
 
 One boundary on Optimizer Statistics Advisor that is easy to miss and expensive to get wrong: it issues findings and recommendations **without gathering a new statistics set**. Reading its output does not change the statistics on your tables. That is the opposite of what a tool named "statistics advisor" sounds like, and it is worth knowing before you run it against a shared object.
 
-Confirm the entitlement for the advisor you intend to use against the licensing guide for your release. Advisor features are licensed separately from the diagnostic ones, and this book deliberately prints no pack table — the sources that state one are feature documentation and a decade-old datasheet, and neither is license text [S90].
+Confirm the entitlement for the advisor you intend to use against the licensing guide for your release. Advisor features are licensed separately from the diagnostic ones, and this book deliberately prints no pack table — the sources that state one are feature documentation and a decade-old datasheet, and neither is license text [S90](https://docs.oracle.com/en/database/oracle/oracle-database/19/dblic/Licensing-Information.html).
 
 Apply one recommendation at a time. A single advisor run that recommends an index, a materialized view, a profile, and a statistics change is four candidates, and applying them together tells you nothing about which one worked. Run [SPA](/04-recipes/02-before-after-with-spa/) before and after each, keep the result only if the workload beats its noise floor and no relevant statement regresses, and keep the plan pair and the rollback command beside the report. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
 
@@ -271,8 +271,4 @@ A ship packet with the accepted plan, the metric distribution, the semantic test
 
 Every ship packet, plan, and timing on this page is `SYNTHETIC` or `ILLUSTRATIVE`.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** a change is done when it is still good tomorrow, still correct, and reversible by someone who was not there when you shipped it.
-
-**Next required page:** [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/), then [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/).

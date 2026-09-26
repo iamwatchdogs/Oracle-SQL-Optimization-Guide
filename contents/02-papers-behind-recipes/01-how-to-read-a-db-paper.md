@@ -43,6 +43,8 @@ So the first thing you establish, before the abstract and before the results tab
 
 ## 2. The six-question pass
 
+> **"What is the one claim that survives?"**
+
 Six questions, in this order, about twenty minutes. The order matters: the last question is the one most readers skip, and it is the only one that protects you. The `Where to look` column is the reading order: abstract, then methods, then evaluation setup, then results, then limitations.
 
 | #   | Question                                  | Where to look              | Write down                                        | A bad answer looks like           |
@@ -183,8 +185,4 @@ The template has eight fields and the pass has six questions because fields 7 an
 
 Every filled example on this page is `ILLUSTRATIVE`, and every number in it is quoted from the source ledger with its status attached.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** a paper licenses you to test a hypothesis, not to state a result. Six questions, then the one measurement that would prove you wrong.
-
-**Next required page:** [Oracle's Own Papers](/02-papers-behind-recipes/02-oracles-own-papers/).

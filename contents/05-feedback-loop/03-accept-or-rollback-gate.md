@@ -182,8 +182,4 @@ A signed or hashed gate record:
 
 The gate result block above is `PLACEHOLDER`. No check on this page has been executed.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** all five checks pass or the class rollback runs and gets proven. The gate is what turns a measured difference into a decision someone else can audit.
-
-**Next required page:** [Memory and When to Stop](/05-feedback-loop/04-memory-and-when-to-stop/).
