@@ -79,9 +79,11 @@ const breadcrumbItems = isHome
       ? [{ href: currentSection.href, title: currentSection.title }]
       : [{ href: toUrl(entry.id), title: entry.data.title }];
 
-// Display-grade headings for TOC (h2/h3 only)
+// Display-grade headings for TOC. h4 is included because the flagship page
+// ("How to Prove a Win") carries 18 procedural `####` steps that were
+// otherwise unreachable from the margin apparatus.
 const tocHeadings = headings
-  .filter((h) => h.depth >= 2 && h.depth <= 3)
+  .filter((h) => h.depth >= 2 && h.depth <= 4)
   .map((h) => ({
     id: h.slug || slugify(h.text),
     text: h.text,
@@ -114,6 +116,10 @@ const proseClass = [
   'prose-h3:text-h3',
   'prose-h3:mt-prose-h3-top',
   'prose-h3:mb-prose-h3-bottom',
+  'prose-h4:text-h4',
+  'prose-h4:mt-prose-h4-top',
+  'prose-h4:mb-prose-h4-bottom',
+  'prose-h4:hyphens-none',
   '[&>p:not(:has(>strong:only-child))]:mb-0',
   '[&_blockquote_p]:m-0',
   '[&_li_p]:m-0',
@@ -163,9 +169,12 @@ const proseClass = [
           'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.'
         }
         contributions={contributions}
-        meta={['68 catalog entries', 'grades', '37 pages · 9 sections', 'compiled 2026-09-22']}
-        gradeZones={['a', 'a', 'b', 'b', 'c', 'c', 'd']}
-        gradeLabels={['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D']}
+        meta={[
+          { kind: 'text', value: `${all.length} catalog entries` },
+          { kind: 'grades' },
+          { kind: 'text', value: `${all.length} pages · ${contributions.length} sections` },
+          { kind: 'text', value: 'compiled 2026-09-22' },
+        ]}
       />
 
       <main
@@ -181,17 +190,21 @@ const proseClass = [
     </>
   ) : (
     <>
-      <div class="mx-auto w-shell-wide pt-4">
+      <div class="mx-auto w-shell pt-4">
         <div class="running-head flex items-center justify-between gap-4" aria-hidden="true">
           <span>Oracle SQL Optimization</span>
           <span class="truncate max-w-[50%] text-right">{entry.data.title}</span>
         </div>
       </div>
 
-      <div class="mx-auto w-shell-wide">
-        <div class="grid lg:grid-cols-[280px_1fr] gap-6 lg:gap-12 items-start">
+      <div class="mx-auto w-shell">
+        {/* `minmax(0,1fr)` on BOTH tracks is load-bearing. A bare `1fr` (or the
+            single implicit column below `lg`) resolves its automatic minimum
+            size to the article's min-content width, so one wide markdown table
+            pushed the whole document to 914px inside a 390px viewport. */}
+        <div class="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)] gap-6 lg:gap-12 items-start">
           {/* Margin apparatus — sticky section TOC (first on mobile for wayfinding) */}
-          <div class="order-1 lg:sticky lg:top-16 min-w-0">
+          <div class="order-1 min-w-0">
             {tocHeadings.length > 0 && <ReadingToc headings={tocHeadings} label="Sections" />}
           </div>
 
@@ -250,29 +263,23 @@ const proseClass = [
                       {description}
                     </p>
                   )}
-                  <div
-                    class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-[0.45rem] border-t border-rule pt-3 text-left"
-                    aria-label="Evidence grade summary"
-                  >
-                    <span class="running-head">Evidence grades</span>
-                    <span class="font-mono text-mono leading-[1.45] text-ink-muted">
+                  {/* A description list, not a labelled div: `aria-label` is
+                      name-prohibited on the `generic` role, so the attribute
+                      was shipping without reaching the accessibility tree. */}
+                  <dl class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-[0.45rem] border-t border-rule pt-3 text-left">
+                    <dt class="running-head">Evidence grades</dt>
+                    <dd class="m-0 font-mono text-mono leading-[1.45] text-ink-muted">
                       A1/A2 Oracle · B1/B2 research · C1/C2 tools · D context only
-                    </span>
-                    <a
-                      href="/#evidence-key"
-                      class="inline-flex min-h-6 min-w-6 items-center text-ui text-accent underline-offset-[0.2em] transition-colors hover:text-accent-hover"
-                    >
-                      Full key
-                    </a>
-                    <noscript>
+                    </dd>
+                    <dd class="m-0">
                       <a
-                        href="/07-appendix-sources/"
+                        href="/#evidence-key"
                         class="inline-flex min-h-6 min-w-6 items-center text-ui text-accent underline-offset-[0.2em] transition-colors hover:text-accent-hover"
                       >
-                        Source appendix
+                        Full key
                       </a>
-                    </noscript>
-                  </div>
+                    </dd>
+                  </dl>
                 </header>
 
                 <Content />
@@ -292,7 +299,7 @@ const proseClass = [
                   href="/"
                   class="inline-flex min-h-6 min-w-6 items-center no-underline transition-colors hover:text-accent"
                 >
-                  ← Book home
+                  <span aria-hidden="true">←</span> Book home
                 </a>
               </p>
             </div>

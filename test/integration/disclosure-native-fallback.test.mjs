@@ -15,17 +15,23 @@ const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.
 const compiled = compileProjectStylesheet();
 const css = readSource('../../src/styles/global.css');
 
+/*
+ * The `::details-content` fallback is the no-JavaScript collapse path. It is
+ * scoped to the `details` element, NOT to `.prose details`: the three shipped
+ * disclosures (site nav, evidence key, mobile table of contents) all sit
+ * outside the article body, so a `.prose` prefix meant the fallback reached
+ * nothing and a no-JS close could leave a full-height gap in a real panel.
+ */
 const detailsContentRule = (stylesheet) =>
   stylesheet.rules.find(
-    (rule) =>
-      rule.selector === '.prose details::details-content' && rule.declarations.has('translate'),
+    (rule) => rule.selector === 'details::details-content' && rule.declarations.has('translate'),
   ) ?? null;
 
 const openDetailsContentRule = (stylesheet) =>
   stylesheet.rules.find(
     (rule) =>
-      rule.selector === '.prose details[open]::details-content' &&
-      rule.layer === 'components' &&
+      rule.selector === 'details[open]::details-content' &&
+      rule.layer === null &&
       rule.declarations.get('translate') === '0',
   ) ?? null;
 
@@ -35,11 +41,9 @@ const overlayContext = () => ({
     'absolute',
     'right-0',
     'z-50',
-    'max-[48rem]:fixed',
-    'max-[48rem]:top-16',
-    'max-[48rem]:right-4',
-    'max-[48rem]:left-4',
-    'max-[48rem]:w-auto',
+    'max-[48rem]:static',
+    'max-[48rem]:mt-2',
+    'max-[48rem]:w-full',
     'disclosure-flow',
   ],
   ancestors: [
@@ -73,8 +77,17 @@ const innerContext = (detailsAttributes = {}) => ({
   classes: ['disclosure-content-inner', 'disclosure-flow-inner'],
   ancestors: [
     { types: ['div'], classes: ['disclosure-flow'] },
+    { types: ['details'], classes: ['disclosure'], attributes: detailsAttributes },
+    { types: ['div'], classes: ['w-shell'] },
+  ],
+});
+
+const proseInnerContext = (detailsAttributes = {}) => ({
+  classes: ['disclosure-content-inner', 'disclosure-flow-inner'],
+  ancestors: [
+    { types: ['div'], classes: ['disclosure-flow'] },
     { types: ['details'], attributes: detailsAttributes },
-    { types: ['div'], classes: ['prose'] },
+    { types: ['article'], classes: ['prose'] },
   ],
 });
 
@@ -99,16 +112,16 @@ test('the native details-content fallback forces the open state at rest', async 
 test('the open native details-content fallback is gated on the open attribute', async () => {
   const source = await css;
 
-  expect(source).toContain('.prose details[open]::details-content {');
-  expect(source).not.toMatch(/\.prose details::details-content\s*\{[^}]*opacity/u);
+  expect(source).toContain('details[open]::details-content {');
+  expect(source).not.toMatch(/details::details-content\s*\{[^}]*opacity/u);
 });
 
 test('the native details-content fallback keeps content visible when open', async () => {
   const source = await css;
 
-  expect(source).not.toMatch(/\.prose details\[open\]::details-content\s*\{[^}]*display:\s*none/u);
+  expect(source).not.toMatch(/details\[open\]::details-content\s*\{[^}]*display:\s*none/u);
   expect(source).not.toMatch(
-    /\.prose details\[open\]::details-content\s*\{[^}]*content-visibility:\s*hidden/u,
+    /details\[open\]::details-content\s*\{[^}]*content-visibility:\s*hidden/u,
   );
   expect(source).not.toMatch(/@starting-style[^}]*details\[open\]::details-content/su);
 });
@@ -127,29 +140,49 @@ test('the native details-content fallback transitions content-visibility discret
   expect(transition).not.toContain('opacity');
 });
 
-test('the native details-content fallback is scoped to prose disclosures only', async () => {
+test('the native details-content fallback reaches every disclosure, not just prose ones', async () => {
   const [source, stylesheet] = await Promise.all([css, parseCompiledStylesheet(await compiled)]);
 
-  expect(source).toContain('.prose details::details-content {');
-  expect(source).toContain('.prose details[open]::details-content {');
-  expect(source).not.toMatch(/^\s*details::details-content\s*\{/mu);
-  expect(source).not.toMatch(/^\s*details\[open\]::details-content\s*\{/mu);
+  // The regression this replaces asserted the OPPOSITE: that the fallback was
+  // scoped to `.prose details` and that no unscoped rule existed. Since no
+  // shipped disclosure lives inside `.prose`, that contract guaranteed the
+  // no-JS collapse path was dead for all three real accordions.
+  expect(source).toContain('details::details-content {');
+  expect(source).toContain('details[open]::details-content {');
+  expect(source).not.toContain('.prose details::details-content');
 
   const unscoped = stylesheet.rules.filter(
     (rule) => rule.selector === 'details::details-content' && rule.declarations.has('translate'),
   );
-  expect(unscoped).toEqual([]);
+  expect(unscoped).toHaveLength(1);
+  expect(unscoped[0].layer).toBeNull();
 });
 
-test('the mobile site-nav fixed overlay is not inside a translated pseudo containing block', async () => {
+test('the mobile site-nav panel joins the header flow instead of overlaying the viewport', async () => {
   const [layout, stylesheet] = await Promise.all([
     readSource('../../src/layouts/BaseLayout.astro'),
     parseCompiledStylesheet(await compiled),
   ]);
 
+  /*
+   * A `<details>` establishes a containing block for its non-summary children
+   * REGARDLESS of `position` — Chrome wraps them in `::details-content`, whose
+   * `content-visibility` implies `contain: layout paint size`. So a panel
+   * positioned `fixed` or `absolute` from inside one resolves `left`, `right` and
+   * `width` against the ~104px summary box, not the viewport. Measured: the
+   * overlay was 71.78px wide at x=234 and ran 358px off a 390px screen.
+   *
+   * Nothing positioned from inside a `<details>` can overlay the viewport, so
+   * below `48rem` the panel is `static` and joins the header's wrapping flow,
+   * and the disclosure is `static` too so the full-width row owns the layout.
+   */
   expect(layout).not.toContain('prose');
-  expect(layout).toMatch(/class="[^"]*max-\[48rem\]:fixed[^"]*disclosure-flow"/u);
+  expect(layout).toMatch(/class="[^"]*max-\[48rem\]:static[^"]*disclosure-flow"/u);
+  expect(layout).toMatch(/<details class="[^"]*max-\[48rem\]:static/u);
+  expect(layout).not.toMatch(/max-\[48rem\]:fixed/u);
 
+  // Nothing may translate or transform the panel: a transform would additionally
+  // re-establish a containing block and re-break the geometry.
   const translateRules = stylesheet.rules.filter(
     (rule) => rule.declarations.has('translate') && !rule.declarations.has('opacity'),
   );
@@ -176,7 +209,6 @@ test('the reduced-motion override still neutralizes the native fallback', async 
   const block = media.slice(media.indexOf('{'), media.indexOf('}'));
 
   expect(block).toContain('details::details-content');
-  expect(block).toContain('.prose details::details-content');
   expect(block).toContain('transition: none !important');
 });
 
@@ -194,8 +226,8 @@ test('the grid controller remains the precise height path', async () => {
 
 test('the disclosure inner transitions its padding release on close', async () => {
   const stylesheet = parseCompiledStylesheet(await compiled);
-  const inner = stylesheet.rules.find((rule) =>
-    rule.selector.includes('.prose details .disclosure-content-inner'),
+  const inner = stylesheet.rules.find(
+    (rule) => rule.selector === '.disclosure-content-inner' && rule.declarations.has('transition'),
   );
   const transition = inner?.declarations.get('transition') ?? '';
 
@@ -217,14 +249,46 @@ test('the closed disclosure inner still rests at exactly zero padding', async ()
     ruleMatches(rule.selector, createContext(innerContext())),
   );
 
-  expect(declaringOnInner.map((rule) => rule.selector)).toEqual([]);
+  /*
+   * The only unconditional padding declaration that reaches a closed inner is
+   * Tailwind's preflight reset (`* { padding: 0 }`, base layer). Nothing in the
+   * disclosure component itself may set padding outside an `[open]` /
+   * `[data-disclosure-closing]` gate — that is what makes the close collapse
+   * instead of leaving a residual gap.
+   *
+   * This assertion used to read `toEqual([])`, which passed only because the
+   * selector matcher treated the reset's `*, :after, :before, ::backdrop` list
+   * as one unmatchable chain.
+   */
+  expect(declaringOnInner.map((rule) => rule.selector)).toEqual(['*, :after, :before, ::backdrop']);
+  expect(
+    declaringOnInner.every(
+      (rule) => rule.layer === 'base' && rule.declarations.get('padding') === '0',
+    ),
+  ).toBe(true);
   expect(resolveToken(await compiled, innerContext(), 'padding-block')).toBeNull();
+  expect(resolveToken(await compiled, innerContext(), 'padding')).toBe('0');
 });
 
-test('an open disclosure inner keeps its 12px/13.6px padding and a closing one releases it', async () => {
+test('an open disclosure inner keeps its block padding and a closing one releases it', async () => {
   const open = innerContext({ open: '' });
   const closing = innerContext({ open: '', [CLOSING_ATTRIBUTE]: '' });
 
-  expect(resolveToken(await compiled, open, 'padding-block')).toBe('.75rem .85rem');
+  expect(resolveToken(await compiled, open, 'padding-block')).toBe('.2rem .85rem');
   expect(resolveToken(await compiled, closing, 'padding-block')).toBe('0');
+});
+
+test('a prose disclosure inner behaves the same as a component disclosure inner', async () => {
+  // `.prose details` and `details.disclosure` share one framed treatment, so an
+  // authored content disclosure must not need a second set of rules.
+  expect(resolveToken(await compiled, proseInnerContext({ open: '' }), 'padding-block')).toBe(
+    '.2rem .85rem',
+  );
+  expect(
+    resolveToken(
+      await compiled,
+      proseInnerContext({ open: '', [CLOSING_ATTRIBUTE]: '' }),
+      'padding-block',
+    ),
+  ).toBe('0');
 });

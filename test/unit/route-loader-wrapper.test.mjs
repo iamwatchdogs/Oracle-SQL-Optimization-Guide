@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import * as routeLoaderModule from '../../src/lib/route-loader.mjs';
-import { createHarness } from '../fixtures/route-loader.fixtures.mjs';
+import { createHarness, visibleAttribute } from '../fixtures/route-loader.fixtures.mjs';
 
 test('defaultPrevented defaults false and composed pageLoad focuses once', async () => {
   const wrap = routeLoaderModule.wrapRouteLoader;
@@ -34,7 +34,7 @@ test('defaultPrevented defaults false and composed pageLoad focuses once', async
   expect(received.args).toEqual(['value', 7]);
   expect(received.thisValue).toBe(context);
   expect(main.focusCalls).toEqual([{ preventScroll: true }]);
-  expect(loader.dataset.visible).toBe('false');
+  expect(visibleAttribute(loader)).toBe('false');
   expect(main.hasAttribute('aria-busy')).toBe(false);
   expect(message.textContent).toBe('');
 });
@@ -71,7 +71,7 @@ test('defaultPrevented cancels and prevents composed pageLoad focus', async () =
   expect(calls).toBe(1);
   expect(cancelCalls).toBe(1);
   expect(main.focusCalls).toHaveLength(0);
-  expect(loader.dataset.visible).toBe('false');
+  expect(visibleAttribute(loader)).toBe('false');
   expect(main.hasAttribute('aria-busy')).toBe(false);
   expect(message.textContent).toBe('');
 });

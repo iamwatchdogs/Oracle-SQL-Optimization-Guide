@@ -1,15 +1,22 @@
-import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import {
   FakeElement,
+  MAX_VISIBLE_MS,
+  REVEAL_DELAY_MS,
   createHarness,
   createTrackedSignal,
+  visibleAttribute,
 } from '../fixtures/route-loader.fixtures.mjs';
 
 test('exposes the native hooks and cancel', () => {
   const { controller } = createHarness();
 
-  expect(Object.keys(controller).toSorted()).toEqual(['beforePreparation', 'cancel', 'pageLoad']);
+  expect(Object.keys(controller).toSorted()).toEqual([
+    'beforePreparation',
+    'beforeSwap',
+    'cancel',
+    'pageLoad',
+  ]);
 });
 
 test('before preparation delays the loader and publishes a fresh message', () => {
@@ -18,18 +25,56 @@ test('before preparation delays the loader and publishes a fresh message', () =>
 
   controller.beforePreparation(signal.signal);
 
-  expect(main.getAttribute('aria-busy')).toBe('true');
-  expect(loader.dataset.visible).toBe('false');
+  /*
+   * `aria-busy` moved INSIDE the reveal gate. Marking it synchronously meant a
+   * fast cached navigation produced a busy state with no visible feedback at
+   * all, because the loader never became visible before the swap landed.
+   */
+  expect(main.hasAttribute('aria-busy')).toBe(false);
+  expect(visibleAttribute(loader)).toBe('false');
   expect(message.textContent).toBe('');
-  expect(timer.pending.size).toBe(1);
-  expect([...timer.pending.values()][0].delay).toBe(180);
+  /* Two timers: the reveal gate and the hard cap. */
+  expect(timer.pending.size).toBe(2);
+  expect([...timer.pending.values()].map((entry) => entry.delay).toSorted()).toEqual([
+    REVEAL_DELAY_MS,
+    MAX_VISIBLE_MS,
+  ]);
 
-  timer.runBefore(180);
-  expect(loader.dataset.visible).toBe('false');
+  timer.advanceTo(REVEAL_DELAY_MS - 1);
+  expect(visibleAttribute(loader)).toBe('false');
+  expect(main.hasAttribute('aria-busy')).toBe(false);
 
-  timer.runAt(180);
-  expect(loader.dataset.visible).toBe('true');
+  timer.advanceTo(REVEAL_DELAY_MS);
+  expect(visibleAttribute(loader)).toBe('true');
   expect(message.textContent).toBe('Loading requested page');
+  expect(main.getAttribute('aria-busy')).toBe('true');
+});
+
+test('the 8s cap cancels a navigation that never reaches page load', () => {
+  const { controller, loader, main, message, timer } = createHarness();
+  const signal = new AbortController();
+
+  controller.beforePreparation(signal.signal);
+  timer.advanceTo(REVEAL_DELAY_MS);
+
+  expect(visibleAttribute(loader)).toBe('true');
+  expect(main.getAttribute('aria-busy')).toBe('true');
+
+  /*
+   * Astro's default route loader has no timeout and no try/catch, so a stalled
+   * connection leaves the transition promise unsettled and `astro:page-load`
+   * is never dispatched. Without a cap the skeleton, its `role="status"` live
+   * region and `aria-busy` on `<main>` stay up with no code path back.
+   */
+  timer.advanceTo(MAX_VISIBLE_MS);
+  /* `pageLoad` deliberately never runs. */
+
+  expect(visibleAttribute(loader)).toBe('false');
+  expect(message.textContent).toBe('');
+  expect(main.hasAttribute('aria-busy')).toBe(false);
+  expect(timer.pending.size).toBe(0);
+  /* Focus is a page-load responsibility; the cap must not steal it. */
+  expect(main.focusCalls).toEqual([]);
 });
 
 test('a fast page load clears state without showing the loader', () => {
@@ -41,9 +86,10 @@ test('a fast page load clears state without showing the loader', () => {
   controller.pageLoad();
   timer.run(timerId);
 
-  expect(loader.dataset.visible).toBe('false');
+  expect(visibleAttribute(loader)).toBe('false');
   expect(message.textContent).toBe('');
   expect(main.hasAttribute('aria-busy')).toBe(false);
+  /* Both the reveal gate and the cap are cleared by the same `clear()`. */
   expect(timer.pending.size).toBe(0);
   expect(window.scrollToCalls).toHaveLength(0);
 });
@@ -54,18 +100,18 @@ test('abort clears pending state and permits a later navigation', () => {
   const second = new AbortController();
 
   controller.beforePreparation(first.signal);
-  timer.runAt(180);
+  timer.advanceTo(REVEAL_DELAY_MS);
   first.abort();
 
-  expect(loader.dataset.visible).toBe('false');
+  expect(visibleAttribute(loader)).toBe('false');
   expect(message.textContent).toBe('');
   expect(main.hasAttribute('aria-busy')).toBe(false);
   expect(timer.pending.size).toBe(0);
 
   controller.beforePreparation(second.signal);
-  timer.runAt(180);
+  timer.advanceBy(REVEAL_DELAY_MS);
 
-  expect(loader.dataset.visible).toBe('true');
+  expect(visibleAttribute(loader)).toBe('true');
   expect(message.textContent).toBe('Loading requested page');
   expect(main.getAttribute('aria-busy')).toBe('true');
 });
@@ -80,17 +126,21 @@ test('a repeated preparation cancels the prior timer and abort', () => {
   controller.beforePreparation(second.signal);
   const [secondTimerId] = timer.pending.keys();
   first.abort();
+  /* The prior reveal callback is already detached from `pending`; running it by
+   * id proves the signal-identity guard makes it inert rather than merely
+   * unreachable. */
   timer.run(firstTimerId);
 
   expect(firstTimerId).not.toBe(secondTimerId);
-  expect(loader.dataset.visible).toBe('false');
+  expect(visibleAttribute(loader)).toBe('false');
   expect(message.textContent).toBe('');
-  expect(main.getAttribute('aria-busy')).toBe('true');
+  expect(main.hasAttribute('aria-busy')).toBe(false);
   expect(timer.pending.has(firstTimerId)).toBe(false);
-  expect(timer.pending.size).toBe(1);
+  expect(timer.pending.size).toBe(2);
 
   timer.run(secondTimerId);
-  expect(loader.dataset.visible).toBe('true');
+  expect(visibleAttribute(loader)).toBe('true');
+  expect(main.getAttribute('aria-busy')).toBe('true');
 });
 
 test('focuses only after a prepared navigation reaches page load', () => {
@@ -105,6 +155,62 @@ test('focuses only after a prepared navigation reaches page load', () => {
 
   expect(main.focusCalls).toEqual([{ preventScroll: true }]);
   expect(window.scrollToCalls).toEqual([]);
+});
+
+test('page load marks the incoming main busy before it clears the prior state', () => {
+  const { controller, main } = createHarness();
+  const signal = new AbortController();
+  const seen = [];
+  const originalSet = main.setAttribute.bind(main);
+  const originalRemove = main.removeAttribute.bind(main);
+  main.setAttribute = (name, value) => {
+    seen.push(`set:${name}`);
+    originalSet(name, value);
+  };
+  main.removeAttribute = (name) => {
+    seen.push(`remove:${name}`);
+    originalRemove(name);
+  };
+
+  controller.beforePreparation(signal.signal);
+  seen.length = 0;
+  controller.pageLoad();
+
+  /*
+   * The INCOMING `main` is marked before `cancel()` runs, so a screen reader
+   * still holding the outgoing document is told the swap is in flight rather
+   * than being told a node is ready before it exists. The trailing removals are
+   * `busy.clear()` sweeping the outgoing mark and the settled state.
+   */
+  expect(seen[0]).toBe('set:aria-busy');
+  expect(seen.at(-1)).toBe('remove:aria-busy');
+  expect(seen.filter((entry) => entry === 'set:aria-busy')).toHaveLength(1);
+  expect(main.hasAttribute('aria-busy')).toBe(false);
+});
+
+test('an unprepared page load marks and immediately settles the incoming main', () => {
+  const { controller, main } = createHarness();
+  const seen = [];
+  const originalSet = main.setAttribute.bind(main);
+  const originalRemove = main.removeAttribute.bind(main);
+  main.setAttribute = (name, value) => {
+    seen.push(`set:${name}`);
+    originalSet(name, value);
+  };
+  main.removeAttribute = (name) => {
+    seen.push(`remove:${name}`);
+    originalRemove(name);
+  };
+
+  controller.pageLoad();
+
+  /* The hard first load has no outgoing document, but the mark is still
+   * applied and settled so the resting state is identical on every path. */
+  expect(seen[0]).toBe('set:aria-busy');
+  expect(seen.filter((entry) => entry === 'set:aria-busy')).toHaveLength(1);
+  expect(seen.at(-1)).toBe('remove:aria-busy');
+  expect(main.hasAttribute('aria-busy')).toBe(false);
+  expect(main.focusCalls).toEqual([]);
 });
 
 test('cleans up a replaced main and focuses it on page load', () => {
@@ -129,15 +235,15 @@ test('reuses a replacement loader and updates its live message', () => {
 
   controller.beforePreparation(signal.signal);
   document.loader = replacement;
-  timer.runAt(180);
+  timer.advanceTo(REVEAL_DELAY_MS);
 
-  expect(loader.dataset.visible).toBe('false');
-  expect(replacement.dataset.visible).toBe('true');
+  expect(visibleAttribute(loader)).toBe('false');
+  expect(visibleAttribute(replacement)).toBe('true');
   expect(replacement.message.textContent).toBe('Loading requested page');
   expect(message.textContent).toBe('');
 
   controller.pageLoad();
-  expect(replacement.dataset.visible).toBe('false');
+  expect(visibleAttribute(replacement)).toBe('false');
   expect(replacement.message.textContent).toBe('');
 });
 
@@ -155,12 +261,12 @@ test('ignores an already-aborted preparation', () => {
 test('initial page load never focuses or scrolls', () => {
   const { controller, loader, main, message, window } = createHarness();
   main.setAttribute('aria-busy', 'true');
-  loader.dataset.visible = 'true';
+  loader.attributes.set('data-visible', 'true');
   message.textContent = 'Loading requested page';
 
   controller.pageLoad();
 
-  expect(loader.dataset.visible).toBe('false');
+  expect(visibleAttribute(loader)).toBe('false');
   expect(message.textContent).toBe('');
   expect(main.hasAttribute('aria-busy')).toBe(false);
   expect(main.focusCalls).toHaveLength(0);
@@ -172,9 +278,9 @@ test('cancel is idempotent and clears all pending navigation state', () => {
   const signal = createTrackedSignal();
 
   controller.beforePreparation(signal);
-  timer.runAt(180);
+  timer.advanceTo(REVEAL_DELAY_MS);
   expect(signal.listenerCount).toBe(1);
-  expect(loader.dataset.visible).toBe('true');
+  expect(visibleAttribute(loader)).toBe('true');
   expect(main.getAttribute('aria-busy')).toBe('true');
 
   controller.cancel();
@@ -182,31 +288,10 @@ test('cancel is idempotent and clears all pending navigation state', () => {
 
   expect(signal.listenerCount).toBe(0);
   expect(timer.pending.size).toBe(0);
-  expect(loader.dataset.visible).toBe('false');
+  expect(visibleAttribute(loader)).toBe('false');
   expect(message.textContent).toBe('');
   expect(main.hasAttribute('aria-busy')).toBe(false);
 
   controller.pageLoad();
   expect(main.focusCalls).toHaveLength(0);
-});
-
-test('BaseLayout wraps the loader only after setting pending state', () => {
-  const source = readFileSync(
-    new URL('../../src/layouts/BaseLayout.astro', import.meta.url),
-    'utf8',
-  );
-  const preparation = 'controller.beforePreparation(event.signal);';
-  const wrapping = 'event.loader = wrapRouteLoader(';
-  const prevented = '() => event.defaultPrevented';
-
-  expect(source).toContain(
-    "import { createRouteLoaderController, wrapRouteLoader } from '../lib/route-loader.mjs';",
-  );
-  expect(source).toContain(preparation);
-  expect(source).toContain(wrapping);
-  expect(source).toContain(prevented);
-  expect(source.indexOf(preparation)).toBeLessThan(source.indexOf(wrapping));
-  expect(source.indexOf(wrapping)).toBeLessThan(source.indexOf(prevented));
-  expect(source).not.toContain('astro:before-swap');
-  expect(source).not.toContain('astro:after-swap');
 });

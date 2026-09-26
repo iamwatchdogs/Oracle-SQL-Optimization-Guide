@@ -23,30 +23,42 @@ interface Props {
   title: string;
   description: string;
   contributions: Contribution[];
-  meta: string[];
-  gradeZones?: Zone[];
-  gradeLabels?: string[];
+  meta: MetaRow[];
+  grades?: GradeItem[];
 }
 
-const gradeMeanings: Record<string, string> = {
-  A1: 'Oracle versioned documentation',
-  A2: 'Oracle brief or whitepaper',
-  B1: 'Peer-reviewed research paper',
-  B2: 'Independent reproduction',
-  C1: 'Deterministic tool with repeatable output',
-  C2: 'Maintained open-source project',
-  D: 'Blog or forum — context only, never proof alone',
+type MetaRow = { kind: 'text'; value: string } | { kind: 'grades' };
+
+const gradeMeanings: Record<string, { meaning: string; zone: Zone }> = {
+  A1: { zone: 'a', meaning: 'Oracle versioned documentation' },
+  A2: { zone: 'a', meaning: 'Oracle brief or whitepaper' },
+  B1: { zone: 'b', meaning: 'Peer-reviewed research paper' },
+  B2: { zone: 'b', meaning: 'Independent reproduction' },
+  C1: { zone: 'c', meaning: 'Deterministic tool with repeatable output' },
+  C2: { zone: 'c', meaning: 'Maintained open-source project' },
+  D: { zone: 'd', meaning: 'Blog or forum — context only, never proof alone' },
 };
 
-const { title, description, contributions, meta, gradeZones, gradeLabels } = Astro.props;
-const gradeItems: GradeItem[] = (gradeLabels ?? []).flatMap((label, index) => {
-  const zone = gradeZones?.[index];
-  const meaning = gradeMeanings[label];
-  return zone && meaning ? [{ label, zone, meaning }] : [];
-});
+const { title, description, contributions, meta, grades } = Astro.props;
+
+/*
+ * A single typed array rather than parallel `gradeLabels` / `gradeZones`
+ * arrays. Two parallel arrays have no arity contract: a missing zone silently
+ * drops its chip, and a missing meaning silently drops a label. One map of
+ * label -> { zone, meaning } cannot be misordered or half-populated.
+ */
+const gradeItems: GradeItem[] =
+  grades ??
+  Object.entries(gradeMeanings).map(([label, entry]) => ({
+    label,
+    zone: entry.zone,
+    meaning: entry.meaning,
+  }));
+
 const showGrades = gradeItems.length > 0;
 const gradeChipClass =
   'inline-flex items-center rounded-ui border border-current bg-zone-chip-bg px-[0.4rem] py-1 font-mono text-chip font-semibold tracking-[0.06em] uppercase leading-none tabular-nums whitespace-nowrap align-middle data-[zone=a]:text-zone-a data-[zone=b]:text-zone-b data-[zone=c]:text-zone-c data-[zone=d]:text-zone-d';
+const sectionWord = contributions.length === 1 ? 'section' : 'sections';
 ---
 
 <section class="border-y border-rule-strong py-title-block" aria-labelledby="book-title">
@@ -75,18 +87,17 @@ const gradeChipClass =
 
       <aside
         class="rise rise-4 pt-2 lg:border-l lg:border-rule lg:pl-8 lg:pt-0 lg:text-right"
-        aria-label="Metadata"
+        aria-label="Publication metadata"
       >
         <dl class="meta space-y-2">
-          {meta.map((line) => (
+          {meta.map((row) => (
             <div class="lg:text-right">
-              <dt class="sr-only">Metadata</dt>
-              <dd>
-                {line === 'grades' && showGrades ? (
-                  <span
-                    class="inline-flex flex-wrap gap-1 justify-end"
-                    aria-label="Evidence grades"
-                  >
+              <dt class="sr-only">
+                {row.kind === 'grades' ? 'Evidence grades in use' : 'Publication detail'}
+              </dt>
+              <dd class="m-0 normal-case">
+                {row.kind === 'grades' && showGrades ? (
+                  <span class="inline-flex flex-wrap gap-1 justify-end">
                     {gradeItems.map((grade) => (
                       <span class={gradeChipClass} data-zone={grade.zone}>
                         {grade.label}
@@ -94,7 +105,7 @@ const gradeChipClass =
                     ))}
                   </span>
                 ) : (
-                  line
+                  row.kind === 'text' && row.value
                 )}
               </dd>
             </div>
@@ -102,8 +113,8 @@ const gradeChipClass =
         </dl>
 
         {showGrades && (
-          <details id="evidence-key" class="group mt-5 border-y border-rule text-left">
-            <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 text-ui font-medium text-ink-muted transition-colors hover:text-ink group-open:text-ink [&::-webkit-details-marker]:hidden marker:content-none">
+          <details id="evidence-key" class="disclosure group mt-5 text-left">
+            <summary class="list-none [&::-webkit-details-marker]:hidden marker:content-none">
               <span class="text-ink">Evidence key</span>
               <span class="ml-auto font-mono text-mono text-ink-faint">
                 Source strength, not a benchmark
@@ -156,11 +167,29 @@ const gradeChipClass =
 </section>
 
 <script>
+  import { reanchorAfterSettle } from '../lib/disclosure-reanchor.mjs';
+
   if (!Object.prototype.hasOwnProperty.call(document, 'evidenceKeyInitialized')) {
     document.addEventListener('astro:page-load', () => {
       const evidenceKey = document.querySelector<HTMLDetailsElement>('#evidence-key');
       if (window.location.hash === '#evidence-key' && evidenceKey) {
         evidenceKey.open = true;
+        /*
+         * Opening grows the panel by ~200px, which pushes the key back off screen
+         * after the router already scrolled to it, so the jump has to be redone.
+         *
+         * This used to redo it on the next animation frame, with a comment
+         * claiming it waited for the disclosure to settle. A frame is ~16ms into a
+         * 280ms `grid-template-rows` transition, so it re-anchored while the panel
+         * was still growing and the reader landed short — the same defect the
+         * mobile TOC jump had, fixed there and left here. The shared helper waits
+         * for the transition, with a next-frame path for reduced motion.
+         */
+        reanchorAfterSettle({
+          container: evidenceKey,
+          resolveTarget: () => evidenceKey,
+          windowRef: window,
+        });
       }
     });
     Object.defineProperty(document, 'evidenceKeyInitialized', { value: true });
@@ -171,18 +200,21 @@ const gradeChipClass =
   <div class="max-w-contributions">
     <div class="border-b border-rule-strong pt-10 pb-4">
       <h2 id="contributions-heading" class="running-head text-ink-muted text-xs">
-        Contents · nine sections
+        Contents · {contributions.length} {sectionWord}
       </h2>
     </div>
 
-    <ol class="list-none p-0 m-0" aria-label="Book sections">
+    {/* No `aria-label` here: the parent `<section aria-labelledby>` already
+        names the region, and a second element labelled "Book sections" in the
+        same page collided with the header nav landmark. */}
+    <ol class="list-none p-0 m-0">
       {contributions.map((c, i) => (
         <li>
           <a
             href={c.href}
-            class="group grid grid-cols-[2.5rem_1fr] items-baseline gap-4 border-b border-rule px-0 py-4 text-ink no-underline transition-colors hover:bg-accent-soft hover:text-ink"
+            class="group grid grid-cols-[2.5rem_minmax(0,1fr)] items-baseline gap-4 border-b border-rule px-0 py-4 text-ink no-underline transition-colors hover:bg-accent-soft hover:text-ink"
           >
-            <span class="font-mono text-mono tabular-nums text-ink-faint">
+            <span class="font-mono text-mono tabular-nums text-ink-faint" aria-hidden="true">
               {String(i + 1).padStart(2, '0')}
             </span>
             <span class="min-w-0">

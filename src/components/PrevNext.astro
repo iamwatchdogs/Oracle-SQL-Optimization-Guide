@@ -15,27 +15,74 @@ const pagerLinkClass =
 
 const pagerTitleClass =
   'font-serif text-pager font-semibold leading-[1.35] tracking-[-0.01em] transition-colors group-hover:text-accent';
+
+/*
+ * A separator between the running head and the chapter title, for the
+ * ACCESSIBLE NAME only.
+ *
+ * The two are flex items, so each is blockified onto its own line and nothing is
+ * visible between them — but accessible-name computation concatenates the text of
+ * an element's descendants and does not insert whitespace at element boundaries,
+ * so the link announced as "PreviousProven Techniques - Choose by Symptom".
+ * One run-on word, in every engine, for every reader who is not looking at the
+ * screen.
+ *
+ * A literal space or a colon between the elements does not fix it: whitespace
+ * between flex items is not rendered, and a flex container discards
+ * whitespace-only anonymous items, so neither reaches the name. `sr-only` is
+ * clipped rather than `display: none`, so it IS rendered and therefore IS part of
+ * the name.
+ *
+ * Kept as visible-derived text rather than an `aria-label` so that the name still
+ * begins with the visible word, which is what voice-control users say.
+ */
+const NameSeparator = 'sr-only';
 ---
 
-<nav aria-label="Book navigation" class="mt-10 grid gap-3 border-t border-rule pt-8 sm:grid-cols-2">
-  {prev ? (
-    <a href={prev.href} rel="prev" class={pagerLinkClass}>
-      <span class="running-head">← Previous</span>
-      <span class={pagerTitleClass}>{prev.title}</span>
+{/* The whole nav is omitted when there is nowhere to go, rather than shipping
+    an empty bordered landmark plus two anonymous spacers. */}
+{prev || next ? (
+  <nav
+    aria-label="Book navigation"
+    class="mt-10 grid gap-3 border-t border-rule pt-8 sm:grid-cols-2"
+  >
+    {prev ? (
+      <a href={prev.href} rel="prev" class={pagerLinkClass}>
+        <span class="running-head">
+          <span aria-hidden="true">←</span> Previous
+        </span>
+        <span class={NameSeparator}>: </span>
+        <span class={pagerTitleClass}>{prev.title}</span>
+      </a>
+    ) : (
+      <span aria-hidden="true" class="hidden sm:block"></span>
+    )}
+    {next ? (
+      <a
+        href={next.href}
+        rel="next"
+        class={`${pagerLinkClass} sm:items-end sm:justify-end sm:text-right`}
+      >
+        {/* The space belongs INSIDE the decorative span. Written as
+            `Next <span>→</span>` the label ends in a space, and stripping the
+            `aria-hidden` subtree leaves "Next " — so the name came out
+            "Next : Indexes and Layout" while the previous link read
+            "Previous: Measure First". Putting the space with the glyph makes the
+            two links name consistently. */}
+        <span class="running-head">
+          Next<span aria-hidden="true"> →</span>
+        </span>
+        <span class={NameSeparator}>: </span>
+        <span class={pagerTitleClass}>{next.title}</span>
+      </a>
+    ) : (
+      <span aria-hidden="true" class="hidden sm:block"></span>
+    )}
+  </nav>
+) : (
+  <p class="meta mt-10 border-t border-rule pt-8">
+    <a href="/" class="no-underline transition-colors hover:text-accent">
+      <span aria-hidden="true">←</span> End of notebook — return to contents
     </a>
-  ) : (
-    <span aria-hidden="true"></span>
-  )}
-  {next ? (
-    <a
-      href={next.href}
-      rel="next"
-      class={`${pagerLinkClass} sm:items-end sm:justify-end sm:text-right`}
-    >
-      <span class="running-head">Next →</span>
-      <span class={pagerTitleClass}>{next.title}</span>
-    </a>
-  ) : (
-    <span aria-hidden="true"></span>
-  )}
-</nav>
+  </p>
+)}

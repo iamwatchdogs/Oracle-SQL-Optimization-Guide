@@ -187,7 +187,7 @@ test('already parsed element details stay canonical through the processor', asyn
   expect(code).toContain('<summary>Parsed</summary>');
 });
 
-test('uses independent diagonal transforms for disclosure x states', async () => {
+test('animates the disclosure chevron with one authored SVG, not a CSS glyph', async () => {
   const [css, ...astroSources] = await Promise.all([
     readSource('../../src/styles/global.css'),
     readSource('../../src/layouts/BaseLayout.astro'),
@@ -195,12 +195,26 @@ test('uses independent diagonal transforms for disclosure x states', async () =>
     readSource('../../src/components/ReadingToc.astro'),
   ]);
 
-  expect(css).toContain('transform: translateY(-50%) rotate(45deg);');
-  expect(css).toContain('transform: translateY(-50%) rotate(-45deg);');
-  expect(css).not.toContain('transform: translateY(-50%) rotate(0deg);');
+  /*
+   * The component used to draw its marker as two CSS pseudo-element bars
+   * rotating from `+` to `x` (`summary::before` / `summary::after`). That glyph
+   * was dead — it only existed under `.prose details`, matched by nothing on
+   * any built page — and it duplicated the authored SVG chevron all three
+   * components already ship. DESIGN.md also forbids substituting a glyph where
+   * an authored SVG belongs. The sole rotation left in CSS is the closing-state
+   * reset that stops the chevron mid-turn.
+   */
+  expect(css).not.toContain('summary::before');
+  expect(css).not.toContain('summary::after');
+  expect(css).not.toContain('transform: translateY(-50%)');
+  expect(css).toMatch(
+    /details\[data-disclosure-closing\] \.disclosure-icon \{[^}]*rotate: 0deg;/su,
+  );
 
   for (const source of astroSources) {
     expect(source).toContain('group-open:rotate-45');
+    expect(source).toContain('duration-[280ms]');
+    expect(source).toContain('motion-reduce:transition-none');
     expect(source).not.toContain('group-open:rotate-90');
   }
 });

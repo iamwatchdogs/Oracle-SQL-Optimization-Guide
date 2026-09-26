@@ -1,18 +1,30 @@
-@import 'tailwindcss';
+/*
+ * `source(none)` is load-bearing, not stylistic.
+ *
+ * Without it Tailwind v4 crawls the project root for class names. `@source not`
+ * only subtracts from the EXPLICIT set — it does not switch automatic detection
+ * off — so with the plain `@import` form the scanned set was the union of the
+ * declared globs and everything auto-detected: `test/**` (1800+ lines), the
+ * config files, `PRODUCT.md`, `AGENTS.md`, `bun.lock`, `public/**`.
+ *
+ * The consequence was that Tailwind generated utilities from words that only
+ * ever appear in a TEST or in PROSE: the elevation-scale class from a spec
+ * whose title reads "the flat elevation contract and shadow vocabulary stay
+ * intact", a stacking-context class from a table cell in the freeze-with-STS
+ * recipe, and the two rotated-row classes from specs whose entire job was to
+ * assert those utilities were ABSENT.
+ *
+ * Note that this file is itself a source, so naming a banned utility anywhere
+ * in a comment here is enough to emit it. Keep the names out of this file;
+ * `test/integration/tailwind-source-closure.test.mjs` asserts their absence
+ * from the compiled bundle.
+ */
+@import 'tailwindcss' source(none);
 @plugin '@tailwindcss/typography';
 @source '../../src/**/*.astro';
 @source '../../src/**/*.{ts,js,mjs}';
 @source '../../contents/**/*.md';
 @source '../../contents/**/*.mdx';
-@source not '../../DESIGN.md';
-@source not '../../README.md';
-@source not '../../astro.config.mjs';
-@source not '../../lefthook.yml';
-@source not '../../.superpowers';
-@source not '../../.freebuff';
-@source not '../../.impeccable';
-@source not '../../src/**/*.test.mjs';
-@source not '../../src/**/*.test.ts';
 
 :root {
   color-scheme: dark;
@@ -36,6 +48,7 @@
   --zone-c: #aaa59c;
   --zone-d: #9e998f;
   --zone-chip-bg: rgb(236 232 224 / 0.06);
+  --table-zebra: rgb(236 232 224 / 0.022);
 
   --focus: #8aa4ff;
   --selection-bg: rgb(138 164 255 / 0.28);
@@ -47,6 +60,7 @@
   --type-title: clamp(1.75rem, 3vw, 2.5rem);
   --type-h2: clamp(1.35rem, 2vw, 1.75rem);
   --type-h3: 1.25rem;
+  --type-h4: 1.0625rem;
   --type-body: 1.125rem;
   --type-abstract: clamp(1.05rem, 1.5vw, 1.25rem);
   --type-ui: 0.875rem;
@@ -86,6 +100,7 @@
   --zone-c: #6b665e;
   --zone-d: #6d685f;
   --zone-chip-bg: rgb(26 24 21 / 0.05);
+  --table-zebra: rgb(26 24 21 / 0.03);
 
   --focus: #2d4a9a;
   --selection-bg: rgb(45 74 154 / 0.18);
@@ -126,6 +141,7 @@
   --text-title: var(--type-title);
   --text-h2: var(--type-h2);
   --text-h3: var(--type-h3);
+  --text-h4: var(--type-h4);
   --text-body: var(--type-body);
   --text-abstract: var(--type-abstract);
   --text-ui: var(--type-ui);
@@ -146,12 +162,15 @@
 
   --spacing-title-block: clamp(2.5rem, 6vw, 4.5rem);
   --spacing-toc-indent: 1.5rem;
+  --spacing-toc-indent-4: 2.75rem;
   --spacing-prose-sibling: 1.25em;
   --spacing-prose-h2-top: 2.5em;
   --spacing-prose-h2-bottom: 0.75em;
   --spacing-prose-h2-padding-bottom: 0.5em;
   --spacing-prose-h3-top: 2em;
   --spacing-prose-h3-bottom: 0.5em;
+  --spacing-prose-h4-top: 1.5em;
+  --spacing-prose-h4-bottom: 0.35em;
 }
 
 @utility primary-control {
@@ -167,12 +186,12 @@
   font-size: var(--type-ui);
   font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.01em;
+  letter-spacing: normal;
   text-decoration: none;
   cursor: pointer;
   transition-property: background-color, translate;
-  transition-duration: 150ms;
-  transition-timing-function: ease;
+  transition-duration: 280ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 
   &:hover {
     background-color: var(--accent-hover);
@@ -223,6 +242,33 @@
   overflow-y: hidden;
 }
 
+/*
+ * The route loader's skeleton bars run at REST, forever.
+ *
+ * The loader is `transition:persist`, so it survives every client navigation and
+ * is in the DOM from the first paint onward. It is also `opacity: 0` and
+ * `pointer-events: none` while idle, which hides the fact that three infinite 2s
+ * `pulse` animations are still compositing on every page for a loader that will
+ * not be shown again. Measured with `document.getAnimations()` on the built
+ * site: three running `pulse` animations with `iterations: Infinity`, still
+ * running 6s after load.
+ *
+ * Two costs. The compositor stays busy for an invisible element, and the page is
+ * never quiescent — anything that waits for motion to stop waits forever, which is
+ * how this was found: a Playwright actionability check timing out on a summary
+ * that had not moved in six seconds.
+ *
+ * `animation-play-state: paused` is free while hidden and resumes with the reveal,
+ * because the reveal is driven by the same attribute and the animation is still in
+ * its first iteration when it un-pauses.
+ *
+ * Unlayered for the same reason as the viewport caps below: this has to beat the
+ * `animate-pulse` utility's own `animation` shorthand, which lives in `utilities`.
+ */
+[data-route-loader]:not([data-visible='true']) [aria-hidden='true'] * {
+  animation-play-state: paused;
+}
+
 @utility nav-overlay-viewport {
   max-height: calc(100vh - 6rem);
 }
@@ -235,19 +281,21 @@
   max-height: calc(100vh - 8rem);
 }
 
-@layer utilities {
-  @supports (height: 100dvh) {
-    .nav-overlay-viewport {
-      max-height: calc(100dvh - 6rem);
-    }
+/* Unlayered with the rest of the viewport caps: a second `@layer utilities`
+   block placed after `components` would land between the Typography plugin's
+   `utilities` and this file's `base`, which is neither first nor last and makes
+   the emitted layer order depend on authoring accidents. */
+@supports (height: 100dvh) {
+  .nav-overlay-viewport {
+    max-height: calc(100dvh - 6rem);
+  }
 
-    .toc-viewport {
-      max-height: calc(100dvh - 5rem);
-    }
+  .toc-viewport {
+    max-height: calc(100dvh - 5rem);
+  }
 
-    .toc-mobile-viewport {
-      max-height: calc(100dvh - 8rem);
-    }
+  .toc-mobile-viewport {
+    max-height: calc(100dvh - 8rem);
   }
 }
 
@@ -269,6 +317,10 @@
 
   body {
     min-height: 100dvh;
+    /* Flex column so `mt-auto` on the footer actually pushes it to the
+       bottom edge on short pages instead of leaving a dead zone. */
+    display: flex;
+    flex-direction: column;
     margin: 0;
     background: var(--paper);
     color: var(--ink);
@@ -329,6 +381,13 @@
     scroll-margin-top: 5rem;
   }
 
+  /* Any hash target, not just headings. `/#evidence-key` is a `<details>` that
+     would otherwise land flush under the 48px sticky header. */
+  :target,
+  [id] {
+    scroll-margin-top: 5.5rem;
+  }
+
   p {
     text-wrap: pretty;
   }
@@ -369,262 +428,393 @@
   }
 }
 
-@layer components {
-  .prose details::details-content {
-    translate: 0 -0.35rem;
-    transition:
-      translate 200ms cubic-bezier(0.22, 1, 0.36, 1),
-      content-visibility 200ms cubic-bezier(0.22, 1, 0.36, 1) allow-discrete;
-  }
+/*
+ * Prose typography — unlayered on purpose.
+ *
+ * `@tailwindcss/typography` emits its whole `.prose` block into the
+ * `utilities` cascade layer, which outranks anything declared in
+ * `@layer components` *regardless of selector specificity*. Everything below
+ * therefore stays unlayered so the authored rules actually reach the browser:
+ * a `.prose td { padding }` in `components` loses to the plugin's
+ * `:where(tbody td:first-child) { padding-inline-start: 0 }` in `utilities`.
+ *
+ * Consequence to respect when adding rules here: an unlayered `.prose X` beats
+ * a Tailwind `prose-*` utility or an arbitrary-variant utility that targets the
+ * same element. Reach for `prose-*` utilities on the container in
+ * `[...slug].astro` for anything that must win, and keep this block for the
+ * base reading surface.
+ */
+/*
+ * Disclosure (accordion).
+ *
+ * Scoped to the `details` element, NOT to `.prose`. Every disclosure this
+ * project ships lives outside the article body — the site nav, the evidence
+ * key, and the mobile table of contents — so a `.prose details` prefix matched
+ * nothing in production and the whole component was dead weight. Base
+ * presentation is now structural; the framed variant (hairline rules plus
+ * running inner padding) is opt-in via `.disclosure` and also applied to
+ * `.prose details` so authored content gets the same treatment.
+ */
+details::details-content {
+  translate: 0 -0.35rem;
+  transition:
+    translate 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    content-visibility 280ms cubic-bezier(0.22, 1, 0.36, 1) allow-discrete;
+}
 
-  .prose details[open]::details-content {
-    translate: 0 0;
-  }
+details[open]::details-content {
+  translate: 0 0;
+}
 
-  .prose details {
-    border-top: 1px solid var(--rule);
-    border-bottom: 1px solid var(--rule);
-    border-inline: 0;
-    border-radius: 0;
-    margin-block: 1.5rem;
-    padding: 0;
-    background: transparent;
-    font-family: var(--font-sans);
-    font-size: var(--type-ui);
-    overflow-wrap: anywhere;
-  }
+details > summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  list-style: none;
+  text-wrap: pretty;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 
-  .prose details summary {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    min-height: 44px;
-    padding: 0.65rem 0 0.65rem 1.15rem;
-    cursor: pointer;
-    color: var(--ink-muted);
-    font-family: var(--font-sans);
-    font-size: var(--type-ui);
-    font-weight: 500;
-    line-height: 1.4;
-    list-style: none;
-    text-wrap: pretty;
-  }
+details > summary::-webkit-details-marker {
+  display: none;
+}
 
-  .prose details summary::-webkit-details-marker {
-    display: none;
-  }
+details > summary::marker {
+  content: '';
+}
 
-  .prose details summary::marker {
-    content: '';
-  }
+details > summary:hover {
+  color: var(--accent);
+}
 
-  .prose details summary::before,
-  .prose details summary::after {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    width: 0.75rem;
-    height: 1px;
-    background: currentColor;
-    content: '';
-    transform: translateY(-50%);
-    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
+details[open]:not([data-disclosure-closing]) > summary {
+  color: var(--ink);
+}
 
-  .prose details summary::after {
-    transform: translateY(-50%) rotate(90deg);
-  }
+details[open]:not([data-disclosure-closing]) > summary:hover {
+  color: var(--accent);
+}
 
-  .prose details[open]:not([data-disclosure-closing]) summary::before {
-    transform: translateY(-50%) rotate(45deg);
-  }
+/* The framed disclosure. Adjacent disclosures collapse to a single hairline
+   instead of stacking two 1px rules into a 2px band. Vertical rhythm is left
+   to the caller: `.prose` supplies it, and components use their own layout
+   spacing, so a `.disclosure` inside a `gap-*` grid does not double up. */
+details.disclosure,
+.prose details {
+  border: 0;
+  border-block: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  overflow-wrap: anywhere;
+}
 
-  .prose details[open]:not([data-disclosure-closing]) summary::after {
-    transform: translateY(-50%) rotate(-45deg);
-  }
+.prose details {
+  margin-block: 1.5rem;
+}
 
-  .prose details summary:hover {
-    color: var(--accent);
-  }
+details.disclosure + details.disclosure,
+.prose details + details {
+  margin-block-start: 0;
+  border-block-start: 0;
+}
 
-  .prose details[open] summary {
-    color: var(--ink);
-  }
+details.disclosure > summary,
+.prose details > summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 44px;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  font-weight: 500;
+  line-height: 1.4;
+}
 
-  .prose details .disclosure-content-inner {
-    min-height: 0;
-    transition: padding-block 160ms cubic-bezier(0.22, 1, 0.36, 1);
-    color: var(--ink-muted);
-    font-family: var(--font-serif);
-    font-size: var(--type-body);
-    line-height: var(--body-leading);
-  }
+.disclosure-content-inner {
+  min-height: 0;
+  /*
+   * `transition: padding-block` here is deliberate, and the Impeccable detector
+   * flags it as a layout-thrash pattern. Keeping it anyway, with the reasoning,
+   * so the next person does not "fix" a specified behaviour on a heuristic.
+   *
+   * The finding is true on the letter and false in consequence. Animating a layout
+   * property is only expensive when it forces layout passes the frame was not
+   * already doing. This subtree is ALREADY laid out on every frame of the reveal,
+   * because `.disclosure-flow` transitions `grid-template-rows` between `0fr` and
+   * `1fr` — an auto-height disclosure cannot be animated any other way. One
+   * layout for the frame covers both properties; the padding does not add a
+   * second one.
+   *
+   * Removing it was tried and reverted. The measured collapse curve is the same
+   * shape either way (16 intermediate heights, monotonic to 0 — see
+   * `test/probe/probe-collapse-samples.mjs`), so the transition buys no visible
+   * smoothness, BUT the release of the inner padding is specified behaviour:
+   * `test/integration/disclosure-native-fallback.test.mjs` asserts this exact
+   * declaration exists, and DESIGN.md specifies the inner releasing its padding as
+   * part of the close. Silently dropping a specified animation because a linter
+   * dislikes the property is not a trade this project should make by accident.
+   */
+  transition: padding-block 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  color: var(--ink-muted);
+  font-family: var(--font-serif);
+  font-size: var(--type-body);
+  line-height: var(--body-leading);
+}
 
-  .prose details[open] .disclosure-content-inner {
-    padding-block: 0.75rem 0.85rem;
-  }
+details.disclosure[open] .disclosure-content-inner,
+.prose details[open] .disclosure-content-inner {
+  padding-block: 0.2rem 0.85rem;
+}
 
-  .prose details[data-disclosure-closing] .disclosure-content-inner {
-    padding-block: 0;
-  }
+details.disclosure[data-disclosure-closing] .disclosure-content-inner,
+.prose details[data-disclosure-closing] .disclosure-content-inner {
+  padding-block: 0;
+}
 
-  #evidence-key .disclosure-content-inner {
-    transition: padding-block 160ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
+.disclosure-content-inner > :first-child {
+  margin-block-start: 0;
+}
 
-  #evidence-key[open] .disclosure-content-inner {
-    padding-block: 0.75rem;
-  }
+.disclosure-content-inner > :last-child {
+  margin-block-end: 0;
+}
 
-  #evidence-key[data-disclosure-closing] .disclosure-content-inner {
-    padding-block: 0;
-  }
+/*
+ * Break opportunities for long unbreakable runs.
+ *
+ * A GFM list item chains bare identifiers with `/` and no spaces:
+ * `sql_id`/`child_number`/`parsing_schema_name`/`con_id`. Neither
+ * `overflow-wrap: anywhere` nor `break-word` on the `<code>` chips helps,
+ * because each individual chip is narrower than the column and so "fits on a
+ * line by itself" — the unbreakable unit is the whole 373px `/`-joined run,
+ * and only the CONTAINER can see that. Inheriting `break-word` here lets the
+ * browser break that run instead of pushing 51px past the column.
+ */
+.prose {
+  overflow-wrap: break-word;
+}
 
-  .prose details .disclosure-content-inner > :first-child {
-    margin-block-start: 0;
-  }
+.prose ul:has(> .task-list-item) {
+  list-style-type: none;
+  padding-inline-start: 0;
+}
 
-  .prose details .disclosure-content-inner > :last-child {
-    margin-block-end: 0;
-  }
+/*
+ * A GFM task-list item is a flat run of inline content — text, `<code>`,
+ * `<strong>`, more text — after a single checkbox. Making the `<li>` a flex or
+ * grid container promoted every one of those inline runs to its own item and
+ * laid them out as a single side-by-side ROW. On the handoff-checklist items
+ * (eight `<code>` spans in one sentence) that row reached 868px inside a 358px
+ * column and dragged the whole document to 884px on a 390px phone.
+ *
+ * The checkbox is taken out of flow instead, and the sentence stays ordinary
+ * inline content that wraps.
+ */
+.prose .task-list-item {
+  position: relative;
+  padding-inline-start: 1.55em;
+}
 
-  .prose details p {
-    margin: 0;
-    color: var(--ink-muted);
-    font-family: var(--font-serif);
-    font-size: 1rem;
-    line-height: 1.6;
-  }
+.prose .task-list-item input[type='checkbox'] {
+  position: absolute;
+  left: 0;
+  top: 0.44em;
+  margin: 0;
+  accent-color: var(--accent);
+}
 
-  .prose ul:has(> .task-list-item) {
-    list-style-type: none;
-    padding-inline-start: 0;
-  }
+.prose a.citation {
+  display: inline-block;
+  margin-inline: 0.08em;
+  font-family: var(--font-mono);
+  font-size: var(--type-citation);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
 
-  .prose .task-list-item {
-    display: flex;
-    gap: 0.55em;
-    align-items: baseline;
-  }
+.prose a.citation::before {
+  content: '[';
+}
 
-  .prose .task-list-item input[type='checkbox'] {
-    flex: 0 0 auto;
-    margin-top: 0.48em;
-    accent-color: var(--accent);
-  }
+.prose a.citation::after {
+  content: ']';
+}
 
-  .prose a.citation {
-    display: inline-block;
-    margin-inline: 0.08em;
-    font-family: var(--font-mono);
-    font-size: var(--type-citation);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
-    color: var(--ink-muted);
-    white-space: nowrap;
-    overflow-wrap: anywhere;
-  }
+.prose a.citation:hover {
+  color: var(--accent);
+}
 
-  .prose a.citation::before {
-    content: '[';
-  }
+.prose .measured {
+  font-family: var(--font-mono);
+  font-size: var(--type-annotation);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 
-  .prose a.citation::after {
-    content: ']';
-  }
+.prose > p:has(> strong:only-child) {
+  padding: 1rem 1.25rem;
+  background: var(--accent-soft);
+  border-block: 1px solid var(--rule);
+  font-style: italic;
+  margin-block: 2rem;
+}
 
-  .prose a.citation:hover {
-    color: var(--accent);
-  }
+/*
+ * Tables.
+ *
+ * The scroll container is the `<table>` box itself (`display: block` +
+ * `overflow-x: auto`) because markdown tables arrive with no wrapper element.
+ * `overscroll-behavior-x: contain` stops a horizontal swipe from chaining to
+ * the document, which is what previously let a wide table widen the whole page
+ * on a phone.
+ *
+ * Cell padding is uniform. The Typography plugin zeroes the inline padding of
+ * the first and last cell in a row; these rules are unlayered so they win, and
+ * nothing is left glued to the column edge.
+ */
+.prose table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  margin-block: 1.5em;
+}
 
-  .prose .measured {
-    font-family: var(--font-mono);
-    font-size: var(--type-annotation);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
-    color: var(--ink);
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
+.prose caption {
+  caption-side: top;
+  padding-block-end: 0.6rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-chip);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: start;
+  color: var(--ink-faint);
+}
 
-  .prose > p:has(> strong:only-child) {
-    padding: 1rem 1.25rem;
-    background: var(--accent-soft);
-    border-block: 1px solid var(--rule);
-    font-style: italic;
-    margin-block: 2rem;
-  }
+.prose thead th {
+  font-family: var(--font-sans);
+  font-size: var(--type-chip);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: start;
+  vertical-align: bottom;
+  hyphens: none;
+  text-wrap: balance;
+  padding: 0 0.9rem 0.6rem;
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--ink);
+}
 
-  .prose table {
-    font-family: var(--font-sans);
-    font-size: var(--type-ui);
-    width: 100%;
-    border-collapse: collapse;
-    font-variant-numeric: tabular-nums;
-    display: block;
-    overflow-x: auto;
-  }
+/*
+ * `vertical-align: top` on body cells, `bottom` on header cells.
+ *
+ * The Typography plugin sets `:where(tbody td) { vertical-align: baseline }`,
+ * which won the utilities layer until the authored prose rules were unlayered.
+ * Baseline aligns the FIRST BASELINE of each cell, so a row mixing a one-word
+ * `<code>` chip with a three-line SQL snippet comes out visibly ragged. `top`
+ * aligns every cell's first line, which is what makes a wide table scannable.
+ * The header sits `bottom` so it rests on the rule it underlines.
+ */
+.prose tbody td,
+.prose tfoot td {
+  vertical-align: top;
+  hyphens: none;
+  text-wrap: pretty;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-muted);
+}
 
-  .prose th {
-    font-weight: 600;
-    text-align: left;
-    border-bottom: 2px solid var(--rule-strong);
-    padding: 0.5em 0.75em;
-    color: var(--ink);
-    white-space: nowrap;
-  }
+.prose tbody th {
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  font-weight: 600;
+  text-align: start;
+  hyphens: none;
+  text-wrap: pretty;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+}
 
-  .prose td {
-    border-bottom: 1px solid var(--rule);
-    padding: 0.5em 0.75em;
-    vertical-align: top;
-  }
+/* Tonal zebra — depth is tonal, never a shadow. Odd rows lift 2% so a wide
+   table stays scannable across a 300px column without a card or a rule. */
+.prose tbody tr:nth-child(odd) {
+  background: var(--table-zebra);
+}
 
-  .prose tr:last-child td {
-    border-bottom: none;
-  }
+.prose tbody tr:last-child td,
+.prose tbody tr:last-child th,
+.prose tfoot tr:last-child td {
+  border-bottom: 0;
+}
 
-  .prose :not(pre) > code {
-    font-family: var(--font-mono);
-    font-size: var(--type-annotation);
-    font-variant-numeric: tabular-nums;
-    font-weight: 400;
-    background: var(--paper-raised);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-ui);
-    padding: 0.1em 0.35em;
-    color: var(--ink);
-    overflow-wrap: anywhere;
-    word-break: normal;
-  }
+.prose :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: var(--type-annotation);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-ui);
+  padding: 0.1em 0.35em;
+  color: var(--ink);
+  hyphens: none;
+  /*
+   * `break-word`, not `anywhere`. `anywhere` only shrinks the element's
+   * min-content size (which matters for flex/grid items) and refuses to break a
+   * token that would fit on a line by itself — so a 318px path sitting after
+   * other inline content stayed whole and pushed the line 25px past the
+   * column. `break-word` breaks precisely to prevent that line overflow.
+   */
+  overflow-wrap: break-word;
+  word-break: normal;
+}
 
-  .prose pre {
-    margin-block: 1.5em;
-    border-radius: var(--radius-ui);
-  }
+.prose pre {
+  margin-block: 1.5em;
+  border-radius: var(--radius-ui);
+}
 
-  .prose figcaption,
-  .prose .frame > figcaption {
-    margin-block-start: 0.5rem;
-    font-family: var(--font-sans);
-    font-size: var(--type-ui);
-    line-height: 1.45;
-    color: var(--ink-muted);
-  }
+.prose figcaption,
+.prose .frame > figcaption {
+  margin-block-start: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
 
-  .prose .expressive-code {
-    margin-block: 1.5em;
-  }
+.prose .expressive-code {
+  margin-block: 1.5em;
+}
 
-  .prose .MathJax,
-  .prose mjx-container {
-    font-size: 1.05em;
-  }
+.prose .MathJax,
+.prose mjx-container {
+  font-size: 1.05em;
+}
 
-  .prose .mermaid {
-    margin-block: 1.5em;
-  }
+.prose .mermaid {
+  margin-block: 1.5em;
 }
 
 [data-theme='light'] .prose .mermaid,
@@ -699,8 +889,7 @@ details[data-disclosure-closing] .disclosure-icon {
   *,
   *::before,
   *::after,
-  details::details-content,
-  .prose details::details-content {
+  details::details-content {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;

@@ -3,16 +3,22 @@ import { fade } from 'astro:transitions';
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Not found" description="This page is not in the notebook.">
+{/* `noindex` so "This page is not in the notebook." never enters a search
+    index. `text-title` rather than `text-display` — DESIGN.md scopes the
+    display token to the home title block, and this is an interior page. */}
+<BaseLayout title="Not found" description="This page is not in the notebook." noindex>
   <main
     id="main"
     tabindex="-1"
     transition:animate={fade({ duration: '0.18s' })}
-    class="mx-auto w-shell py-24 focus:outline-none"
+    class="mx-auto w-shell py-title-block focus:outline-none"
   >
     <div class="mx-auto max-w-measure">
       <div class="border-y border-rule-strong py-title-block">
-        <h1 class="m-0 mb-4 font-serif text-display font-semibold leading-tight tracking-[-0.03em]">
+        <h1
+          transition:name="page-title"
+          class="m-0 mb-4 font-serif text-title font-semibold leading-tight tracking-[-0.025em]"
+        >
           Page not found
         </h1>
         <p class="mb-8 max-w-[42ch] font-sans text-ink-muted leading-relaxed">
@@ -33,4 +39,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
     </div>
   </main>
+
+  <footer class="mt-auto border-t border-rule">
+    <div class="mx-auto flex w-shell flex-wrap items-center justify-between gap-4 py-8">
+      <p class="meta m-0">Oracle SQL Optimization · Evidence-graded notebook</p>
+      <p class="meta m-0">Compiled 2026-09-22 · No live DB</p>
+    </div>
+  </footer>
 </BaseLayout>

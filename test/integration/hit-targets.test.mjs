@@ -43,10 +43,12 @@ test('the theme toggle keeps a 44x44 hit target and its running-head type', asyn
   expect(toggle).toContain('font-sans text-ui font-medium leading-none text-ink');
 });
 
-test('breadcrumb home, the full key, book home, and the no-JS source appendix each carry a 24x24 hit target', async () => {
+test('breadcrumb home, the full key, and book home each carry a 24x24 hit target', async () => {
   const page = await readSource('../../src/pages/[...slug].astro');
 
-  for (const text of ['Home', 'Full key', '← Book home', 'Source appendix']) {
+  /* "Book home" is preceded by a decorative `←` inside its own `aria-hidden`
+   * span, so the anchor is matched on its text node rather than the arrow. */
+  for (const text of ['Home', 'Full key', 'Book home']) {
     const anchor = elementWith(page, 'a', text);
 
     expect(anchor).toContain('inline-flex');
@@ -56,12 +58,20 @@ test('breadcrumb home, the full key, book home, and the no-JS source appendix ea
   }
 });
 
-test('the no-JS source appendix link mirrors the full key hit-target shape', async () => {
+/*
+ * The `<noscript>` "Source appendix" block was deleted. Astro strips every
+ * `<noscript>` from the incoming document during a client-side navigation, so
+ * the link only ever existed on a hard first load and vanished on the first
+ * in-site click — the one case it was supposed to help. These assertions keep
+ * it removed rather than merely unused.
+ */
+test('the no-JS source appendix block stays removed', async () => {
   const page = await readSource('../../src/pages/[...slug].astro');
-  const noscript = page.match(/<noscript>[\s\S]*?<\/noscript>/u)?.[0] ?? '';
 
-  expect(noscript).toContain('href="/07-appendix-sources/"');
-  expect(noscript).toContain('inline-flex min-h-6 min-w-6 items-center');
+  expect(page).not.toContain('<noscript>');
+  expect(page).not.toContain('</noscript>');
+  expect(page).not.toContain('Source appendix');
+  expect(page).not.toContain('href="/07-appendix-sources/"');
 });
 
 test('breadcrumb intermediate anchors carry the same 24x24 hit target as Home', async () => {
@@ -79,24 +89,54 @@ test('match counts stay ordinary assertion failures when nothing matches', () =>
   expect(matchesOf('class="min-h-6"', /min-h-6/gu)).toEqual(['min-h-6']);
 });
 
-test('only the five standalone links take the hit-target utilities', async () => {
+test('only the four standalone links take the hit-target utilities', async () => {
   const page = await readSource('../../src/pages/[...slug].astro');
   const proseClass = page.slice(page.indexOf('const proseClass = ['), page.indexOf(".join(' ');"));
+  const anchors = [...page.matchAll(/<a\b[\s\S]*?<\/a>/gu)].map(([anchor]) => anchor);
+  const hitTarget = /class="[^"]*\bmin-h-6\b[^"]*\bmin-w-6\b[^"]*"/u;
 
-  expect(matchesOf(page, /min-h-6/gu)).toHaveLength(5);
-  expect(matchesOf(page, /min-w-6/gu)).toHaveLength(5);
+  /* Was five; the noscript source-appendix link is gone. */
+  expect(matchesOf(page, /min-h-6/gu)).toHaveLength(4);
+  expect(matchesOf(page, /min-w-6/gu)).toHaveLength(4);
+  expect(anchors.filter((anchor) => hitTarget.test(anchor))).toHaveLength(4);
   expect(proseClass).not.toContain('min-h-6');
   expect(proseClass).not.toContain('min-w-6');
   expect(proseClass).toContain('prose-a:text-accent');
   expect(proseClass).toContain('prose-a:wrap-anywhere');
 });
 
+test('the four hit-target anchors are the ones the reader navigates by', async () => {
+  const page = await readSource('../../src/pages/[...slug].astro');
+  const anchors = [...page.matchAll(/<a\b[\s\S]*?<\/a>/gu)].map(([anchor]) => anchor);
+  const labelled = anchors
+    .filter((anchor) => /class="[^"]*\bmin-h-6\b/u.test(anchor))
+    .map((anchor) =>
+      anchor
+        .replaceAll(/<[^>]*>/gu, ' ')
+        .replaceAll(/\s+/gu, ' ')
+        .trim(),
+    );
+
+  expect(labelled).toEqual(['Home', '{item.title}', 'Full key', '← Book home']);
+});
+
 test('the TOC number span keeps its layout width without a hit-target utility', async () => {
   const toc = await readSource('../../src/components/ReadingToc.astro');
-  const numberClass = toc.match(/const tocNumClass\s*=\s*'([^']+)'/u)?.[1] ?? '';
+  const numberClass =
+    toc.match(/const tocNumClass\s*=\s*(?:\/\/[^\n]*\n\s*)*'([^']+)'/u)?.[1] ?? '';
+  const ordinals = matchesOf(toc, /<span class=\{tocNumClass\}[^>]*>/gu);
 
   expect(numberClass).toContain('w-6');
+  /* `shrink-0` keeps the ordinal from collapsing and nudging the heading text
+   * as the label truncates inside the 280px rail. */
+  expect(numberClass).toContain('shrink-0');
   expect(numberClass).not.toContain('min-w-6');
+  expect(numberClass).not.toContain('min-h-6');
+  /* Decorative index, not part of the destination's name. */
+  expect(ordinals).toHaveLength(2);
+  for (const ordinal of ordinals) {
+    expect(ordinal).toContain('aria-hidden="true"');
+  }
 });
 
 test('the compiled stylesheet resolves both hit-target scales to 44px and 24px', async () => {

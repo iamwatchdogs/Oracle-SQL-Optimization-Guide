@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { SITE_NAV_SUMMARY } from './support/disclosure.mjs';
+import { expect, test } from '@playwright/test';
+import { SITE_NAV_SUMMARY, waitForDisclosureClosed } from './support/disclosure.mjs';
 
 test.describe('mobile navigation disclosure', () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -8,11 +8,15 @@ test.describe('mobile navigation disclosure', () => {
     await page.goto('/02-papers-behind-recipes/02-oracles-own-papers/');
     await page.waitForLoadState('networkidle');
 
+    const details = page.locator('header details').first();
     const summary = page.locator(SITE_NAV_SUMMARY).first();
     const panel = summary.locator('xpath=following-sibling::*[1]');
 
+    await expect(details).not.toHaveAttribute('open', /.*/u);
+
     await summary.click({ force: true });
-    await page.waitForTimeout(400);
+    await expect(details).toHaveAttribute('open', '');
+    await expect(panel).toBeVisible();
 
     // The panel must be anchored to the viewport (not offset by a transform),
     // sitting inside the viewport horizontally.
@@ -28,8 +32,15 @@ test.describe('mobile navigation disclosure', () => {
     const transform = await panel.evaluate((el) => getComputedStyle(el).transform);
     expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(transform);
 
+    // The close used to be asserted by nothing at all — a second click and a
+    // `waitForTimeout(600)` stood in for it, so the test passed whether or not
+    // the panel ever collapsed. The close is now a real assertion: the attribute
+    // is gone, the `data-disclosure-closing` marker is gone, the flow has
+    // collapsed to zero height, and the panel takes up no space.
     await summary.click({ force: true });
-    await page.waitForTimeout(600);
+    await expect(details).not.toHaveAttribute('open', /.*/u);
+    await waitForDisclosureClosed(details);
+    await expect(panel).toBeHidden();
   });
 });
 
