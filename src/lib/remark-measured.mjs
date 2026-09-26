@@ -4,6 +4,33 @@
  */
 const MEASURED =
   /((?:E|A)-Rows=[\d.]+[KM]?|\b\d+(?:\.\d+)?\s*(?:ms|seconds?|x)\b|\b\d{2,}(?:,\d{3})+\b)/giu;
+const CITATION_LABEL = /^(?:S\d{1,3}|T-\d{1,3}|P\d{1,3}|W\d{1,3})$/u;
+
+function citationLabel(node) {
+  return (node.children ?? [])
+    .map((child) => ('value' in child && typeof child.value === 'string' ? child.value : ''))
+    .join('')
+    .trim();
+}
+
+export function remarkCitations() {
+  return (tree) => {
+    const visit = (node) => {
+      if (node.type === 'link' && CITATION_LABEL.test(citationLabel(node))) {
+        node.data = {
+          ...node.data,
+          hProperties: {
+            ...node.data?.hProperties,
+            className: 'citation',
+          },
+        };
+      }
+      node.children?.forEach(visit);
+    };
+
+    visit(tree);
+  };
+}
 
 export function remarkMeasuredValues() {
   return (tree) => {

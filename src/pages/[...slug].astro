@@ -1,5 +1,6 @@
 ---
 import { type CollectionEntry, getCollection, render } from 'astro:content';
+import { fade } from 'astro:transitions';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ReadingToc from '../components/ReadingToc.astro';
 import PrevNext from '../components/PrevNext.astro';
@@ -88,6 +89,63 @@ const tocHeadings = headings
   }));
 
 const description = entry.data.description;
+const proseClass = [
+  'max-w-measure',
+  '[&>*+*:not(h2):not(h3):not(details):not(p:has(>strong:only-child)):not(pre):not(.expressive-code)]:mt-prose-sibling',
+  'min-w-0',
+  'font-serif',
+  'text-body',
+  'leading-body',
+  'hyphens-auto',
+  'prose-headings:font-serif',
+  'prose-headings:font-semibold',
+  'prose-headings:tracking-[-0.02em]',
+  'prose-headings:text-ink',
+  'prose-h2:hyphens-none',
+  'prose-h3:hyphens-none',
+  'prose-li:marker:font-mono',
+  'prose-li:marker:text-annotation',
+  'prose-h2:text-h2',
+  'prose-h2:mt-prose-h2-top',
+  'prose-h2:mb-prose-h2-bottom',
+  'prose-h2:pb-prose-h2-padding-bottom',
+  'prose-h2:border-b',
+  'prose-h2:border-rule',
+  'prose-h3:text-h3',
+  'prose-h3:mt-prose-h3-top',
+  'prose-h3:mb-prose-h3-bottom',
+  '[&>p:not(:has(>strong:only-child))]:mb-0',
+  '[&_blockquote_p]:m-0',
+  '[&_li_p]:m-0',
+  '[&_td_p]:m-0',
+  '[&_details_p]:m-0',
+  'prose-p:text-ink',
+  '[&_blockquote_p]:text-ink-muted',
+  'prose-p:leading-body',
+  'prose-p:hyphens-auto',
+  'prose-a:font-normal',
+  'prose-a:wrap-anywhere',
+  'prose-a:text-accent',
+  'prose-a:decoration-accent/40',
+  'prose-a:decoration-[0.06em]',
+  'prose-a:hover:decoration-accent',
+  'prose-strong:font-bold',
+  'prose-strong:text-ink',
+  'prose-blockquote:my-4',
+  'prose-blockquote:font-normal',
+  'prose-blockquote:rounded-ui',
+  'prose-blockquote:border',
+  'prose-blockquote:border-rule',
+  'prose-blockquote:bg-paper-raised',
+  'prose-blockquote:px-[1.1rem]',
+  'prose-blockquote:py-[0.85rem]',
+  'prose-blockquote:not-italic',
+  '[&_blockquote_p:first-of-type::before]:content-none',
+  '[&_blockquote_p:last-of-type::after]:content-none',
+  'prose-blockquote:text-ink-muted',
+  'prose-code:before:content-none',
+  'prose-code:after:content-none',
+].join(' ');
 ---
 
 <BaseLayout
@@ -110,42 +168,27 @@ const description = entry.data.description;
         gradeLabels={['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D']}
       />
 
-      <main id="main" class="shell pb-20">
-        <details class="home-method">
-          <summary>
-            <span class="home-method-title">Read the evidence primer</span>
-            <span class="home-method-note">Three claims · the path to a proven win</span>
-            <svg
-              class="home-method-caret"
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M9 18l6-6-6-6"></path>
-            </svg>
-          </summary>
-          <div class="prose-notebook measure pt-8">
-            <Content />
-          </div>
-        </details>
+      <main
+        id="main"
+        tabindex="-1"
+        transition:animate={fade({ duration: '0.18s' })}
+        class="mx-auto w-shell pb-20 focus:outline-none"
+      >
+        <div class={`mx-auto prose ${proseClass} pt-8`}>
+          <Content />
+        </div>
       </main>
     </>
   ) : (
     <>
-      <div class="shell-wide pt-4">
-        <div class="flex items-center justify-between gap-4 running-head" aria-hidden="true">
+      <div class="mx-auto w-shell-wide pt-4">
+        <div class="running-head flex items-center justify-between gap-4" aria-hidden="true">
           <span>Oracle SQL Optimization</span>
           <span class="truncate max-w-[50%] text-right">{entry.data.title}</span>
         </div>
       </div>
 
-      <div class="shell-wide">
+      <div class="mx-auto w-shell-wide">
         <div class="grid lg:grid-cols-[280px_1fr] gap-6 lg:gap-12 items-start">
           {/* Margin apparatus — sticky section TOC (first on mobile for wayfinding) */}
           <div class="order-1 lg:sticky lg:top-16 min-w-0">
@@ -153,13 +196,21 @@ const description = entry.data.description;
           </div>
 
           {/* Reading column — centered in remaining track (preprint margin balance) */}
-          <main id="main" class="order-2 min-w-0 pb-16 flex justify-center">
-            <div class="w-full max-w-[46rem] min-w-0">
+          <main
+            id="main"
+            tabindex="-1"
+            transition:animate={fade({ duration: '0.18s' })}
+            class="order-2 flex min-w-0 justify-center pb-16 focus:outline-none"
+          >
+            <div class="w-full min-w-0 max-w-reading">
               {/* Breadcrumb */}
               <nav aria-label="Breadcrumb" class="mb-6">
-                <ol class="flex flex-wrap items-center gap-x-1 gap-y-1 list-none p-0 m-0 meta">
+                <ol class="meta m-0 flex list-none flex-wrap items-center gap-x-1 gap-y-1 p-0">
                   <li>
-                    <a href="/" class="hover:text-[color:var(--accent)] no-underline">
+                    <a
+                      href="/"
+                      class="inline-flex min-h-6 min-w-6 items-center no-underline transition-colors hover:text-accent"
+                    >
                       Home
                     </a>
                   </li>
@@ -169,11 +220,14 @@ const description = entry.data.description;
                       <li class="flex items-center gap-1">
                         <span aria-hidden="true">/</span>
                         {isLast ? (
-                          <span class="text-[color:var(--ink-muted)] normal-case tracking-normal font-[family-name:var(--font-serif)] text-sm">
+                          <span class="font-serif text-sm tracking-normal text-ink-muted normal-case">
                             {item.title}
                           </span>
                         ) : (
-                          <a href={item.href} class="hover:text-[color:var(--accent)] no-underline">
+                          <a
+                            href={item.href}
+                            class="inline-flex min-h-6 min-w-6 items-center no-underline transition-colors hover:text-accent"
+                          >
                             {item.title}
                           </a>
                         )}
@@ -183,22 +237,41 @@ const description = entry.data.description;
                 </ol>
               </nav>
 
-              <article class="prose-notebook">
-                <header class="mb-8 pb-6 border-b border-[color:var(--rule-strong)]">
-                  <h1 class="m-0" style="font-size: var(--text-title); letter-spacing: -0.025em;">
+              <article class={`prose ${proseClass}`}>
+                <header class="mb-8 border-b border-rule-strong pb-6">
+                  <h1
+                    transition:name="page-title"
+                    class="m-0 font-serif text-title font-semibold leading-tight tracking-[-0.025em]"
+                  >
                     {entry.data.title}
                   </h1>
                   {description && (
-                    <p class="mt-3 mb-0 font-[family-name:var(--font-sans)] text-[color:var(--ink-muted)] text-[length:var(--text-ui)] leading-relaxed max-w-[55ch]">
+                    <p class="mt-3 mb-0 max-w-[55ch] font-sans text-ui leading-relaxed text-ink-muted">
                       {description}
                     </p>
                   )}
-                  <div class="interior-grade-key" aria-label="Evidence grade summary">
+                  <div
+                    class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-[0.45rem] border-t border-rule pt-3 text-left"
+                    aria-label="Evidence grade summary"
+                  >
                     <span class="running-head">Evidence grades</span>
-                    <span class="interior-grade-summary">
+                    <span class="font-mono text-mono leading-[1.45] text-ink-muted">
                       A1/A2 Oracle · B1/B2 research · C1/C2 tools · D context only
                     </span>
-                    <a href="/#evidence-key">Full key</a>
+                    <a
+                      href="/#evidence-key"
+                      class="inline-flex min-h-6 min-w-6 items-center text-ui text-accent underline-offset-[0.2em] transition-colors hover:text-accent-hover"
+                    >
+                      Full key
+                    </a>
+                    <noscript>
+                      <a
+                        href="/07-appendix-sources/"
+                        class="inline-flex min-h-6 min-w-6 items-center text-ui text-accent underline-offset-[0.2em] transition-colors hover:text-accent-hover"
+                      >
+                        Source appendix
+                      </a>
+                    </noscript>
                   </div>
                 </header>
 
@@ -214,8 +287,11 @@ const description = entry.data.description;
                 }
               />
 
-              <p class="mt-8 meta">
-                <a href="/" class="hover:text-[color:var(--accent)] no-underline">
+              <p class="meta mt-8">
+                <a
+                  href="/"
+                  class="inline-flex min-h-6 min-w-6 items-center no-underline transition-colors hover:text-accent"
+                >
                   ← Book home
                 </a>
               </p>
@@ -226,8 +302,8 @@ const description = entry.data.description;
     </>
   )}
 
-  <footer class="rule-top mt-auto">
-    <div class="shell py-8 flex flex-wrap items-center justify-between gap-4">
+  <footer class="mt-auto border-t border-rule">
+    <div class="mx-auto flex w-shell flex-wrap items-center justify-between gap-4 py-8">
       <p class="meta m-0">Oracle SQL Optimization · Evidence-graded notebook</p>
       <p class="meta m-0">Compiled 2026-09-22 · No live DB</p>
     </div>

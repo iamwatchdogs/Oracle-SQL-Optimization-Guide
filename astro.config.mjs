@@ -1,13 +1,10 @@
 import { defineConfig, fontProviders } from 'astro/config';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
-import { unified } from '@astrojs/markdown-remark';
-import remarkMath from 'remark-math';
-import rehypeMathjax from 'rehype-mathjax';
 import astroExpressiveCodePlugin from 'astro-expressive-code';
 import mermaid from 'astro-mermaid';
 import tailwindcss from '@tailwindcss/vite';
-import { remarkMeasuredValues } from './src/lib/remark-measured.mjs';
+import { markdownProcessor } from './src/lib/markdown-processor.mjs';
 
 // https://astro.build/config
 export default defineConfig({
@@ -21,7 +18,7 @@ export default defineConfig({
   fonts: [
     {
       name: 'Source Serif 4',
-      cssVariable: '--font-serif',
+      cssVariable: '--face-serif',
       provider: fontProviders.google(),
       weights: ['400', '600', '700'],
       styles: ['normal', 'italic'],
@@ -30,7 +27,7 @@ export default defineConfig({
     },
     {
       name: 'Inter',
-      cssVariable: '--font-sans',
+      cssVariable: '--face-sans',
       provider: fontProviders.google(),
       weights: ['400', '500', '600'],
       styles: ['normal'],
@@ -39,7 +36,7 @@ export default defineConfig({
     },
     {
       name: 'JetBrains Mono',
-      cssVariable: '--font-mono',
+      cssVariable: '--face-mono',
       provider: fontProviders.google(),
       weights: ['400', '500', '600'],
       styles: ['normal'],
@@ -58,6 +55,14 @@ export default defineConfig({
     astroExpressiveCodePlugin({
       themes: ['github-dark'],
       defaultProps: { wrap: true },
+      // Flat by contract: the frames plugin ships a drop shadow on `.frame`
+      // by default. Suppress it at the source instead of overriding it in
+      // CSS, so no authored box-shadow exists in either theme.
+      styleOverrides: {
+        frames: {
+          frameBoxShadowCssValue: 'none',
+        },
+      },
     }),
     mdx(),
     sitemap(),
@@ -70,9 +75,6 @@ export default defineConfig({
     // no extra CSS, works offline.
     // remarkMeasuredValues: force annotation — wraps E-Rows/A-Rows/elapsed
     // tokens in .measured spans (presentation only; wording unchanged).
-    processor: unified({
-      remarkPlugins: [remarkMath, remarkMeasuredValues],
-      rehypePlugins: [rehypeMathjax],
-    }),
+    processor: markdownProcessor,
   },
 });

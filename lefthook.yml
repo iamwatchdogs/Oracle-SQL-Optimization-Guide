@@ -17,6 +17,8 @@ pre-commit:
 
 pre-push:
   commands:
+    test:
+      run: bun run test
     lint:
       run: bun run lint
     format-check:
@@ -25,3 +27,5 @@ pre-push:
       run: bun run check
     tsgo-check:
       run: bun run check:tsgo
+    e2e:
+      run: bun run test:e2e
