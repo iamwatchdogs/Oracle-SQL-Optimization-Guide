@@ -1,97 +1,193 @@
 ---
 title: The Parse-Lint-Test Trio That Is Safe to Use
-description: sqlglot for parse, SQLFluff for lint, utPLSQL for test, plus a Python harness.
+description: 'What each OSS lane does for a candidate rewrite, where it stops, which lanes are candidate-only, and which T-IDs the lanes bear on.'
 order: 62
 draft: false
 ---
 
-Parse, lint, and test are three different claims. Parse says the text has structure. Lint says the text follows selected mechanical rules. Test says the database returns the expected meaning. None of them says the plan is faster.
+Parse, lint, and test are three different claims, and keeping them apart is the whole value of the trio. **Parse** says the text has structure. **Lint** says the text follows a selected set of mechanical rules. **Test** says the database returns the expected meaning. None of them says the plan is faster.
 
-Keep that separation and the review loop gets shorter. A failure should tell you which layer failed instead of hiding inside one green CI badge.
+Separate the claims and the review loop gets shorter, because a failure names the layer that failed. Fuse them and a green CI badge hides which of the three actually ran.
+
+This is the tooling page for the OSS chapter. The dated per-tool licence and maintenance inventory is on the [vetting page](/06-oss-guide/01-how-to-vet-oss/), and the executable stage order is the [static-checks toolbox page](/03-toolbox/04-static-checks-before-db-time/). Neither is repeated here. What this page adds is the boundary on each lane, and the lanes you may not promote past candidate.
+
+> **Track:** Core (1–4) · Practice (5, 6) · Recovery (none) · Advanced / gated (none)
+>
+> **Prerequisites:** Basic SQL, a repository holding the candidate SQL text, and the [environment and setup hub](/00-preface/).
+>
+> **Evidence status:** The lane facts are C1/C2 records from this book's ledger, read at a dated repository snapshot on **2026-09-22 UTC**; the measurement layer is A1 Oracle documentation, and the candidate provers are B1 paper records. The [preface's class legend](/00-preface/01-why-evidence-grades/) defines what each class may support. **No live Oracle database was available**, so the offline blocks here are `ILLUSTRATIVE` shapes with no reported output and the database step is described, not run.
+>
+> **Next required page:** [What Has No OSS Replacement](/06-oss-guide/03-what-has-no-oss-replacement/).
+
+## How this page is banded
+
+| Band                 | Sections   |
+| -------------------- | ---------- |
+| **Core**             | 1, 2, 3, 4 |
+| **Practice**         | 5, 6       |
+| **Recovery**         | none       |
+| **Advanced / gated** | none       |
+
+- **Core (1, 2, 3, 4):** the four stages in order. Read them once; the [toolbox page](/03-toolbox/04-static-checks-before-db-time/) owns the executable gate.
+- **Practice (5, 6):** two things you do with a real project and a real candidate in hand: attach the boundary to each lane, and check which T-ID the change actually touches.
+- **Recovery (none):** nothing on this page changes a database object, so nothing here needs an undo. The rollback belongs to the change class the gate protects.
+- **Advanced / gated (none):** nothing here is gated. The equivalence provers are candidate-only, and section 5 says why without turning that lane into a section of its own.
 
 ## 1. Parse before you rewrite
 
-Use an Oracle-aware parser to turn the before and after statements into comparable trees. The useful output is the diff: a removed predicate, a changed join key, a hint moved across a boundary, or a rewritten expression.
+The useful output of a parse stage is a **diff**. A dropped predicate, a changed join key, a hint moved across a boundary, or a rewritten expression should be visible as text before anyone spends database time on it.
 
-A small starting shape is:
+**ILLUSTRATIVE — local Python with sqlglot installed. No database and no Oracle client. Expected output: both statements printed back in Oracle dialect, so the diff is visible. Not executed here.**
 
 ```python
-from sqlglot import parse_one
+import sqlglot
 
-before = parse_one(sql_before, read="oracle")
-after = parse_one(sql_after, read="oracle")
+before = sqlglot.parse_one(
+    "SELECT customer_id FROM orders WHERE order_date >= :start_date",
+    read="oracle",
+)
+after = sqlglot.parse_one(
+    "SELECT customer_id FROM orders WHERE order_date >= :start_date AND status = 'OPEN'",
+    read="oracle",
+)
+
+print(before.sql(dialect="oracle"))
+print(after.sql(dialect="oracle"))
 ```
 
-The parser gives you a mechanical representation. It does not know whether your application intended outer-join semantics, duplicate elimination, null handling, or bind behavior. A successful parse is a structural checkpoint, not an equivalence proof.
+A successful parse is a structural checkpoint, not an equivalence proof. The parser does not know whether your application intended outer-join semantics, duplicate elimination, null handling, or bind behaviour. That is the [semantic fixture](/00-preface/02-how-to-prove-a-win/)'s job, and the difference between the two claims is the reason this stage is worth running on its own.
 
-sqlglot's dated repository snapshot was MIT, 9,628 stars, last pushed 2026-09-21, and active under this pass's rule. Oracle is documented as a dialect. [S60](https://github.com/tobymao/sqlglot) [S60](https://sqlglot.com/sqlglot/dialects.html) Apache Calcite's dated snapshot was Apache-2.0, 5,186 stars, last pushed 2026-09-21, with `OracleSqlDialect`. Use it when you need a rule framework, not as a claim that Oracle will choose the resulting plan. [S62](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/dialect/OracleSqlDialect.html)
+Parsing a hint is not validating it either. Confirm hint use through the release-supported hint report in the 19c `DBMS_XPLAN` reference, and re-check the call on your installed release. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
 
-Parsing hint text is also not hint validation. Confirm hint use through the release-supported `DBMS_XPLAN` hint report. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
+## 2. Lint the rules, not the problem
 
-## 2. Lint the rules, not the whole problem
+SQLFluff is a mechanical gate, and the words that matter are **configured rules**. Start from the documented Oracle dialect and keep the rule set in the repository.
 
-SQLFluff is a mechanical gate. Start with the documented Oracle dialect:
+**ILLUSTRATIVE — read-only local shell with SQLFluff installed; no database. `lint` reports and changes nothing. Expected output: one pass or fail result per file, with rule violations listed. Not executed here.**
 
 ```bash
-sqlfluff lint --dialect oracle path/to/query.sql
+sqlfluff lint --dialect oracle queries/sales_report.sql
 ```
 
-The same file can pass lint and still return the wrong rows. A linter does not understand the domain meaning of a billing predicate, a regional partition, or a bind-sensitive join. It also does not know whether the chosen plan is cheaper.
+**MUTATING — ILLUSTRATIVE — local shell with SQLFluff installed; no database. `fix` rewrites the candidate file in place, so run it only where the rewrite is reviewable and revertible, and keep the `lint` result above as the record of what was wrong. Expected output: the files it rewrote, each reviewed as a diff. Not executed here.**
 
-The dated SQLFluff snapshot was MIT, 9,883 stars, last pushed 2026-09-21, and active under the pass's rule. [S61](https://github.com/sqlfluff/sqlfluff) [S61](https://docs.sqlfluff.com/en/stable/reference/dialects.html)
+```bash
+sqlfluff fix --dialect oracle queries/sales_report.sql
+```
 
-Use lint for the work it owns: formatting, naming rules, configured mechanical checks, and consistent review noise. Keep the rule set in the repository. A tool's default rules are not an Oracle performance policy.
+A file can pass lint and still return the wrong rows. A linter does not know what a billing predicate means, which partition holds a region, or whether the chosen join is cheap. It also does not know the rule set you have not configured, so "no violations" is a statement about the configuration and not about the SQL.
+
+Say the sentence the tool licenses: **the selected rules passed**. A tool's defaults are not an Oracle performance policy, and a new rule suppression deserves the same review as the rule it replaces.
 
 ## 3. Test behavior where it matters
 
-Parsing and linting happen before the database. Behavior tests happen inside a disposable Oracle database or schema.
+Parsing and linting happen before the database. Behavior tests happen inside a disposable database or schema, and they are the only stage that can say the rewrite still means the same thing.
 
-With utPLSQL, a fixture should assert more than “the command ran.” Depending on the change, check:
+A fixture that asserts only "the command ran" is a smoke test. Depending on the change, assert the returned row count, a known aggregate or checksum, duplicate and null behavior, the error behavior for invalid input, and the result for a bind value at the edge of the distribution. A row count alone is weak, because a count can stay constant while values, ordering, or nulls change.
 
-- returned row count;
-- a known aggregate or checksum;
-- duplicate and null behavior;
-- error behavior for invalid input;
-- the result for a bind value at the edge of the distribution.
-
-The dated utPLSQL snapshot was Apache-2.0, 624 stars, last pushed 2026-09-18, and active. Its current README names Oracle Database 19c or newer. [S63](https://github.com/utplsql/utplsql) [S63](https://www.utplsql.org/)
-
-Keep fixtures small enough to diagnose. A test that asserts a vague business rule without a concrete expected result is documentation, not a gate. A test that asserts exact rows, aggregates, and error cases can stop a rewrite before it reaches a performance run.
+Keep fixtures small enough to diagnose. A test asserting a vague business rule with no concrete expected result is documentation, not a gate. Run both candidates with the same binds, the same fetch shape, and a deterministic ordering, because a checksum comparison is order-sensitive and an unordered result can fail for reasons unrelated to the rewrite.
 
 ## 4. Measure with Oracle, then script the edges
 
-python-oracledb is the harness boundary. It can connect, execute statements, collect measurements, and call release-supported Oracle package procedures. [S64](https://github.com/oracle/python-oracledb)
+Everything above is free. This stage is not, and it is the only one that can support a performance claim.
 
-The measurement decision still belongs to Oracle:
+The measurement decision belongs to Oracle. Freeze the workload in a SQL Tuning Set, capture the executed plan, run a before trial, apply one change, run the after trial, and compare the workload per statement. `DBMS_SQLPA` supplies that comparison; the [SPA recipe](/04-recipes/02-before-after-with-spa/) owns the block sequence and the task lifecycle, and the [noise floor policy](/05-feedback-loop/02-noise-floor-and-repetition/) owns how many samples make the difference real. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
 
-1. Freeze the workload in a SQL Tuning Set.
-2. Capture the executed plan with `DBMS_XPLAN`.
-3. Run the before trial.
-4. Apply one change.
-5. Run the after trial.
-6. Compare the workload and inspect per-statement regressions.
+A driver is what makes the edges scriptable: capture, trial, poll, save, and fail loudly. It is a harness, and the distinction is worth defending in review, because a Python function that prints a comparison is not SQL Performance Analyzer.
 
-`DBMS_SQLPA` supplies the before/after comparison. python-oracledb supplies a way to orchestrate the call. That distinction matters because a Python script with a `compare` function is not SQL Performance Analyzer. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
+**MUTATING — ILLUSTRATIVE. Connects to a database and reads a saved report, so it needs a service and a schema. Not executed here. Substitute your own task name and confirm every argument on the installed release. Expected output: the saved comparison report's first lines.**
 
-Package names, signatures, and client assumptions change by release. If you use SQL*Plus in the procedure, cite the 19c SQL*Plus guide [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/) and verify the installed client. If a script uses SQL Quarantine or another newer API, verify the current package reference before writing the call. [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)
+```python
+import os
+import oracledb
 
-## Where the candidates fit
+connection = oracledb.connect(
+    user=os.environ["ORA_USER"],
+    password=os.environ["ORA_PASSWORD"],
+    dsn=os.environ["ORA_DSN"],
+)
+try:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT report FROM DBA_ADVISOR_REPORTS WHERE task_name = :task",
+            task="<known-analysis-task-name>",
+        )
+        print(cursor.read()[0].read())
+finally:
+    connection.close()
+```
 
-VeriEQL, SQLSolver, WeTune, and QED are research candidates for equivalence or rewrite verification. Their papers and repositories do not establish Oracle dialect coverage in this pass. Keep them labeled as candidates. [S48](https://dl.acm.org/doi/10.1145/3514221.3526125) [S49](https://github.com/SJTU-IPADS/SQLSolver) [S50](https://github.com/VeriEQL/VeriEQL) [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf)
+Three edges are worth scripting beyond the call itself: **binds and identity**, so both sides ask the same question; **the UTC window**, so a later reader can join the run to a plan; and **the status check**, so an errored or timed-out task is never read as a result.
 
-QueryBooster is also a candidate: its paper is in the corpus, but Oracle support was not verified. [S80](https://doi.org/10.14778/3611479.3611497)
+Package names, signatures, and client assumptions change by release, so confirm the call against the installed reference. If SQL\*Plus is part of the procedure, the 19c client guide is the boundary to cite, and a newer control such as SQL Quarantine needs its own release check. [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/) [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)
 
-## The technique map matters
+## 5. The lane boundaries
 
-- **T-58**, application design and SQL performance methodology, belongs in the measurement and proof chapters, not in a generic “tools” appendix.
-- **T-59**, bind variables and cursor reuse, belongs in the stabilization chapter.
-- **T-60**, test-environment deployment before production, belongs in the safe-DDL/CI and accept-or-rollback chapters.
-- **T-61**, the automatic SQL Transpiler, belongs in the rewrite and control chapters. It is release-sensitive and applies only to eligible PL/SQL constructs. [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf)
+Each lane below names what it may decide and what it may not. Licence and maintenance are not in this table; they are the dated inventory on the [vetting page](/06-oss-guide/01-how-to-vet-oss/), and the column that decides an install is there.
 
-The full source ledger remains in `.agents/research/07-sources-bibliography.md`; this published page gives the compact map and the links needed to use it.
+| Lane                | Boundary for an Oracle workload                        | Candidate-only |
+| ------------------- | ------------------------------------------------------ | -------------- |
+| Parse and normalize | Structure and diff, never equivalence                  | No             |
+| Lint                | Configured mechanical rules, never meaning             | No             |
+| Behavior test       | Meaning, never performance under real load             | No             |
+| Driver and harness  | Orchestration, never the tuning decision               | No             |
+| Load                | Pressure only, with rights still an open gate          | No             |
+| Diagnostics bundle  | Packaging, conditional on an Oracle cross-check        | No             |
+| Rule framework      | Candidates, and correctness only if coverage is proven | Yes            |
+| Equivalence provers | A hypothesis to test, never a gate on a rewrite        | Yes            |
 
-## The artifact
+Every row is a C1/C2 record at the **2026-09-22 UTC** snapshot: [S60](https://github.com/tobymao/sqlglot) sqlglot, [S61](https://github.com/sqlfluff/sqlfluff) SQLFluff, [S63](https://github.com/utplsql/utplsql) utPLSQL, [S64](https://github.com/oracle/python-oracledb) python-oracledb, [S65](https://github.com/TPC-Council/HammerDB) HammerDB, [S62](https://calcite.apache.org/) Calcite, and the collectors, where one record covers two projects: [S67](https://github.com/mauropagano/sqld360) SQLd360 and [SQLdb360](https://github.com/sqldb360/sqldb360). The prover lane is B1 paper and repository evidence: [S48](https://ipads.se.sjtu.edu.cn/_media/publications/wetune_final.pdf) WeTune, [S49](https://github.com/SJTU-IPADS/SQLSolver) SQLSolver, [S50](https://github.com/VeriEQL/VeriEQL) VeriEQL, [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf) QED.
 
-A useful pipeline leaves four receipts: an AST or parse result, a lint result, a behavior-test result, and an Oracle before/after report. The first three stop bad text. The fourth decides whether the change earned its place.
+Two rows carry the boundary that matters most in review. The **load** lane is the only one where rights are still open in this ledger, so it needs a licence decision before a run, and the [load gate](/03-toolbox/03-load-test-without-prod/) is where the run is owned. The **prover** lane is the only one where a paper's claim could be mistaken for a guarantee; each prover needs its own verified Oracle dialect coverage before it can reject a rewrite, and none of them has it here.
 
-**Parse the text. Lint the rules. Test the meaning. Let Oracle measure the claim.**
+## 6. The technique map
+
+The catalog assigns T-IDs, and this chapter set touches four of them. The T-number lookup table in the [citations page](/07-appendix-sources/01-how-citations-work/) says which page owns each range.
+
+| T-ID | What the catalog entry is                                                     | Where the method is taught                                                       |
+| ---- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| T-58 | Application design and SQL performance methodology, the pre-production method | [How to Prove a Win](/00-preface/02-how-to-prove-a-win/)                         |
+| T-59 | Bind variables and cursor-reuse conventions                                   | [Stabilize and Ship Safely](/01-proven-techniques/05-stabilize-and-ship-safely/) |
+| T-60 | Test-environment deployment before a production change                        | [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/)                   |
+| T-61 | The automatic SQL Transpiler, which is Oracle's own                           | [Let Oracle Rewrite](/01-proven-techniques/04-let-oracle-rewrite/)               |
+
+The four descriptions in the second column are the catalog's, not this page's: the lanes below bear on T-58 and T-60, they do not redefine them, and the parse/lint/assert stages are this page's own contribution to a method whose entry point is T-58. T-58 is also taught on [Measure First](/01-proven-techniques/01-measure-first/), because the target worksheet has to be filled in before a candidate means anything, and T-60 is also owned by the [accept-or-rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/), because a fixture that passes is still a change that needs a verdict.
+
+T-61 is the one to be careful about. The automatic SQL Transpiler is an Oracle feature with its own eligibility rules and its own release boundary, and an OSS parser has no role in enabling it. It appears here only because a transpiler candidate is text you should parse and diff like any other. [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf) — the 26ai New Features Guide, so a later release than this book's primary 19c; confirm the feature on your installed release.
+
+## Artifact
+
+A gate record with one row per stage that ran, and an explicit `NOT RUN` for each stage that did not:
+
+- [ ] Oracle-dialect parser used, before and after structures diffed
+- [ ] SQLFluff configuration and selected rules recorded, described as "selected rules passed"
+- [ ] Result assertions cover rows, duplicates, nulls, and the relevant aggregates
+- [ ] Both candidates compared with the same binds, fetch shape, and deterministic ordering
+- [ ] Frozen set captured, before and after trials named, and the comparison report saved whole
+- [ ] Task status checked, and the named execution verified before the numbers were read
+- [ ] Lane boundary and snapshot date recorded for every tool in the chain
+- [ ] Provers marked candidate-only, with the coverage that is still unverified
+- [ ] Verdict written with the artifacts from every stage that ran
+
+The same record, as a block you can fill in and keep with the run:
+
+**PLACEHOLDER — the gate record as a fill-in block. One per candidate. A stage left blank is `NOT RUN`, which is not the same as passed.**
+
+```text
+stage 1  parse result and structure diff:  ____________________
+stage 2  lint config and selected rules:   ____________________
+stage 3  fixture rows, aggregates, errors: ____________________
+stage 4  frozen set name, trial names:     ____________________
+stage 5  task status and execution named:  ____________________
+stages NOT RUN:                            ____________________
+verdict, with the artifact behind it:      ____________________
+rollback artifact and its proof:           ____________________
+```
+
+The offline blocks above are `ILLUSTRATIVE` shapes and the harness block is a `MUTATING` shape. None of them has been run, and the lane facts are repository records rather than results.
+
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+
+**Decision:** parse the text, lint the configured rules, assert the meaning, and let Oracle measure the claim. A stage that has not run is a stage that has not passed.
+
+**Next required page:** [What Has No OSS Replacement](/06-oss-guide/03-what-has-no-oss-replacement/).

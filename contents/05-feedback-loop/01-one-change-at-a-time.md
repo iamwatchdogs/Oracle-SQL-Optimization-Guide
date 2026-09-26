@@ -1,147 +1,124 @@
 ---
 title: One Change at a Time
-description: Propose a single candidate, apply in isolation, then re-baseline.
+description: One candidate, one change record, one semantic gate, and a re-baselined workload after the verdict.
 order: 51
 draft: false
 ---
 
-**Verdict: one proposal, one isolated apply, one full-workload comparison, one new baseline.** If the change cannot be
-named in one sentence, it is not ready to test.
+Two candidates in one run produce one unreadable result. Propose exactly one change, write it down before you apply it, gate it before it spends database time, then measure the same workload and re-baseline. If the change cannot be named in one sentence, it is not ready to test.
 
-## Status and scope
+This page owns the one-change rule and the change record it is tested under. How many times to repeat, how large an effect must be, and what the interval must show are the [noise floor policy](/05-feedback-loop/02-noise-floor-and-repetition/) and the [accept or rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/); this page links both instead of restating them.
 
-This page is part of a reference architecture designed from primary sources. It was **not executed against a live Oracle
-database in this research pass**. No SQL result, plan, latency, or production outcome here was measured. Every numeric
-example is illustrative unless a source is named.
+> **Track:** Core (1, 2) · Practice (3, 4, 5) · Recovery (none) · Advanced / gated (6)
+>
+> **Prerequisites:** A frozen set from [Freeze With STS](/04-recipes/01-freeze-with-sts/) and the label taxonomy from [How to Prove a Win](/00-preface/02-how-to-prove-a-win/).
+>
+> **Evidence status:** Proposal isolation follows A1 advisor and plan-control documentation — SQL Tuning Advisor [S17](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-tuning-advisor.html) and automatic indexing [S15](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_AUTO_INDEX.html) — with the A2 SQL plan management brief [S12](https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf), C2 static tooling [S60](https://github.com/tobymao/sqlglot) [S61](https://docs.sqlfluff.com/) [S63](https://github.com/utplsql/utplsql), and B1 equivalence candidates [S50](https://github.com/VeriEQL/VeriEQL). **No live Oracle database was available**, so no change record on this page has been filled in by a run.
+>
+> **Next required page:** [Noise Floor and Repetition](/05-feedback-loop/02-noise-floor-and-repetition/).
 
-Research-only references (not published navigation): `.agents/research/05-agentic-feedback-loop-design.md` §9 and `.agents/research/04-programmatic-approaches.md` §4.11.
+## How this page is banded
 
-Primary references: [S17](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-tuning-advisor.html),
-[S15](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_AUTO_INDEX.html),
-[S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html),
-[S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html), and
-[S12](https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf).
+| Band                 | Sections |
+| -------------------- | -------- |
+| **Core**             | 1, 2     |
+| **Practice**         | 3, 4, 5  |
+| **Recovery**         | none     |
+| **Advanced / gated** | 6        |
+
+- **Core (1, 2):** name one candidate and write the record it will be judged by. Both sections are paper work, and neither needs a database.
+- **Practice (3, 4, 5):** on a real ticket, clear the semantic gate, run both sides on the same workload, and read the verdict against the whole set rather than the statement that motivated it.
+- **Recovery (none):** this page applies a change in an isolated target and stops. The undo, and the proof that the undo worked, belong to [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/).
+- **Advanced / gated (6):** read before the first apply, because the target, the forbidden moves, and the human approval each rule out a candidate the loop would otherwise run.
 
 ## 1. Propose exactly one candidate
 
-A candidate is a hypothesis with a target. It is not a pile of advice from an advisor report.
+A candidate is one hypothesis with one target. It is not a pile of advice from an advisor report.
 
-### Proposal isolation
+Advisors return menus. On a set such as `OPT_LOOP_WL`, SQL Tuning Advisor may suggest a profile, SQL Access Advisor an index [S35], and Optimizer Statistics Advisor a gather [S27]. Record all three as proposals, pick one for this run, and leave the other two queued. Oracle's own plan management accepts a new plan only after verification, so a recommendation is a proposal and nothing more [S12] [S17].
 
-The frozen `OPT_LOOP_WL` set contains 12 statements. SQL Tuning Advisor suggests a profile for one SQL ID. SQL Access
-Advisor suggests an index. Statistics Advisor suggests a gather. The loop records all three as proposals, then picks
-only the index for this run. The profile and gather remain in the queue. The numbers below are illustrative; they are
-not measurements from this research pass.
+The same rule binds an authored rewrite. If the hypothesis is that a `DISTINCT` is unnecessary, the candidate is the rewrite. Do not refresh statistics, add a hint, and create an index in the same iteration; when the result comes back, nothing in the record will say which of the three did it.
 
-The same rule applies to an agent-authored rewrite. If the hypothesis is “this `DISTINCT` is unnecessary,” the candidate
-is the rewrite that removes it. Do not refresh statistics, add a hint, and change an index in the same iteration.
+## 2. Write the change record first
 
-### What belongs in the change record
+The record is the contract between the proposal and the measurement. Fill it before the apply, not after the verdict, so the gate reads what you intended rather than what you remember.
 
-Before apply, record:
+**PLACEHOLDER — the change record. One per candidate. Copy it, fill every line, and attach it to the run; a blank line is an unfinished proposal.**
 
-- `change_id`, change class, and target object or SQL ID
-- The hypothesis and the expected effect
-- The exact SQL, DDL, session action, or plan-control operation
-- The primary metric and the full-workload test set
-- The rollback primitive and its human gate
-- The Oracle version, capability probe, and license assumptions
+```text
+change_id:            ____________________
+change_class:         ____________________   -- statistics | profile | patch | baseline | index | DDL | edition | session
+target:               ____________________   -- sql_id or object, with owner
+hypothesis:           ____________________
+expected effect:      ____________________
+primary metric:       ____________________
+frozen workload:      ____________________
+semantic fixtures:    ____________________
+rollback primitive:   ____________________
+human gate:           ____________________
+discovered_version:   ____________________   -- same field name as the lesson record
+```
 
-Advisor output is a proposal. Oracle's own tuning and plan-management workflows verify candidates before treating them
-as usable changes. Sources: S17, S35, S27, S15, and S12.
+Two fields do the most work. The `change_class` selects the rollback row on the [gate page](/05-feedback-loop/03-accept-or-rollback-gate/) before anything is applied. The `rollback_primitive` is unusable until someone has executed it once on the isolated target, which is check five of that gate.
 
-The artifact is a single candidate record. The next iteration gets a new `change_id`; it does not quietly inherit the
-first candidate's work.
+Every later iteration gets a new `change_id`. It does not inherit the first candidate's record, its samples, or its verdict.
 
-## 2. Gate semantics before spending database time
+## 3. Gate semantics before spending database time
 
-Fast does not mean correct. A query that returns the wrong answer is not an optimization.
+A query that returns the wrong answer is not an optimization, so the cheap checks run before any execution budget does.
 
-Run the cheap checks first:
+- Parse and normalize the candidate with an Oracle dialect.
+- Lint the text against the project's ruleset.
+- Run behavior tests for results, nulls, ordering, and error contracts.
+- Use an equivalence checker where the query shape and release support it, and treat it as a candidate until it is verified for this workload.
 
-- Parse and normalize the candidate with the Oracle dialect.
-- Lint the text with the project's SQL linter.
-- Run behavior tests for affected results, errors, and edge cases.
-- Use an equivalence prover or a comparable semantic checker when the shape and release support it. Treat external
-  equivalence tools as candidates until verified for this Oracle workload.
+The static tools are evidence, not approval: a passing parse proves the parser accepted the text [S60] [S61]. Test output is the artifact, tied to the candidate hash. Ordering across these checks belongs to [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/), and the fixtures themselves are owned by [Techniques](/01-proven-techniques/); this page only requires that they pass before the apply.
 
-The static tools are sources, not automatic approval: [S60](https://github.com/tobymao/sqlglot),
-[S61](https://docs.sqlfluff.com/), [S63](https://github.com/utplsql/utplsql), and
-[S50](https://github.com/VeriEQL/VeriEQL). A passing parse only proves that the parser accepted the text.
+## 4. Measure the same workload, then re-baseline
 
-The semantic gate ends with an artifact: test output or a documented equivalence result tied to the candidate hash.
+A before and after pair means something only when both sides replay the same set, the same binds, and comparable conditions. `DBMS_SQLPA` creates the task, runs the trials, and reports the comparison [S06]; the recipes chapter owns those calls.
 
-### Isolated apply has a real target
+1. Run the before side on the frozen workload.
+2. Apply only the named candidate, in the isolated target.
+3. Run the after side on the same workload and conditions.
+4. Save the comparison report and the plan that actually executed [S05].
+5. Apply the [repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/) outside the report.
+6. Take the verdict from the [accept or rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/).
 
-Apply in a writable clone, an activated snapshot standby, or an interim schema with an abort path. A plain physical
-standby is read-only and is **not** a writable SPA `test execute` target. If the test needs writes, use a writable clone
-or an activated snapshot standby. Do not mutate production first to discover whether the change is safe.
+If the verdict is accept, promote through the class-specific path, then re-baseline: the accepted state becomes the next run's before side. The next proposal starts from an accepted state, not from a stack of unverified changes. If the verdict is reject, the prior state is restored and proven first, then the record closes.
 
-Other boundaries are equally boring:
+## 5. An aggregate win does not excuse a lost statement
 
-- Keep optimizer and system parameter changes out of the first apply.
-- Treat `CURSOR_SHARING=FORCE` as a forbidden shortcut, not a tuning plan.
-- Keep table redefinition behind `CAN_REDEF_TABLE` and an `ABORT_REDEF_TABLE` path.
-- Keep application code changes behind a versioned release and an edition switch when that is the chosen rollout
-  mechanism.
-- Require a human gate before a production parameter change, production DDL, index drop, or other irreversible action.
+**ILLUSTRATIVE — a synthetic outcome, not a result from this guide.** One index lowers the aggregate logical work of the set while a single unrelated statement rises past its own per-statement A/A floor.
 
-The safe sequence is: static gate, cheap explain-plan screen, isolated apply, then full execution. The cheap screen
-finds obvious errors. It does not replace `test execute`. The artifact is an apply log that names the target and the
-untouched production boundary.
+The candidate is rejected. The aggregate cannot rescue a statement that lost, and the statement that motivated the change cannot carry the set either. What survives is the per-statement rows of the comparison, the reason for the rejection, and a lesson keyed to the condition that produced it.
 
-## 3. Measure the same workload, then re-baseline
+This is why a single-statement win is never the verdict: a candidate can help the reported query and damage a neighbor in the same set. The full set, each statement judged against its own floor, and the no-regression check decide. Reading a plan explains what changed; it never decides whether the change was kept.
 
-A before/after pair is only meaningful when both sides replay the same frozen STS, binds, and comparable runtime
-conditions. `DBMS_SQLPA` can create the analysis task, run `test execute`, compare performance, and report the
-results. The research snippets are labeled exact or sketch; verify the API shape against the Oracle release reference
-before running it. Source: [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html).
+## 6. Where the change is gated
 
-For each accepted or rejected candidate:
+Four boundaries rule out candidates before the measurement, not after it:
 
-1. Run the full-workload before pass.
-2. Apply only the named candidate in the isolated target.
-3. Run the full-workload after pass.
-4. Compare the report and retain per-statement rows.
-5. Capture `DBMS_XPLAN.DISPLAY_CURSOR` or the release-appropriate plan evidence for the affected SQL. A plan hash
-   explains the change; it does not decide the verdict.
-6. Compute the repetition policy outside SQLPA as described on the [noise-floor page](/05-feedback-loop/02-noise-floor-and-repetition/).
+- **Target.** Apply on the isolated target defined on the [chapter index](/05-feedback-loop/). A plain physical standby is a read-only replica rather than a writable execution target, and Oracle documents tuning an Active Data Guard standby workload from the primary as its own scope [S17](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-tuning-advisor.html).
+- **Forbidden moves.** No `CURSOR_SHARING=FORCE` presented as a fix, no uninstrumented session optimizer change, no hint without a stabilization and rollback path [S20] [S19] [S12].
+- **Human gate.** Production parameters, production DDL, production index drops, and schema redesign are approved by a person before the loop touches them.
+- **Release gate.** The chapter's single 26ai caveat lives on the [index](/05-feedback-loop/); this page only designs for the release it has.
 
-Do not use a single statement as the whole workload. A candidate can help the reported query and damage a neighbor in
-the same STS. The aggregate and the no-regression rule decide the result.
+## Artifact
 
-### Aggregate wins, statement loses
+A single candidate record:
 
-An index changes one plan hash and lowers the aggregate `buffer_gets` in the report. One unrelated statement rises
-beyond the declared margin. The candidate is rejected even though the total looks better. The change is rolled back,
-the incumbent evidence is recaptured, and the lesson is linked to the report hashes. These values are illustrative,
-not a measured result.
+- [ ] One hypothesis, one target, one `change_class`, and a new `change_id`
+- [ ] Semantic gate cleared, with test output tied to the candidate hash
+- [ ] Both sides run on the same frozen set, with the report and plan saved
+- [ ] Repetition and interval taken from the [noise floor policy](/05-feedback-loop/02-noise-floor-and-repetition/)
+- [ ] Verdict taken from the [accept or rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/), never from the aggregate alone
+- [ ] Re-baseline recorded, or the rollback proof recorded, before the next proposal
 
-If the candidate passes, promote it through the approved class-specific path. For plan controls, let the vendor's SPM
-verification decide acceptance. For statistics, use the pending-statistics workflow described on the
-[gate page](/05-feedback-loop/03-accept-or-rollback-gate/). For DDL, finish the redefinition or switch the edition only
-after the target-side check. Then re-baseline. The next proposal starts from the accepted state, not from an
-unverified stack.
+The change record above is `PLACEHOLDER`, and no block on this page has been executed.
 
-Real-Time SPM has a narrower promise than the folklore: a candidate is evaluated during a regressing execution. At
-execution end, the candidate is rejected and a prior known plan is used for later executions. The current statement is
-not instantly rewritten. Adaptive plans remain workload-dependent; this page makes no universal on/off recommendation.
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
 
-The artifact is a hashed before/after record and a verdict. The new baseline appears only after that record passes.
+**Decision:** one candidate, one record, one re-baselined workload. If you cannot name the change in a sentence, you are not ready to measure it.
 
-SQL Tuning Advisor is a proposal generator, not an apply button: it can report statistics, access-path, structure, and alternative-plan findings for the loop to select one at a time. SQL Access Advisor and Optimizer Statistics Advisor end at the same place: a candidate awaiting the loop gate.
-
-<details><summary>In case you don't know about isolated apply, it is where a mistake is allowed to be cheap.</summary>
-
-The target is a writable clone, an activated snapshot standby, or a controlled interim schema. A plain physical
-standby cannot serve as a writable SPA execution target. Keep production untouched until the candidate has passed the
-semantic gate, the repeated full-workload comparison, the rollback test, and the human approval required for that
-change class.
-
-The result is a bounded experiment. If the candidate fails, remove it from the isolated target and prove the prior
-state with plan and workload evidence. If it passes, promote through the class-specific path and re-check the target.
-The artifact is the target ID, the apply log, and the rollback proof.
-
-</details>
-
-**Verdict: one candidate, one isolated target, one hashed verdict.**
+**Next required page:** [Noise Floor and Repetition](/05-feedback-loop/02-noise-floor-and-repetition/).

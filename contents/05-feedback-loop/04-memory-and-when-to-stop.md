@@ -1,188 +1,133 @@
 ---
 title: Memory and When to Stop
-description: Save lessons from rejects and halt on N=3 misses, plateau, or budget.
+description: Write the condition with the verdict, retrieve it before the next proposal, and stop on a stated signal.
 order: 54
 draft: false
 ---
 
-**Verdict: memory must point to evidence, and convergence must point to a final artifact.** If the next loop cannot
-retrieve the failure conditions, it will repeat the experiment with better confidence and the same mistake.
+A rejected candidate is worth something only if the next loop can retrieve the conditions that killed it. Write the condition beside the verdict, retrieve before proposing, and stop on evidence, not on hope.
 
-## Status and scope
+This page owns the lesson record and the convergence rules. Promotion sequences live in the [recipes chapter](/04-recipes/), and the verdict that feeds this record lives on the [gate page](/05-feedback-loop/03-accept-or-rollback-gate/).
 
-This page is part of a reference architecture designed from primary sources. It was **not executed against a live Oracle
-database in this research pass**. No lesson store, promotion, observation window, or stop rule was run. Examples with
-exact deltas, percentages, iteration counts, or time budgets are illustrative unless a source is named.
+> **Track:** Core (1) · Practice (2, 3) · Recovery (none) · Advanced / gated (4)
+>
+> **Prerequisites:** [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/) behind you, so a verdict and its artifacts already exist.
+>
+> **Evidence status:** The lesson pattern is B1 from Reflexion [S56](https://github.com/noahshinn/reflexion); measured deltas come from A1 comparison and plan documentation [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html); regression handling is B1 read firsthand [S11](https://arxiv.org/html/2608.27758v1).
+> Containment is [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html), whose ledger record is the A1 19c `DBMS_SQLQ` package reference — the primary for that record — with the oracle-base walkthrough carried as class-D corroboration; the package reference itself was not retrieved firsthand.
+> Every stop value below is labeled a design parameter or an engineering choice. **No live Oracle database was available**, so no lesson, promotion, or stop rule on this page was executed.
+>
+> **Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.
 
-Research-only references (not published navigation): `.agents/research/05-agentic-feedback-loop-design.md` §9 and `.agents/research/04-programmatic-approaches.md` §4.11.
+## How this page is banded
 
-Primary references: [S56](https://github.com/noahshinn/reflexion), [S57](https://github.com/ysymyth/ReAct),
-[S55](https://github.com/shayantalaei/chess),
-[S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html),
-[S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html),
-[S11](https://arxiv.org/html/2608.27758v1), and [S40](https://oracle-base.com/articles/19c/sql-quarantine-19c).
+| Band                 | Sections |
+| -------------------- | -------- |
+| **Core**             | 1        |
+| **Practice**         | 2, 3     |
+| **Recovery**         | none     |
+| **Advanced / gated** | 4        |
+
+- **Core (1):** write the record while the evidence is in front of you. A lesson composed later is a memory, not evidence, and this section defines the fields that make it retrievable.
+- **Practice (2, 3):** on a real ticket, retrieve the matching lessons before you propose, and watch the four stop signals while the loop runs.
+- **Recovery (none):** this page records and stops. The undo for a late regression, and its proof, belong to [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/).
+- **Advanced / gated (4):** read before any promotion, because the promotion paths are class-specific, human-approved, and observed after the fact rather than at the moment of accept.
 
 ## 1. Store the condition, not just the conclusion
 
-A rejected candidate is useful when the next agent knows what changed, what was measured, and what remains true. A
-sentence like “the hint was bad” is too small. It will eventually be reused under different conditions.
+"The hint was bad" is too small to reuse. It will be applied again under different statistics, different binds, and a different release, and the sentence gives the next reader nothing to check.
 
-### The evidence schema
-
-Persist every iteration with the seven entities from research 04:
+**PLACEHOLDER — the lesson record. One per verdict. Fill every field; a lesson without `measured_delta` and its artifact hashes is invalid and must be discarded.**
 
 ```text
-loop_run(run_id, git_sha, db_version, host, started_at, finished_at, goal)
-loop_change(run_id, change_id, class, target, ddl_or_plsql, proposed_by, rationale)
-loop_before(run_id, change_id, task_name, metric, median, ci_low, ci_high, samples_json, plan_hash)
-loop_after(run_id, change_id, task_name, metric, median, ci_low, ci_high, samples_json, plan_hash)
-loop_verdict(run_id, change_id, verdict, reason, gate_results_json, rollback_cmd, operator)
-loop_evidence(run_id, artifact_type, path_or_clob_hash)
-loop_lesson(run_id, change_class, outcome, discovered_version, lesson_text)
+change_class:            ____________________
+precondition_signature:  ____________________   -- sql_id / object, stats generation, bind band
+action:                  ____________________
+outcome:                 ____________________   -- ACCEPT | REJECT | INCONCLUSIVE (final verdict)
+measured_delta:          ____________________   -- from the comparison report metric columns
+delta_artifact_hash:     ____________________
+plan_hash_before:        ____________________
+plan_hash_after:         ____________________
+reason_rejected:         ____________________
+banned_until:            ____________________   -- a condition or a review date, never "forever"
+discovered_version:      ____________________   -- exact banner and capability probe from the run
+lesson_text:             ____________________
 ```
 
-`path_or_clob_hash` means an immutable artifact reference or a content hash such as SHA-256. A filesystem path by itself
-is not evidence because the file can change. Store hashes for the SPA report, XPLAN output, SQL Monitor or AWR extract,
-raw samples, and rollback proof.
+`measured_delta` is never hand-typed from memory. It comes from the metric columns of the comparison report for that change's before and after runs [S06], with the plan hash recorded from the plan display of the affected statement [S05]. Each verdict also writes the run, the change, the before and after samples, the verdict itself, and an evidence row holding the artifact hashes.
 
-The lesson fields from the research design are:
+`discovered_version` records the release and capability probe under which the lesson was learned, not a vague "current" label. A lesson from one release can be stale on another.
 
-```text
-change_class
-precondition_signature
-action
-outcome
-measured_delta
-reason_rejected
-banned_until
-discovered_version
-lesson_text
-```
+**The store, defined once.** One location: the `lesson` table in the run's evidence store — the same store that holds the verdict and the evidence rows — exported as `lessons.csv` beside the run records when the loop is run by hand. One key: `change_class | precondition_signature | discovered_version`. Those three fields plus `banned_until` are the whole retrieval index, and `precondition_signature` is built from the change record's `target` plus the statistics generation and bind band, so every search key named here is a column of the record above.
 
-`outcome` is the decision and useful result, such as `REJECT`, `ACCEPT`, `INCONCLUSIVE`, or `NOT-VERIFIED`.
-`discovered_version` records the Oracle release, capability probe, or relevant feature version under which the lesson
-was learned. It is not a vague “latest” label. A lesson from one release can be stale on another.
+### The illustrative lesson
 
-### Illustrative lesson
+**ILLUSTRATIVE — synthetic values for teaching, not a measured outcome.**
 
-The following is synthetic:
-
-- `change_class`: SQL patch
-- `precondition_signature`: same SQL ID, same stats generation, same bind band
+- `change_class`: `patch`
+- `precondition_signature`: same SQL ID, same statistics generation, same bind band
 - `outcome`: `REJECT`
-- `measured_delta`: aggregate `buffer_gets` lower by an illustrative `9%`; one statement higher by an illustrative `7%`
-- `reason_rejected`: statement-level regression beyond the declared `6%` margin
-- `discovered_version`: the exact Oracle banner and capability probe from the test run
-- `banned_until`: statistics generation changes or a new version-specific retest is approved
+- `measured_delta`: aggregate logical work lower, one statement higher past its own floor
+- `reason_rejected`: a statement past its own per-statement A/A floor, or past the declared margin where no floor exists
+- `banned_until`: the statistics generation changes, or a version-specific retest is approved
+- `discovered_version`: the exact banner and capability probe recorded from the run
 
-Those values are not measurements from this project. The important part is the linkage: the next proposal can retrieve
-the lesson and inspect the hashed artifacts rather than trusting chat memory.
-
-Reflexion is the research basis for using written failure feedback to improve later proposals without retraining [S56](https://github.com/noahshinn/reflexion).
-ReAct-style action and test separation and SQL candidate validation patterns support the same design discipline
-S57 and S55. The database loop is stricter: a lesson without raw samples and artifact hashes is invalid.
+The values are invented; the linkage is the point. Reflexion is the research basis for using written failure feedback to improve later proposals without retraining [S56], and this loop adds one stricter requirement: the lesson carries the hashed artifacts or it does not count.
 
 ## 2. Retrieve before proposing
 
-At proposal time, search the lesson store by change class, target shape, workload signature, and `discovered_version`.
-The agent can then take one of three actions:
+At proposal time, search `lessons.csv` — or the `lesson` table behind it — by the three key fields: `change_class`, `precondition_signature`, and `discovered_version`. Three outcomes, and only three:
 
 - **Skip** the action because the same precondition still holds.
-- **Amend** the action because the failure identified a different hypothesis.
-- **Retest** only when new evidence exists, such as a new Oracle capability, changed statistics, a different bind band,
-  or a corrected semantic test.
+- **Amend** the action because the failure points at a different hypothesis.
+- **Retest** when something factual changed: a new release capability, a different statistics generation, a different bind band, or a corrected fixture.
 
-Do not let a ban become permanent folklore. Store its expiry or review condition. A lesson is a guardrail, not a
-religious taboo.
-
-### Illustrative scenario
-
-A patch fails the no-regression gate for one SQL shape. The next proposal sees the same stats generation and the same
-bind band, so it skips the patch and tests a statistics hypothesis instead. A later run has a different statistics
-generation and a new measured A/A floor. The agent may retest, but it starts a new `change_id` and keeps the old
-lesson linked. The artifact is the retrieval query, the new run ID, and the reason the precondition changed.
+A ban without an expiry becomes folklore, so `banned_until` holds a condition or a review date rather than a verdict. The artifact of this step is the retrieval itself: which lessons matched, which action was taken, and why the precondition did or did not change.
 
 ## 3. Stop on evidence, not on hope
 
-The research design uses four convergence signals:
+Four signals end the loop, and each one is written into the run record before the first proposal:
 
-1. **Consecutive rejects.** A starter policy is `N = 3`, where `N` is a design parameter, not an Oracle rule. Stop when
-   the current hypothesis space has produced `N` rejected changes under the same conditions.
-2. **Plateau.** Stop when accepted gains sit below the measured noise floor or the declared materiality threshold.
-   “Below noise” is not an improvement.
-3. **Budget.** Stop when the iteration, runtime, object, or resource budget is exhausted. A budget is part of the
-   experiment, not an excuse to guess faster.
-4. **Risk rise.** Stop on a release-specific SQL Quarantine event, repeated oscillation on one object, unexplained
-   errors, or a rollback that fails to restore the prior state.
+| Signal                | Stop when                                                                                       | Attribution                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Consecutive rejects   | `N` proposals rejected under the same conditions                                                | `N = 3` is a design parameter, not an Oracle rule                                                           |
+| Plateau               | the marginal accepted gain of each of the last `M` accepted changes sits below the composed bar | Your own A/A spread, per the [repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/); `M` = 3 |
+| Budget exhausted      | iterations, total runtime, or modified objects hit their caps                                   | Defaults `10` iterations, `4` hours, `3` objects; engineering choice, bounded-task pattern [S17]            |
+| Regression risk rises | a quarantine event, or the same object rolled back a second time                                | Containment signal [S40]; oscillation guard on regression handling [S11]                                    |
 
-The value of `N`, the accepted-gain window, and every time or object limit are configuration values. Record them in the
-run. Do not present an illustrative `N = 3` or four-hour cap as a sourced result.
+Two of those signals need definitions to be operable. **Marginal accepted gain** is the aggregate improvement of the most recent accepted change, measured on the frozen set against the composed bar the [noise floor policy](/05-feedback-loop/02-noise-floor-and-repetition/) states once. **The window** is the last `M` accepted changes, with `M` defaulting to 3. Both are run settings: record `M` and the gain measured for each accepted change before the loop starts.
 
-### Real-Time SPM and adaptive plans
+The requirement behind both is to report measured variability rather than a point estimate [S58]. The floor itself is your own unchanged-control spread, measured on the [repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/), not a number any source supplies.
 
-Do not turn a vendor feature into a universal policy. Real-Time SPM evaluates a candidate during the regressing
-execution. At execution end, the candidate is rejected and a prior known plan is used for later executions. It does not
-instantly rewrite the current statement.
+**Attribution, stated once.** `N = 3`, the plateau window `M = 3`, and the three budget caps — maximum iterations (`10`), maximum total runtime (`4` hours), maximum modified objects (`3` per run) — are engineering choices with defaults, and every run records the values it actually used. None of them is a source claim, and none is a number this guide measured. A budget belongs to the experiment; it is not an excuse to guess faster.
 
-Adaptive plans remain workload-dependent. The loop should measure the affected workload, binds, statistics, and feature
-settings before recommending a global change. There is no universal on/off answer here.
+Oracle's own loops converge the same way: capture stops when the measured difference falls below the configured threshold, and a previously accepted plan is kept when the new plan is not better. That is the B1 description read firsthand [S11]; the 19c and 26ai split lives in the chapter's single release gate on the [index](/05-feedback-loop/).
 
 ## 4. Promote, observe, and close with proof
 
-An accepted change still has a promotion boundary. The loop never mutates production first.
+An accepted change still crosses a boundary. The loop never mutates production first: promotion runs the class-specific path, with the approval recorded on the [gate page](/05-feedback-loop/03-accept-or-rollback-gate/), and the executable sequences owned by the [recipes chapter](/04-recipes/).
 
-For statistics, gather pending values with the release-supported `PUBLISH FALSE` workflow, use the documented
-pending-statistics session or workflow, run the full-workload gate, obtain the human approval required for the target,
-and publish only after the verdict. In the 19c documentation, the session switch is
-`ALTER SESSION SET OPTIMIZER_USE_PENDING_STATISTICS = TRUE`; verify the name and behavior on the installed release and
-confirm that the pending statistics are visible to the test session. After publishing, restore the recorded `PUBLISH`
-preference and verify it with `DBMS_STATS.GET_PREFS`; publishing pending statistics does not replace the workflow’s
-preference-reset step. If the candidate fails, discard pending values. If publication already occurred, use the
-documented historical-statistics restore path and verify the result S29.
+After promotion, watch the isolated target for the agreed observation window: plan activity, workload deltas, and the quarantine state. Both halves of that watch are owned by [Stabilize and Ship Safely](/01-proven-techniques/05-stabilize-and-ship-safely/) — the observation window and expiry its ship packet defines, and the quarantine reading of what the condition actually is and why it is coupled to a Resource Manager threshold. This page links both instead of restating them. A quarantine event is a containment signal, not proof that a rollback has happened.
 
-For plans, use the release-supported SPM verification path. For redefinition, keep `ABORT_REDEF_TABLE` until the
-new state passes the target check. For editions, switch the application back if the observation window fails. For
-indexes, use a controlled rollout and a human-approved production window.
+If a late regression appears, execute the class rollback from the [gate page](/05-feedback-loop/03-accept-or-rollback-gate/), and record the operator, the timestamp, and the plan and workload proof. Call it automatic only when the installed feature and the written procedure actually provide it.
 
-The target-side promotion check is part of the artifact. Re-run the full workload, then observe the target for the
-agreed window. Save AWR/ASH context, plan evidence, the release-specific quarantine view or event record, and the
-approved rollback result. SQL Quarantine names and signatures are `SKETCH` and release-dependent. A quarantine event is
-a containment signal, not proof that the loop has already rolled back the candidate.
+When a step could not run — no licence, no privilege, no isolated target — record `BLOCKED_PENDING_DECISION` for that step, which surfaces as `INCONCLUSIVE` at the gate. A blocked experiment is an outcome, and it cannot be reported as an improvement.
 
-If a late regression appears, execute the approved class-specific rollback and record the operator, timestamp, and
-verification evidence. Do not call this automatic rollback unless the installed feature and procedure provide it.
+## Artifact
 
-### Final convergence record
+The convergence record closes the chapter:
 
-The close-out artifact should contain:
+- [ ] Run and change IDs, release, capability probe, and the goal the run was started for
+- [ ] Set identity, bind manifest, metric, and the repetition counts and margin as written before the run
+- [ ] Unchanged-control floor, raw samples, medians, estimator, resample count, and interval bounds
+- [ ] Before and after plan hashes with the comparison, plan, and monitoring artifacts hashed
+- [ ] Verdict, five gate results, rollback proof, and the named approver
+- [ ] Lesson rows with condition, measured delta, expiry condition, and discovered version
+- [ ] Stop signal recorded: consecutive rejects, plateau, budget, or risk, with `M`, `N`, and the three cap values it used
+- [ ] Every blocked step marked `BLOCKED_PENDING_DECISION`, and the final verdict written in the preface's vocabulary
 
-- Run and change IDs, Git revision, Oracle version, and capability probe
-- STS identity, bind and workload manifest, metric, and K policy
-- A/A floor, raw samples, medians, bootstrap settings, and 95% CI bounds
-- Before and after plan hashes plus XPLAN, SPA, Monitor, and AWR hashes
-- Verdict, gate results, rollback command, rollback proof, and human approval
-- `outcome`, `discovered_version`, lesson text, and any quarantine or risk event
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
 
-If a license, privilege, standby, clone, or API capability blocked a step, mark that step `NOT-VERIFIED`. Do not turn a
-blocked experiment into a performance claim.
+**Decision:** preserve the evidence, record the version it was learned under, and stop when the next experiment cannot add information.
 
-The [DBMS_SQLPA reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) supplies
-comparison reports. [DBMS_XPLAN](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
-supplies plan evidence. [Reflexion](https://github.com/noahshinn/reflexion) supplies the feedback-memory pattern. The
-[Real-Time SPM paper](https://arxiv.org/html/2608.27758v1) and the [quarantine walkthrough](https://oracle-base.com/articles/19c/sql-quarantine-19c)
-bound the version-specific claims. None of them turns this research pass into a production result.
-
-The memory row is a compact index into evidence, not a transcript dump. Before proposing, retrieve lessons matching the change class, precondition signature, and discovered version. After a verdict, record the outcome, measured delta, reason, review window, and artifact hashes. A rejected idea is blocked only for the conditions that made it fail; new facts earn a new experiment.
-
-<details><summary>In case you don't know about convergence, it is the explicit condition for ending the search.</summary>
-
-Stop after the configured number of consecutive rejects, a measured plateau, budget exhaustion, or a risk signal such
-as quarantine, oscillation, unexplained errors, or failed rollback proof. The values are configuration. Write them in
-the run record and test the stop logic in the harness.
-
-The final artifact is a close-out report with every hash and every unresolved `NOT-VERIFIED` step. The verdict is
-`CONVERGED`, `STOPPED_BY_BUDGET`, or `STOPPED_BY_RISK`, not another vague promise to tune it later.
-
-</details>
-
-**Verdict: preserve the evidence, record the version, and stop when the next experiment cannot add information.**
+**Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.
