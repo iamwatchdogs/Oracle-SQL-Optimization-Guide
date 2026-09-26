@@ -105,8 +105,4 @@ Behind it, the three pages produce their own artifacts: a one-page read note fro
 
 Nothing in this chapter set is Oracle execution output, and no number here was measured by this project.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** before you cite anything, write its ID, its status, and the one sentence it licenses you to publish. Keep the status attached to that sentence wherever it travels.
-
-**Next required page:** [How to Read a DB Paper](/02-papers-behind-recipes/01-how-to-read-a-db-paper/).

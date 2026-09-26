@@ -1,6 +1,6 @@
 ---
 title: What Has No OSS Replacement
-description: 'The proven techniques Oracle owns outright, what a thin script can and cannot substitute for, and the controls that are release-sensitive enough to mark rather than trust.'
+description: 'The techniques Oracle owns outright, what a thin script can and cannot substitute for, and the controls too release-sensitive to trust.'
 order: 63
 draft: false
 ---
@@ -125,8 +125,4 @@ For every entry you intend to script around, one packet containing: the T-ID or 
 
 The gap list in section 4 travels with the packet. A gap you have named is a boundary you can plan around; a gap you have not named is a discovery you have scheduled for someone in production.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** where the catalog says no verified implementation exists, script around Oracle and name the gap. A release-sensitive control gets marked, dated, and confirmed, or it stays a sketch.
-
-**Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.

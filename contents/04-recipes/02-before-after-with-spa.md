@@ -13,7 +13,7 @@ The [STS runbook](/03-toolbox/02-freeze-work-with-sts/) freezes the input. This 
 >
 > **Prerequisites:** [Freeze With STS](/04-recipes/01-freeze-with-sts/) behind you, so the set exists, plus a test target where you may apply one candidate change.
 >
-> **Evidence status:** The task sequence is A1-sourced and read firsthand from the 19c `DBMS_SQLPA` package reference [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html); plan display comes from the 19c `DBMS_XPLAN` reference [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) — note that its plan-_comparison_ functions are not on the 19c path; Database Replay comes from the Real Application Testing guide [S13]; the frozen set comes from [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html). The repetition principle is B1 methodology [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf). Blocks are `ILLUSTRATIVE`, `PLACEHOLDER`, or `MUTATING`. **No live Oracle database was available**, so no trial on this page has been run.
+> **Evidence status:** The task sequence is A1-sourced and read firsthand from the 19c `DBMS_SQLPA` package reference [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html); plan display comes from the 19c `DBMS_XPLAN` reference [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) — note that `COMPARE_PLANS` is documented in that 19c reference at §224.5.1 and is absent from 12.2, so 19c introduced it; Database Replay comes from the Real Application Testing guide [S13]; the frozen set comes from [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html). The repetition principle is B1 methodology [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf). Blocks are `ILLUSTRATIVE`, `PLACEHOLDER`, or `MUTATING`. **No live Oracle database was available**, so no trial on this page has been run.
 >
 > **Next required page:** [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/).
 
@@ -41,7 +41,7 @@ The [STS runbook](/03-toolbox/02-freeze-work-with-sts/) freezes the input. This 
 
 The set must already exist. Use one task for both sides and give every trial a name:
 
-**MUTATING — ILLUSTRATIVE. Creates an analysis task and runs its first trial. SQLcl or SQL\*Plus with the `ADVISOR` privilege on a target whose Real Application Testing entitlement is confirmed. Structure follows the 19c `DBMS_SQLPA` package reference [S06]; not executed here. Confirm every signature on the installed release. Expected output: the task name, then no rows.**
+**MUTATING. Creates an analysis task and runs its first trial. SQLcl or SQL\*Plus with the `ADVISOR` privilege on a target whose Real Application Testing entitlement is confirmed. Structure follows the 19c `DBMS_SQLPA` package reference [S06]; not executed here. Confirm every signature on the installed release. Expected output: the task name, then no rows.**
 
 ```sql
 VARIABLE tname VARCHAR2(64);
@@ -66,7 +66,7 @@ Apply the candidate on the test target, then confirm it actually applied: read t
 
 Then run the same set with the same execution context:
 
-**MUTATING — ILLUSTRATIVE. Runs the second named trial on the same task. SQLcl or SQL\*Plus, same session rules as section 2. Not executed here. Expected output: no rows returned.**
+**MUTATING. Runs the second named trial on the same task. SQLcl or SQL\*Plus, same session rules as section 2. Not executed here. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
@@ -90,7 +90,7 @@ The report also tells you about _set_ membership, not just per-statement deltas:
 
 Point the comparison at the two names, then read the report:
 
-**MUTATING — ILLUSTRATIVE. Sets a task parameter and runs a comparison execution on the same task. SQLcl or SQL\*Plus with the privileges from section 2. Not executed here; confirm `execution_params`, `DBMS_ADVISOR.ARGLIST`, and the report arguments on the installed release. Expected output: no rows returned.**
+**MUTATING. Sets a task parameter and runs a comparison execution on the same task. SQLcl or SQL\*Plus with the privileges from section 2. Not executed here; confirm `execution_params`, `DBMS_ADVISOR.ARGLIST`, and the report arguments on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_SQLPA.SET_ANALYSIS_TASK_PARAMETER(
@@ -148,7 +148,7 @@ Record the seed beside the interval: two runs with the same seed and the same sa
 
 For the top movers, capture the plan that actually ran:
 
-**ILLUSTRATIVE — PLACEHOLDER — SQLcl or SQL\*Plus. Replace `&sql_id` with an identity read from the target system, never from memory. Requires read access to `V$SQL`, `V$SQL_PLAN`, `V$SESSION`, and `V$SQL_PLAN_STATISTICS_ALL`; confirm the view list on your release. Expected output: the plan for the named cursor, with runtime statistics when they were gathered.**
+**PLACEHOLDER — SQLcl or SQL\*Plus. Replace `&sql_id` with an identity read from the target system, never from memory. Requires read access to `V$SQL`, `V$SQL_PLAN`, `V$SESSION`, and `V$SQL_PLAN_STATISTICS_ALL`; confirm the view list on your release. Expected output: the plan for the named cursor, with runtime statistics when they were gathered.**
 
 ```sql
 SELECT * FROM TABLE(
@@ -156,15 +156,16 @@ SELECT * FROM TABLE(
     sql_id => '&sql_id',
     cursor_child_no => NULL,
     format => 'ALLSTATS LAST +PEEKED_BINDS'
+
   )
 );
 ```
 
-That view list is the one [Measure First](/01-proven-techniques/01-measure-first/) records for `DISPLAY_CURSOR`. `A-Rows` appears only where row-source statistics were gathered — through the session's statistics level or the `GATHER_PLAN_STATISTICS` hint, as [the plan-statistics mechanism](/01-proven-techniques/01-measure-first/) explains — so without that mechanism you get a plan shape and no actuals. Compare `E-Rows` with `A-Rows`, selectivity, rows examined, cost, predicates, and the measured deltas. Reading the line itself is the [toolbox runbook](/03-toolbox/01-measure-with-xplan-and-monitor/), which this page does not repeat.
+That view list is the one [Measure First](/01-proven-techniques/01-measure-first/) records for `DISPLAY_CURSOR`. `A-Rows` appears only where row-source statistics were gathered — through the session's statistics level or the `GATHER_PLAN_STATISTICS` hint, as [the plan-statistics mechanism](/01-proven-techniques/01-measure-first/) explains — so without that mechanism you get a plan shape and no actuals. Compare `E-Rows` with `A-Rows`, selectivity, rows examined, cost, predicates, and the measured deltas. Reading the line itself is the [toolbox runbook](/03-toolbox/01-measure-with-xplan-and-monitor/), which this page does not repeat. One label this format string needs: `PEEKED_BINDS` works on 19c, but it is **not enumerated** in the printed format list in either the 19c or the 26ai `DBMS_XPLAN` reference — an Oracle documentation gap, not a release boundary. Check it on your own instance before you build a runbook around it.
 
-For a written diff of saved plans, `DBMS_XPLAN` ships two comparison functions [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html), and **neither is on the 19c primary path** — `COMPARE_PLANS` arrived in 23ai, so on 19c the function you would have planned around does not exist. Which one you would need, what each returns, and the parameters each takes are [Measure First](/01-proven-techniques/01-measure-first/)'s decision; this page does not repeat them.
+For a written diff of saved plans, `DBMS_XPLAN` ships two comparison functions [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html), and **both are on the 19c primary path** — `COMPARE_PLANS` is documented at §224.5.1 of the 19c reference and is absent from 12.2, so 19c introduced it, while `DIFF_PLAN`'s signature changed between those two releases. Which one you would need, what each returns, and the parameters each takes are [Measure First](/01-proven-techniques/01-measure-first/)'s decision; this page does not repeat them.
 
-Confirm the name, the signature, and the availability of each function against the package reference for your installed release before you call it. When either call is not there, save both `DISPLAY_*` outputs and diff them yourself; that path works on every release and needs nothing you have not already used. The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why the release label belongs next to the behavior.
+Confirm the name, the signature, and the availability of each function against the package reference for your installed release before you call it. If a call is not there, save both `DISPLAY_*` outputs and diff them yourself; that path works on every release and needs nothing you have not already used. The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why the release label belongs next to the behavior.
 
 ## When SPA is the wrong instrument
 
@@ -215,10 +216,6 @@ A comparison record another engineer can recompute:
 - [ ] Disposition row written, or `NOT-VERIFIED` written because no trial ran
 - [ ] What the next loop inherits from this comparison recorded on [Memory and When to Stop](/05-feedback-loop/04-memory-and-when-to-stop/)
 
-The task blocks are `MUTATING` and `ILLUSTRATIVE`, the plan capture is `ILLUSTRATIVE` with a `PLACEHOLDER` token, and the estimator lives on the [noise floor and repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/). None of them has produced a number in this guide.
-
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+The task blocks are `MUTATING` shapes, the report read is `ILLUSTRATIVE`, the plan capture carries a `PLACEHOLDER` token, and the estimator lives on the [noise floor and repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/). None of them has produced a number in this guide.
 
 **Decision:** same set in, named trials out, measured delta saved. The report is evidence for one trial; the gate decides what the trial means.
-
-**Next required page:** [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/).

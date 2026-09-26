@@ -7,7 +7,7 @@ draft: false
 
 A fast query is a claim until you can reproduce it. A reproducible claim still needs a safe place to run.
 
-> **Track:** Core (The minimum vocabulary, Choose your path, Choose a client, Request least privilege, Safe setup checklist) · Practice (The primary 19c-compatible baseline, Connect through a service then work in a schema, Owner handoff, Capture output without leaking secrets, A realistic junior workflow) · Recovery (Clean up the practice target, If a package or view is unavailable, No production by default) · Advanced / gated (Optional Oracle Database Free 26ai Docker sandbox)
+> **Track:** Core (How to read a block in this book, The minimum vocabulary, Choose your path, The primary 19c-compatible baseline, Choose a client, Request least privilege, Safe setup checklist, Next handoff) · Practice (Connect through a service then work in a schema, Owner handoff, Capture output without leaking secrets, A realistic junior workflow) · Recovery (Clean up the practice target, If a package or view is unavailable, No production by default) · Advanced / gated (Optional Oracle Database Free 26ai Docker sandbox)
 >
 > **Prerequisites:** Basic SQL and the ability to read a terminal, a result set, and an error message.
 >
@@ -17,17 +17,25 @@ A fast query is a claim until you can reproduce it. A reproducible claim still n
 
 ## How this page is banded
 
-| Band                 | Sections                                                                      |
-| -------------------- | ----------------------------------------------------------------------------- |
-| **Core**             | Vocabulary · Path · Client · Least privilege · Checklist                      |
-| **Practice**         | 19c baseline · Service and schema · Owner handoff · Capture · Ticket sequence |
-| **Recovery**         | Cleanup · Unavailable object · No production                                  |
-| **Advanced / gated** | Optional 26ai Docker sandbox                                                  |
+| Band                 | Sections                                                                                                                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core**             | How to read a block in this book · The minimum vocabulary · Choose your path · The primary 19c-compatible baseline · Choose a client · Request least privilege · Safe setup checklist · Next handoff |
+| **Practice**         | Connect through a service, then work in a schema · Owner handoff · Capture output without leaking secrets · A realistic junior workflow                                                              |
+| **Recovery**         | Clean up the practice target · If a package or view is unavailable · No production by default                                                                                                        |
+| **Advanced / gated** | Optional Oracle Database Free 26ai Docker sandbox                                                                                                                                                    |
 
-- **Core (The minimum vocabulary, Choose your path, Choose a client, Request least privilege, Safe setup checklist):** read these first. They define the words, the path, the client, the smallest useful access request, and the checklist that proves you have them.
-- **Practice (The primary 19c-compatible baseline, Connect through a service then work in a schema, Owner handoff, Capture output without leaking secrets, A realistic junior workflow):** use these on a real request, with a named owner in the loop. Each one records something you would otherwise have to ask twice.
+Every `##` section on this page is listed exactly once above. `SQLcl` and `SQL*Plus` sit under **Choose a client**, and **Privileges, options, and entitlements** sits under **Request least privilege**, so they inherit those bands rather than claiming one of their own.
+
+- **Core:** the block-label convention, the words, the path, the smallest useful access request, the checklist that proves you have them, and the pointer onward. Read these first; nothing here touches a database. **How to read a block in this book** and **Next handoff** are orientation rather than teaching content, and they are banded Core because a reader who skips them misreads every block label and every handoff that follows.
+- **Practice:** the connection, the named owners, the transcript, and the ticket sequence. Use these on a real request, with a named owner in the loop. Each one records something you would otherwise have to ask twice.
 - **Recovery (Clean up the practice target, If a package or view is unavailable, No production by default):** these **undo** and **stop**. They do not make a query faster, and cleanup is not candidate rollback.
 - **Advanced / gated (Optional Oracle Database Free 26ai Docker sandbox):** read before you use it, because the image name, tag, secret mechanism, and licensing terms are release-specific and change.
+
+## How to read a block in this book
+
+Every SQL block, plan, report, and number in this book is **illustrative or synthetic**. No live Oracle database was available while it was written, so nothing here is a measurement of your system or of anyone else's, and a number you read here is a teaching value until you produce it yourself.
+
+Because that is true of the whole book, a block does not repeat it. A page carries a label above a block only where a specific caveat would otherwise be missed — most often that the block changes state (`MUTATING`), that you must substitute an owner-supplied value before running it (`PLACEHOLDER`), or that the values in it are invented (`SYNTHETIC`). Everything else a block needs — the client, the privileges, the expected output, and whether it was actually run — is in the sentence under its label, and each page closes by restating what its own blocks are. The full list of labels, and which one outranks which when a block needs more than one, is in the [block taxonomy](/00-preface/02-how-to-prove-a-win/). If a block has no label, it is still illustrative and still needs confirming on your release.
 
 ## The minimum vocabulary
 
@@ -91,7 +99,7 @@ A 19c base release is a compatibility target, not a promise that every documente
 
 This path is for local experimentation only. It is **not required** for the core method. The image name, tag, startup command, environment variables, secret mechanism, and licensing terms can change. Use an image supplied or approved by the lab owner and record the immutable tag or digest.
 
-**SKETCH — PLACEHOLDER — version-sensitive Oracle Database Free 26ai Docker path.** Oracle's current [26ai Free quick start](https://www.oracle.com/database/free/get-started/) lists `container-registry.oracle.com/database/free:latest` as an example registry path only. `latest` is not a reproducibility contract and must not be used as the recorded run image. The owner chooses one immutable reference before the run:
+**PLACEHOLDER — version-sensitive Oracle Database Free 26ai Docker path.** Oracle's current [26ai Free quick start](https://www.oracle.com/database/free/get-started/) lists `container-registry.oracle.com/database/free:latest` as an example registry path only. `latest` is not a reproducibility contract and must not be used as the recorded run image. The owner chooses one immutable reference before the run:
 
 ```text
 IMAGE=container-registry.oracle.com/database/free:<approved-tag>
@@ -100,7 +108,7 @@ IMAGE=container-registry.oracle.com/database/free@sha256:<approved-digest>
 
 The two lines are alternative placeholders, not an instruction to set both. The selected image's own documentation determines the supported password variable and volume/startup arguments. Load the secret through one approved mechanism: a Docker secret, a protected env-file, or the lab's secret manager. Do not put a raw password in a command, repository, ticket, or shell history. If the selected image requires a different secret adapter, the owner supplies the release-specific command.
 
-**ILLUSTRATIVE — PLACEHOLDER — owner-provided env-file shape.** This block is not executable until the owner replaces the image and secret-file placeholders and verifies the selected image's variables.
+**PLACEHOLDER — owner-provided env-file shape.** This block is not executable until the owner replaces the image and secret-file placeholders and verifies the selected image's variables.
 
 ```bash
 IMAGE="container-registry.oracle.com/database/free:<approved-tag>"
@@ -151,7 +159,7 @@ Both clients need a reachable service and a valid account. Neither can see an ob
 
 Ask which service reaches the lab database and which PDB it opens. A service name is the stable handoff between the client and the database. Do not assume a host name is a service name.
 
-**ILLUSTRATIVE — PLACEHOLDER — SQLcl or SQL\*Plus.** The client must already be installed, the route must be approved, and `lab_user` must be a dedicated account. Replace the host, port, and service with owner-supplied values. Use your approved credential prompt or secret manager. The expected output is one connected session and a client prompt. Do not put a password in the command or in a saved file.
+**PLACEHOLDER — SQLcl or SQL\*Plus.** The client must already be installed, the route must be approved, and `lab_user` must be a dedicated account. Replace the host, port, and service with owner-supplied values. Use your approved credential prompt or secret manager. The expected output is one connected session and a client prompt. Do not put a password in the command or in a saved file.
 
 ```text
 CONNECT lab_user@//db.example:1521/ORCLPDB1
@@ -221,13 +229,13 @@ A read-only snapshot can preserve baseline evidence but cannot satisfy the rehea
 
 Spooling preserves a client transcript for inspection; it does not guarantee that a CLOB report is complete. Use an approved complete-CLOB writer for report evidence and keep SQLcl/SQL*Plus spool output as a transcript. Store it in the approved lab directory. Redact connection strings, passwords, tokens, customer data, and sensitive bind values before sharing it.
 
-**ILLUSTRATIVE — PLACEHOLDER — SQLcl.** Requires a writable path supplied by the lab owner. Expected output: a text file containing the session transcript, plan, and report while spool is on. The path below is a placeholder.
+**PLACEHOLDER — SQLcl.** Requires a writable path supplied by the lab owner. Expected output: a text file containing the session transcript, plan, and report while spool is on. The path below is a placeholder.
 
 ```text
 spool /approved/lab/output/v0-session.log
 ```
 
-**ILLUSTRATIVE — PLACEHOLDER — SQL\*Plus.** Requires the same approved writable path. Expected output: the same kind of text transcript. Stop spooling before leaving the session.
+**PLACEHOLDER — SQL\*Plus.** Requires the same approved writable path. Expected output: the same kind of text transcript. Stop spooling before leaving the session.
 
 ```text
 spool /approved/lab/output/v0-session.log
@@ -318,8 +326,6 @@ A setup record with the path you chose and why, the release, update level, editi
 
 The research pass had no Oracle instance available to connect to, and `sqlcl` and `sqlplus` were not on `PATH`. The commands and output shapes on this page are procedures and illustrations, not executed results.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+Every `S01`-style source ID and every `T-` technique ID used anywhere in this book resolves in [Appendix Sources](/07-appendix-sources/). That appendix is the one place the ledger is explained, so no other page repeats the pointer.
 
 **Decision:** Do not run what you cannot identify, reproduce, observe, and roll back.
-
-**Next required page:** [Why evidence grades decide what you trust](/00-preface/01-why-evidence-grades/).

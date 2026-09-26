@@ -67,7 +67,7 @@ SQLFluff supports the Oracle dialect and works as a CLI, a Python API, and a CI 
 sqlfluff lint --dialect oracle queries/sales_report.sql
 ```
 
-**MUTATING — ILLUSTRATIVE — local shell with SQLFluff installed; no database. `fix` rewrites the candidate file in place, so it is a state change like any other: run it on a branch where the rewrite is reviewable and revertible, and keep the `lint` result above as the record of what was wrong. Expected output: the files it rewrote, each reviewed as a diff before it goes anywhere.**
+**MUTATING — local shell with SQLFluff installed; no database. `fix` rewrites the candidate file in place, so it is a state change like any other: run it on a branch where the rewrite is reviewable and revertible, and keep the `lint` result above as the record of what was wrong. Expected output: the files it rewrote, each reviewed as a diff before it goes anywhere.**
 
 ```bash
 sqlfluff fix --dialect oracle queries/sales_report.sql
@@ -134,7 +134,7 @@ Run these stages in order, and stop at the first failure:
 3. Run the configured SQLFluff rules from the repository configuration. A lint failure blocks the next stage.
 4. Run result assertions against controlled fixtures on a test database. A behavior failure blocks the next stage.
 5. Create the frozen set and run the controlled comparison, using the [STS runbook](/03-toolbox/02-freeze-work-with-sts/) and the [SPA recipe](/04-recipes/02-before-after-with-spa/).
-6. If the change can affect contention or resource use, run the [load gate](/03-toolbox/03-load-test-without-prod/).
+6. If the change affects contention or resource use — buffer cache, locks, CPU, or I/O, run the [load gate](/03-toolbox/03-load-test-without-prod/).
 7. Record the verdict with the artifacts from every stage that ran.
 
 A clean static pass earns database time. It does not earn a promotion, and a green CI badge is not a performance claim.
@@ -158,8 +158,4 @@ A gate record with one row per stage:
 
 The blocks above are `ILLUSTRATIVE` local tooling shapes, and the tool facts are repository and documentation records rather than results.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** lint the text, test the meaning, then measure the SQL. A stage that has not run is a stage that has not passed.
-
-**Next required page:** [Recipes You Can Script](/04-recipes/).

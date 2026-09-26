@@ -138,8 +138,4 @@ A frozen workload record:
 
 The create, capture, and guard blocks are `SKETCH` procedure shapes, and none of them has been run against a target in this guide.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** a frozen set is the input half of an honest comparison. If the two sides did not see the same set, there is nothing to compare.
-
-**Next required page:** [Before and After With SPA](/04-recipes/02-before-after-with-spa/).

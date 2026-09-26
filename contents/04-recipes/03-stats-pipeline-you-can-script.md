@@ -64,7 +64,7 @@ The `restore_anchor` string is the pre-candidate timestamp section 6 restores to
 
 **The gate comes first: is this object critical?** If it is, skip the block below and go to section 3, because this block publishes as it gathers. For a non-critical object, the default path is preferences first, then the gather:
 
-**MUTATING — SKETCH. Sets two preferences and gathers statistics for one object. SQLcl or SQL\*Plus as the object owner or an authorized account. Not executed here; confirm the signatures on the installed package reference. Expected output: no rows returned.**
+**MUTATING. Sets two preferences and gathers statistics for one object. SQLcl or SQL\*Plus as the object owner or an authorized account. Not executed here; confirm the signatures on the installed package reference. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_STATS.SET_TABLE_PREFS(
@@ -89,7 +89,7 @@ The `GATHER_TABLE_STATS` call is the mutation, and on this path the new statisti
 
 This is the path section 2 sends critical objects down. Set the publication preference before you gather:
 
-**MUTATING — SKETCH. Sets `PUBLISH` to `FALSE` and gathers statistics that stay pending. SQLcl or SQL\*Plus with the same privileges as section 2. Not executed here; confirm the signatures on the installed release. Expected output: no rows returned.**
+**MUTATING. Sets `PUBLISH` to `FALSE` and gathers statistics that stay pending. SQLcl or SQL\*Plus with the same privileges as section 2. Not executed here; confirm the signatures on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_STATS.SET_TABLE_PREFS(
@@ -110,7 +110,7 @@ After this sequence the new statistics are pending and the previously published 
 
 The supported mechanism is a direct test session:
 
-**MUTATING — ILLUSTRATIVE. Changes session state for the test session only. SQLcl or SQL\*Plus in the session under test. Confirm the parameter name on the installed release. Expected output: no rows returned.**
+**MUTATING. Changes session state for the test session only. SQLcl or SQL\*Plus in the session under test. Confirm the parameter name on the installed release. Expected output: no rows returned.**
 
 ```sql
 ALTER SESSION SET optimizer_use_pending_statistics = TRUE;
@@ -136,7 +136,7 @@ Each ending names the artifact you keep and the state you end in. Pick one expli
 
 Use discard when the candidate regresses or the result is inconclusive and the published statistics are still the approved state:
 
-**MUTATING — ILLUSTRATIVE. Removes pending statistics for one object; the arguments are owner then table. SQLcl or SQL\*Plus with the privileges from section 2. Not executed here; confirm the argument order on the installed release. Expected output: no rows returned.**
+**MUTATING. Removes pending statistics for one object; the arguments are owner then table. SQLcl or SQL\*Plus with the privileges from section 2. Not executed here; confirm the argument order on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_STATS.DELETE_PENDING_STATS(USER, 'HOT_TAB');
@@ -148,7 +148,7 @@ EXEC DBMS_STATS.DELETE_PENDING_STATS(USER, 'HOT_TAB');
 
 Use publish when the test passes and a human has approved the commit point:
 
-**MUTATING — ILLUSTRATIVE. Publishes pending statistics for one object. SQLcl or SQL\*Plus, after the approval recorded in the run manifest. Not executed here; confirm the argument names on the installed release. Expected output: no rows returned.**
+**MUTATING. Publishes pending statistics for one object. SQLcl or SQL\*Plus, after the approval recorded in the run manifest. Not executed here; confirm the argument names on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_STATS.PUBLISH_PENDING_STATS(USER, 'HOT_TAB');
@@ -162,7 +162,7 @@ Use restore when an already published gather caused a regression and history sti
 
 The anchor travels instead as a zone-qualified timestamp literal built from the section 1 string. Re-read the section 1 floor with the same zero-argument call first: if your anchor predates it, this ending changes.
 
-**MUTATING — PLACEHOLDER. Restores published statistics for one object to the recorded anchor. SQLcl or SQL\*Plus with the privileges from section 2. Replace the literal with your section 1 `restore_anchor` string, same object, same mechanism. Not executed here; confirm the argument names and types on the installed release. Expected output: no rows returned.**
+**PLACEHOLDER. Restores published statistics for one object to the recorded anchor. SQLcl or SQL\*Plus with the privileges from section 2. Replace the literal with your section 1 `restore_anchor` string, same object, same mechanism. Not executed here; confirm the argument names and types on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_STATS.RESTORE_TABLE_STATS(
@@ -197,10 +197,6 @@ A statistics run record:
 - [ ] Preference restore read back in the named-argument form after any reset
 - [ ] Rollback rehearsed in a sandbox before the ending that changes published state
 
-Blocks above are `ILLUSTRATIVE`, `SKETCH`, or `MUTATING`, and the restore block also carries a `PLACEHOLDER` anchor. None of them has been run in this guide.
-
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+Blocks above are `ILLUSTRATIVE` or `MUTATING` shapes, and the restore block is a `PLACEHOLDER` that substitutes your recorded anchor. None of them has been run in this guide.
 
 **Decision:** pending statistics are a draft, publish is the commit, restore is the rollback; record the policy you started from so you can prove which of the three you ended in.
-
-**Next required page:** [Safe DDL and CI Gates](/04-recipes/04-safe-ddl-and-ci-gates/).

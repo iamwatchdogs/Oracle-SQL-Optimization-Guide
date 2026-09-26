@@ -120,6 +120,8 @@ The pattern is the same in all five. The source is solid; what it licenses is na
 
 ## 5. The citation check
 
+> **"Is every dated number presented as a dated fact rather than a current one?"**
+
 Six questions, run on a sentence before you publish it. Any **no** is a fix, not a caveat.
 
 - Does the ID resolve to a record, and does the page carry a link or a class for it?
@@ -135,11 +137,13 @@ The last question is the one that survives contact with a review. It is easy to 
 
 A citation does not make a signature portable, and a later-release document does not become a 19c fact by being linked. The other pages in this book link here rather than restating the rule.
 
-**Plan comparison is the case to get right, and it is the error in this book that has spread furthest.** `DBMS_XPLAN` does ship two comparison functions — `COMPARE_PLANS`, which compares stored plan objects and returns a report as a CLOB, and `DIFF_PLAN`, which takes SQL text plus an outline and returns a task ID for a findings report — and a great deal of Oracle material online says both are in the 19c package reference. **`COMPARE_PLANS` is documented from 23ai onward. The 19c reference does not carry it.** A runbook that says "use `COMPARE_PLANS`" with no release is a runbook that breaks on the primary path of this book, and the error it raises will not say so. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
+**`DBMS_XPLAN.DIFF_PLAN` is the case to get right, because the name is stable and the contract is not.** The function exists in both 12.2 and 19c under the same name, and it does a different thing in each. In 12.2 the signature is `DIFF_PLAN(plan1 IN SPC_SRC, plan2 IN SPC_SRC) RETURN VARCHAR2` — two saved plans in, a verdict out. In 19c it is `DIFF_PLAN(sql_text IN CLOB, outline IN CLOB, user_name IN VARCHAR2 := 'NULL') RETURN VARCHAR2` — SQL text plus an outline in, a task ID for a findings report out. A runbook that says "call `DIFF_PLAN` to diff two plans" is **true in 12.2 and false in 19c**, and nothing in the name tells you which. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html), diffed against the [12.2 `DBMS_XPLAN` reference](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/arpls/DBMS_XPLAN.html)
 
-What still has to be confirmed locally is the exact signature and the parameters available in your installation, because update levels and later releases extend the report options and parameter sets. **Later releases extending an API is not the same as later releases introducing it**, and treating the two as the same is how a 19c runbook ends up citing a function it cannot call.
+That is the whole lesson in one function: **a name is not a signature, and a signature is not portable.** The release label belongs in the sentence rather than in a footnote, because the sentence is what gets copied into somebody's runbook. Which of the two comparison functions you would need, and what each returns, is owned by [Measure First](/01-proven-techniques/01-measure-first/); the general release rule is owned by the [version drift page](/07-appendix-sources/02-version-drift-survival/).
 
-This is also the cleanest example in the book of why the release label belongs in the sentence rather than in a footnote. The sentence is what gets copied into somebody's runbook, and a runbook that says "use `COMPARE_PLANS`" with no release is a runbook that breaks on upgrade. Which of the two you would need, and what each returns, is owned by [Measure First](/01-proven-techniques/01-measure-first/); the general release rule is owned by the [version drift page](/07-appendix-sources/02-version-drift-survival/).
+**And here is the mistake this book actually made, because the honest example is the one you can check.** An earlier draft asserted that `DBMS_XPLAN.COMPARE_PLANS` was documented only from 23ai onward and was absent from the 19c reference. It was wrong, and the error was a _reading_ error, not a source error. The 19c `DBMS_XPLAN` Overview says the package "supplies five table functions" and then lists only the five **table** functions. `COMPARE_PLANS` and `DIFF_PLAN` are plain functions: absent from that prose list, present in Table 224-2. Skimming the Overview and never scrolling to the subprogram table produced a bolded release boundary, repeated across six pages, with the refuting document cited as its own proof. `COMPARE_PLANS` is documented in 19c at §224.5.1 and is absent from 12.2, so 19c introduced it.
+
+Two rules fall out of that, and both are more useful than the false boundary was. **Read the subprogram table, not the Overview**, when a package reference tells you what it contains. And **check the direction of the claim**: "not available before release R" is a claim about two releases, so it needs a two-release diff as its receipt. A single later-edition page cannot support it.
 
 **SQL Quarantine is the harder version of the same problem.** The mechanism is documented for 19c, but the API names in this book's ledger were not read firsthand from the installed package, so a name such as `CREATE_QUARANTINE_BY_SQL_ID` is a sketch to verify, not text to paste. Marking it as a sketch costs one line. Guessing it costs an incident. [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)
 
@@ -154,5 +158,3 @@ Behind it, the neighboring pages produce their own artifacts: the dated release 
 Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
 
 **Decision:** match the claim to the class, the release, and the date, and write down what the source does not settle. A citation with no ceiling is a promise you cannot keep.
-
-**Next required page:** [Version Drift Survival](/07-appendix-sources/02-version-drift-survival/).

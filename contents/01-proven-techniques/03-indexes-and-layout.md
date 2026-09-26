@@ -9,7 +9,7 @@ An index is a read shortcut with a write bill.
 
 Every index you add makes reads cheaper and makes every insert, update, and delete on that table do more work. The trade is the feature, not a side effect.
 
-> **Track:** Core, then Practice, then Advanced / gated (with Practice resumed for the decision table and checklist)
+> **Track:** Core, then Practice, then Advanced / gated (with Practice resumed under "Practice, continued" for the decision table and checklist)
 >
 > **Prerequisites:** [Measure First](/01-proven-techniques/01-measure-first/) and a saved executed plan. Read [Stats Run the Show](/01-proven-techniques/02-stats-run-the-show/) first: an index cannot rescue a plan that reads the wrong number of rows for the wrong reason.
 >
@@ -19,17 +19,19 @@ Every index you add makes reads cheaper and makes every insert, update, and dele
 
 ## How this page is banded
 
-| Band                 | Sections         |
-| -------------------- | ---------------- |
-| **Core**             | 1 to 4           |
-| **Practice**         | 5, 6, 11, 12, 13 |
-| **Recovery**         | none             |
-| **Advanced / gated** | 7 to 10          |
+| Band                 | Sections                                           |
+| -------------------- | -------------------------------------------------- |
+| **Core**             | Core access paths (1 to 4)                         |
+| **Practice**         | Practice (5, 6) · Practice, continued (11, 12, 13) |
+| **Recovery**         | none                                               |
+| **Advanced / gated** | Advanced / gated physical design (7 to 10)         |
 
-- **Core (1 to 4):** read and act. The access-path lesson: when an index is the answer, one index end to end, selectivity and clustering factor, and the wrong shapes.
-- **Practice (5, 6, 11, 12, 13):** use on a real ticket. Partition pruning, precomputed work, the decision table, the junior request checklist, and the stop list.
+Each row names the `##` container and the numbered sections inside it. Every `##` and `###` heading on this page is banded exactly once: the four `##` headings are containers whose names state their band, and each numbered `###` section carries the band of the container it sits in.
+
+- **Core (Core access paths, 1 to 4):** read and act. The access-path lesson: when an index is the answer, one index end to end, selectivity and clustering factor, and the wrong shapes.
+- **Practice (Practice, 5 and 6; Practice, continued, 11, 12, and 13):** use on a real ticket. Partition pruning, precomputed work, then — after the gated block — the decision table, the junior request checklist, and the stop list. **The Practice band is split in print order on purpose:** 11 to 13 print after the Advanced / gated block because the decision table has to be able to send you to a gated feature and tell you when to stop there. One band, two containers.
 - **Recovery (none):** this page names the read trade an index makes but does not drop anything. The drop that undoes a candidate index is owned by the [V0 lab](/00-preface/02-how-to-prove-a-win/).
-- **Advanced / gated (7 to 10):** gated. Compression, In-Memory and Exadata, parallel execution, and Automatic Indexing. Each needs a release, edition, or entitlement check.
+- **Advanced / gated (Advanced / gated physical design, 7 to 10):** gated. Compression, In-Memory and Exadata, parallel execution, and Automatic Indexing. Each needs a release, edition, or entitlement check.
 
 The Core band is the beginner path and it is deliberately narrow: one index, taught properly, is more useful than a catalog of index types. Read 1 to 4, then use the Practice decision table on a real ticket.
 
@@ -50,9 +52,13 @@ The third row is the one people skip. An index on the statement you were asked a
 
 The read/write trade is worth stating numerically. An index on `employees(dept_id)` makes `WHERE dept_id = :dept_id` cheaper. It also makes every insert into `employees` maintain that index. If the table is written to constantly and the report runs twice a day, you have made the frequent operation slower and the rare one faster. That can still be the right trade. It is never automatic.
 
+One aside: the row everybody skips is the one that would have saved the ticket. Back to the estimate.
+
 ### 2. One index, taught properly
 
-Let us continue from the [measure-first page](/01-proven-techniques/01-measure-first/), which saved the canonical V0 plan pair for this same statement and found two separate defects: a `filter` instead of an `access`, and an estimate of 1,000 for a statement that returns 4. The first defect is what this page fixes. The second one is a statistics defect, and it is the more interesting half of the lesson.
+Looking up a name in a phone's contact list means jumping straight to the entry; reading the whole list and discarding every line that does not match is a different operation that returns the same name. A list holding three entries with that name still tells you nothing about how many you will find, and that is the difference an index makes and the difference a non-unique one does not.
+
+The [measure-first page](/01-proven-techniques/01-measure-first/) saved the canonical V0 plan pair for this statement and found two separate defects: a `filter` instead of an `access`, and an estimate of 1,000 for a statement that returns 4. The first defect is what this page fixes. The second one is a statistics defect, and it is the more interesting half of the lesson.
 
 Every number below comes from the plan pair owned by [section 8 of the V0 lab](/00-preface/02-how-to-prove-a-win/). There is one synthetic pair in this book, and this page does not invent a second one.
 
@@ -71,7 +77,7 @@ Before the index, this reads the table and filters. The full canonical `before_0
 - **The access path is a `filter`, not an `access`.** `A-Rows 10,000` in the before plan is rows **examined** by the full scan. The `filter` line is the reason the statement read the whole table to produce 4 rows. That is the access-path defect this page fixes.
 - **The estimate is `E-Rows 1,000`** for a statement that returns 4. That is the separate statistics defect, and the index alone does not fix it.
 
-**ILLUSTRATIVE — MUTATING — PLACEHOLDER — candidate index.** Requires the object owner or an authorized DDL role with owner-confirmed create privilege. Replace `<object-owner-schema>` with the owner-supplied value so the DDL runs on the same `object_owner_schema` boundary the [V0 fixture and capture](/00-preface/02-how-to-prove-a-win/) use; that is the schema whose `EMPLOYEES` table this page's plans describe. Expected output: one successful DDL operation and no row change to the table. Do not run this in production.
+**MUTATING — candidate index.** Requires the object owner or an authorized DDL role with owner-confirmed create privilege. Replace `<object-owner-schema>` with the owner-supplied value so the DDL runs on the same `object_owner_schema` boundary the [V0 fixture and capture](/00-preface/02-how-to-prove-a-win/) use; that is the schema whose `EMPLOYEES` table this page's plans describe. Expected output: one successful DDL operation and no row change to the table. Do not run this in production.
 
 ```sql
 DEFINE object_owner_schema = <object-owner-schema>
@@ -101,7 +107,7 @@ After the index, the predicate becomes an `access` and the scan becomes an `INDE
 **The index provided the access path; the statistics provided the estimate.**
 
 - **The estimate moved from 1,000 to 10.** **That is a big improvement, and it is still not 4.**
-- **The index is not unique, so it grants no row-count guarantee.** The estimate improved because the optimizer now applies the column's per-value distribution while walking the index, which it could not do through a full scan.
+- **The index is not unique, so it grants no row-count guarantee.** **The index gave the optimizer an access path; restoring the statistics gave it a distribution.** `E-Rows` moved from 1,000 to 10 because the per-value distribution on the column was there to be read, not because the index existed. Drop the index and the estimate goes back to guessing, because the estimator's problem was never the access path. The non-unique index still grants no row-count guarantee.
 - **An index can still be ignored, or still be wrong.** One on a column the optimizer believes is useless will be ignored outright, and one used on a column with bad statistics can still carry a wrong cost.
 - **A `TABLE ACCESS BY INDEX ROWID` line appeared.** The index found the four keys it needed, but a non-unique index on one column does not store `salary` or `employee_id`, so Oracle went back to the table for each of those four rows. A **covering** index, one that contains every column the query selects, removes this line entirely.
 
@@ -112,6 +118,8 @@ After the index, the predicate becomes an `access` and the scan becomes an `INDE
 That last point is the whole difference between an index that helps a lot and one that helps a little. If your query selects only `dept_id`, this index is covering. If it selects `salary`, every row costs an extra table visit.
 
 ### 3. Selectivity and clustering factor: the two numbers that decide
+
+Sort a spreadsheet by department and the rows read in department order, but the cells are still physically stored in the order somebody typed them, so department 42's four rows sit scattered across the whole sheet. That gap between the sorted view and the physical order is the clustering factor, and it is the reason an index on the right column can still end up reading the entire table.
 
 **Selectivity** is the fraction of rows a predicate matches. A predicate that matches a small fraction of the table is highly selective and index-friendly. A predicate that matches most of the table is not, and a full scan is genuinely the cheaper path. The optimizer is right to full-scan that. "I dislike full scans" is not a plan.
 
@@ -128,13 +136,15 @@ The **after** plan is not scaled that way: its index examined 4 rows, which is w
 
 The after plan's `buffer_gets 60,000` is the same kind of synthetic magnitude: it was scaled to the same teaching purpose rather than measured on 11 rows, and a real run on this fixture would report a buffer-gets count orders of magnitude lower.
 
+**One thing this pair is not, so you do not read a ratio into it.** The per-row figures are not comparable, and this page will not pretend otherwise. Before, the synthetic 100,300 `buffer_gets` spread over 10,000 examined rows is about 10 per row. After, 60,000 over 4 rows is about 15,000 per row. The two sides were scaled independently to make one shape visible, so the ratio between them carries no meaning. **Read the shape — 10,000 rows examined to return 4, against 4 examined to return 4 — and read nothing else.** The 40% drop in the work number is the smallest true fact on this page; the access-path change is the lesson.
+
 The plan pair on this page is **SYNTHETIC teaching data**, and no number on it was observed by running Oracle.
 
 So the selectivity in this example is 4 rows out of 11, which is highly selective and exactly the case an index serves. The defect is not the selectivity. The defect is that the estimator could not see it, and with only a filter and no access path the statement had to read every row in the table before the filter could discard them.
 
 **Clustering factor** is the number of table blocks the index has to visit. A low clustering factor means the rows for adjacent index keys live near each other physically, so a range scan touches few blocks. A high clustering factor means the matching rows are scattered across the whole table, so a range scan touches nearly as many blocks as a full scan, and you have paid for an index and gotten nothing.
 
-**ILLUSTRATIVE — SQLcl or SQL\*Plus, clustering factor read.** Requires the documented catalog access for the index. Expected output shape: one row with `CLUSTERING_FACTOR` and `NUM_ROWS` for the named index. The dictionary column for the distinct-key count is `DISTINCT_KEYS`; view names and column availability are release-dependent, so verify before use. The starred statistic columns are populated only after index statistics are collected with `DBMS_STATS`, so an index you have not analyzed can return an empty or unpopulated value here.
+**ILLUSTRATIVE — SQLcl or SQL\*Plus, clustering factor read.** Requires the documented catalog access for the index. Expect one row with `CLUSTERING_FACTOR` and `NUM_ROWS` for the named index. The distinct-key count is `DISTINCT_KEYS`. One operational caveat earns its place: **the starred statistic columns come back empty until you have collected index statistics with `DBMS_STATS`**, so an un-analyzed index returns nothing and you may misread that as "this index is fine." Gather first, then read.
 
 ```sql
 SELECT index_name,
@@ -167,7 +177,9 @@ The Core band ends here. If your estimates were wrong rather than your access pa
 
 Here is the correction most guides get wrong, and getting it wrong makes you confident about a plan that did not do what you think.
 
-**Oracle prunes partitions. It does not remove them.** Pruning means the optimizer excludes partitions from the scan at parse time based on the predicate, and the partition list appears in the executed plan. The partitions still exist. Nothing was deleted. A common mode of pruning is partition elimination from the plan's access paths; in every case, the evidence is the `PARTITION RANGE SINGLE` or `PARTITION RANGE ITERATOR` line and the `PARTITION START`/`PARTITION STOP` values in the saved plan.
+**Oracle prunes partitions. It does not remove them.** Pruning means the optimizer excludes partitions from the scan based on the predicate, and the partition list appears in the executed plan. The partitions still exist. Nothing was deleted. A common mode of pruning is partition elimination from the plan's access paths.
+
+Pruning resolves at one of **two** times, and knowing which is the difference between reading a plan and misreading it. **Static pruning** happens at compile time, when the predicate carries a literal, and `PARTITION START`/`PARTITION STOP` hold partition numbers. **Dynamic pruning** happens at run time, when the exact partitions are not known beforehand — bind variables, subqueries, star transformation, nested-loop joins. A `KEY` in `PSTART`/`PSTOP` instead of a number means dynamic pruning is **working**, not broken. In the common serial case the evidence is the `PARTITION RANGE SINGLE` or `PARTITION RANGE ITERATOR` line plus the `PARTITION START`/`PARTITION STOP` values; `PARTITION RANGE ALL` and `PARTITION RANGE SUBQUERY` are also legitimate operation names. In a parallel plan, only the start and stop columns carry the pruning information — the operation column describes the parallel operation instead. [S36](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/partition-pruning.html)
 
 This matters because "the plan shows a single partition" is evidence, and "the partitions were removed" is a misunderstanding of that evidence.
 
@@ -180,9 +192,9 @@ WHERE  sale_date >= DATE '2026-09-01'
 AND    sale_date <  DATE '2026-09-02';
 ```
 
-**Pruning fails silently.** A function on the partition key, a type conversion, or an implicit cast can prevent pruning even though the predicate looks like a clean range. That is why you verify against the plan, not against the SQL. Look for the `PARTITION RANGE` line and check the `PARTITION START` and `PARTITION STOP` values. If they are absent, or the plan shows `PARTITION RANGE ALL` when you expected a single partition, pruning did not happen and you have a different problem than the one you thought. [S36](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/partition-concepts.html)
+**Pruning fails silently, and the two failure modes are not the same.** A function on the partition key is the first case, and the harshest: the optimizer cannot evaluate the predicate at compile time **or** narrow the partitions from it, so the plan can fall back to `PARTITION RANGE ALL`. That is the outcome to look for, and it is the one case where pruning is genuinely lost rather than merely deferred. A type conversion or implicit cast does something subtler and more misleading: it **converts static pruning into dynamic pruning**, so the plan still prunes, just later and with less to show for it. Either way the predicate can look like a clean range and the plan can still disappoint you, which is why you verify against the plan and never against the SQL. Look for the `PARTITION RANGE` line and read the `PARTITION START`/`PARTITION STOP` values — the plan displays them as `PSTART`/`PSTOP`, so type the field the display shows you. If they are absent, or the plan shows `PARTITION RANGE ALL` when you expected a single partition, pruning did not happen and you have a different problem than the one you thought. [S36](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/partition-pruning.html)
 
-**Partition-wise joins** and **partition-wise aggregations** are the other two partitioning features worth knowing exist. They reduce the amount of data exchanged during a join or aggregation, which is a real win at volume. They are also deeply workload-specific, and the 19c guidance is explicit that they suit certain parallel query patterns. If you do not know whether your workload is one of them, you do not have a reason to enable them.
+**Partition-wise joins** and **partition-wise aggregations** are the other two partitioning features worth knowing exist. They reduce the amount of data exchanged during a join or aggregation, which is a real win at volume. They are also workload-specific, and the 19c guidance is explicit that a partition-wise join offers significant performance benefits for **both serial and parallel execution** — so do not read "partition-wise" as a synonym for "parallel-only". ([19c partitioning concepts](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/partition-concepts.html); this claim is not in the ledger, so treat it as read-firsthand-but-unfiled rather than as a cited source.) If you do not know whether your workload is one of them, you do not have a reason to enable them.
 
 ### 6. Precomputed work: materialized views and result cache
 
@@ -223,7 +235,7 @@ Compression is also an operational change, not a metadata flag. Rebuilding an in
 
 **Oracle Database In-Memory** can keep a columnar representation of hot tables in a separate memory area, so analytic queries scan columns instead of rows. Check the executed plan for the documented in-memory access and aggregation operations, and check edition, memory sizing, and entitlement. It is a fit for scan-heavy analytics, not for row-by-row transactional traffic. [S37](https://docs.oracle.com/en/database/oracle/oracle-database/19/inmem/intro-to-in-memory-column-store.html)
 
-**Exadata Smart Scan and storage indexes** are Exadata-specific. They push filtering into the storage layer. They should not be presented as generic Oracle row-store improvements, because on a non-Exadata system the mechanism does not exist at all. [S38](https://www.oracle.com/database/technologies/exadata/software/smartscan/)
+**Exadata Smart Scan and storage indexes** are Exadata-specific. They push filtering into the storage layer. They should not be presented as generic Oracle row-store improvements, because on a non-Exadata system the mechanism does not exist at all. [S38](https://docs.oracle.com/en/engineered-systems/exadata-database-machine/sagug/monitoring-smart-io.html), the Exadata System Software guide's own Smart I/O section, which documents the offload of predicate evaluation to the storage servers and the storage indexes built alongside it. That guide is scoped to Exadata, which is what makes it the record for the boundary rather than for a row-store promise.
 
 ### 9. Parallel execution
 
@@ -241,7 +253,7 @@ Automatic Indexing identifies index gaps, creates candidate indexes, observes wh
 
 Availability and licensing depend on release, edition, and service entitlement. The research did not settle the exact licensing requirement, so check the current Oracle licensing guide rather than repeating "Tuning Pack required" as a universal fact. [S15](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_AUTO_INDEX.html) [S16](https://doi.org/10.14778/3750601.3750616)
 
-**SQL Access Advisor** can propose indexes, materialized views, and partitioning changes from a SQL tuning set. Treat its output as a proposal until V0 measures the change. An advisor that recommends eleven indexes has given you eleven hypotheses, not a solution. [S35], _Optimizing Access Paths with SQL Access Advisor_, a chapter of the 19c SQL Tuning Guide. That bibliography record is TOC-verified; the chapter itself is [verified here](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-access-advisor.html).
+**SQL Access Advisor** can propose indexes, materialized views, and partitioning changes from a SQL tuning set. Treat its output as a proposal until V0 measures the change. An advisor that recommends eleven indexes has given you eleven hypotheses, not a solution. [S35](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-access-advisor.html), _Optimizing Access Paths with SQL Access Advisor_, chapter 26 of the 19c SQL Tuning Guide. That bibliography record was TOC-verified and the chapter is [verified here](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-access-advisor.html).
 
 ## Practice, continued
 
@@ -274,6 +286,8 @@ Details that did not fit the table above:
 - **Oracle is proposing index changes you do not understand** — test: One proposal at a time, with the plan pair. Rollback: Drop the created object; record `already_absent` if it is gone. Owner: DBA.
 
 ### 12. The junior's checklist for requesting an index change
+
+> **"Why an index and not statistics?"**
 
 You are not running production DDL. You are writing a request a DBA can act on. Fill this in.
 
@@ -330,8 +344,4 @@ An index and layout decision table with: the access path, the selectivity and cl
 
 Every plan, count, and timing on this page is `SYNTHETIC`.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** an index is a read/write trade. Measure the read you expect to improve and the write you expect to worsen, or you have not made a decision, you have made a change.
-
-**Next required page:** [Let Oracle Rewrite](/01-proven-techniques/04-let-oracle-rewrite/).

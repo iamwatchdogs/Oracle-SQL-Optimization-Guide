@@ -126,8 +126,4 @@ The convergence record closes the chapter:
 - [ ] Stop signal recorded: consecutive rejects, plateau, budget, or risk, with `M`, `N`, and the three cap values it used
 - [ ] Every blocked step marked `BLOCKED_PENDING_DECISION`, and the final verdict written in the preface's vocabulary
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** preserve the evidence, record the version it was learned under, and stop when the next experiment cannot add information.
-
-**Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.

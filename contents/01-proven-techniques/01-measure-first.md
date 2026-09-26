@@ -35,6 +35,8 @@ The Core sections are the beginner path: read 1 to 4, then go to [Stats Run the 
 
 ## 1. What a plan actually is
 
+> **"How did Oracle read this?"**
+
 When Oracle runs a statement, it picks an ordered set of operations. That list is the execution plan: which object it touches, in what order, with which join, and how it expects each step to behave. Read it from the inside out, because the indentation shows the tree.
 
 It is like a recipe written in reverse dependency order. The innermost lines produce rows. The lines above them consume those rows. The top line is the final result.
@@ -44,6 +46,8 @@ The recipe analogy has one hard limit: the plan is a plan until it runs. A plan 
 One gate comes before all of that: section 7 is the required preflight for naming the target. Fill it in before you act on any plan, and before you read the plan pair in the next section.
 
 ## 2. Ten things to read
+
+In a codebase, the function signature tells you what a function promises and the profiler tells you what it cost. Neither artifact holds both, and the ten fields below are the two artifacts printed side by side.
 
 You do not need the dozens of columns of `V$SQL_PLAN`. Ten fields answer almost every first question. The last column matters: runtime fields do **not** live in `V$SQL_PLAN`, and reading them from there is a common mistake.
 
@@ -130,7 +134,7 @@ The before plan full-scans the whole table and applies a filter, examining 10,00
 
 Now the beginner question, because it is the one that matters:
 
-> **“What do I investigate next?”**
+> **"What do I investigate next?"**
 
 Answer, in this order:
 
@@ -152,7 +156,11 @@ There is also a fourth thing on the tree that is not a join: **view merging**, w
 
 You do not need to force a join method. You need to notice when the chosen one is expensive for your data volume.
 
+One aside: the join hint is the first thing added and almost never the last thing removed. Back to the tree.
+
 ## 5. Which measurement tool answers which question
+
+> **"What would the optimizer like to do, without running?"**
 
 Six tools, six different questions. Reach for the cheapest one that answers yours, in this order.
 
@@ -202,7 +210,9 @@ This is not a consolation prize. `DISPLAY_CURSOR` with the hint, the core views,
 
 ### Comparing two plans
 
-`DBMS_XPLAN` ships two comparison functions, and only one of them is anywhere near this book's primary path. **`COMPARE_PLANS` is documented from 23ai onward; the 19c package reference does not carry it.** The release you are running is the release you have, and a function you read about in a 26ai manual does not exist in your 19c instance — the error you get will not explain that. **A later release extending an API is not the same as a later release introducing it**, and a feature that arrived after your release cannot be copied out of a newer manual. Check the package reference for _your_ release before you plan a call around any of this.
+`DBMS_XPLAN` ships two comparison functions, and **both are on this book's primary path.** `COMPARE_PLANS` is documented in the 19c package reference at **§224.5.1**, and it is absent from the 12.2 reference — so **19c is the release that introduced it**, not a later one. `DIFF_PLAN` is older, and its **signature changed** between 12.2 and 19c. That is the distinction worth carrying: _the name is stable, the signature is what moves._ The release you are running is the release you have, so check the package reference for _your_ release before you plan a call around either one.
+
+Read the subprogram table, not the Overview, when you check. The 19c Overview states that the package "supplies five table functions" and then lists only the five **table** functions. `COMPARE_PLANS` and `DIFF_PLAN` are plain functions: they are absent from that list and present in Table 224-2. An earlier draft of this book skimmed the Overview, concluded the function was missing from 19c, and wrote the mistake up as a release boundary. The name being absent from a prose list is not the function being absent from the package.
 
 What each one does, so you know which you would want once you have confirmed availability:
 
@@ -338,8 +348,4 @@ A target worksheet with statement tag, `sql_id`, `child_number`, `parsing_schema
 
 Every plan and number on this page is `SYNTHETIC`.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** a plan names the work. It does not name the fix. Name the statement, the instance, the window, and the metric, then let the evidence choose the technique.
-
-**Next required page:** [Stats Run the Show](/01-proven-techniques/02-stats-run-the-show/).

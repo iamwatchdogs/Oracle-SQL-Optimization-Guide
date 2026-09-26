@@ -35,6 +35,8 @@ Everything executable belongs elsewhere. The [recipes chapter](/04-recipes/) own
 
 ## Decision table
 
+> **"Is the change isolated enough to read at all?"**
+
 | Page                                                                           | The question it decides                                | The rule it owns                                            |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------- |
 | [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/)             | Is the change isolated enough to read at all?          | One candidate, one change record, one re-baselined workload |
@@ -93,8 +95,4 @@ rollback proof:         ____________________
 lesson ref:             ____________________
 ```
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** accept nothing you cannot re-measure, roll back nothing you cannot prove, and keep what the next loop can retrieve.
-
-**Next required page:** [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/).

@@ -147,8 +147,4 @@ Two worked rows, so the shape is unambiguous.
 
 No verdict on this page is backed by an Oracle measurement, and every source listed here is non-Oracle by construction.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** import the hypothesis, run the measurement, and let your own database produce the only number you are allowed to quote.
-
-**Next required page:** [Toolbox](/03-toolbox/).

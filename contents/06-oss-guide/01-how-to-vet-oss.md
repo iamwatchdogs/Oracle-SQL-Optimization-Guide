@@ -202,8 +202,4 @@ A research repository can be valuable without being a safe Oracle dependency. Pr
 
 A vetting record per external tool, with the four gate outputs, the snapshot date, and one role line. The template is section 6. An unresolved licence, an undated snapshot, or a role line that reads `UNKNOWN` is a stop, and the record says which one it was.
 
-Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
-
 **Decision:** licence, maintenance, Oracle fit, then role. A failed gate is a stop, not a note, and "not checked" is a status rather than a defect in the tool.
-
-**Next required page:** [The Parse-Lint-Test Trio](/06-oss-guide/02-parse-lint-test-trio/).
