@@ -17,15 +17,23 @@ interface Props {
 
 const { headings, label = 'On this page' } = Astro.props;
 const mobileLandmarkLabel = `${label} list`;
+// `min-w-0` on the row and `flex-1 min-w-0` on the label are load-bearing:
+// a flex item's automatic minimum size is its min-content width, and with
+// `truncate`'s `white-space: nowrap` that equals the full heading width, so
+// without them the text physically cannot shrink and the ellipsis never
+// appears — 137 of 356 shipped links overflowed the 280px rail.
 const tocLinkClass =
-  'group flex min-h-11 items-baseline gap-3 rounded-r-ui border-l border-transparent px-3 py-[0.4rem] font-sans text-ui leading-[1.4] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-ink data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:font-medium data-[active=true]:text-accent';
+  'group flex min-h-11 min-w-0 items-baseline gap-3 rounded-r-ui border-l border-transparent px-3 py-[0.4rem] font-sans text-ui leading-[1.4] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-ink data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:font-medium data-[active=true]:text-accent';
 const tocNumClass =
-  'w-6 font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent';
+  // The ordinal is a visual index, not part of the destination's name. Hiding it
+  // from the accessibility tree makes the link's accessible name exactly the
+  // heading text, which is also its visible label (WCAG 2.5.3).
+  'w-6 shrink-0 font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent';
 ---
 
 {/* Desktop: sticky aside */}
 <aside
-  class="toc-viewport hidden lg:block sticky top-16 self-start overflow-y-auto"
+  class="toc-viewport hidden lg:block sticky top-16 self-start overflow-y-auto overflow-x-hidden"
   aria-label={label}
 >
   <p class="running-head mb-3 pl-3">{label}</p>
@@ -33,22 +41,26 @@ const tocNumClass =
     {headings.map((h, i) => (
       <a
         href={`#${h.id}`}
-        class:list={[tocLinkClass, { 'pl-toc-indent': h.depth > 2 }]}
+        class:list={[
+          tocLinkClass,
+          { 'pl-toc-indent': h.depth === 3, 'pl-toc-indent-4': h.depth === 4 },
+        ]}
         data-toc-link={h.id}
         data-active="false"
         title={h.text}
-        aria-label={h.text}
       >
-        <span class={tocNumClass}>{String(i + 1).padStart(2, '0')}</span>
-        <span class="truncate">{h.text}</span>
+        <span class={tocNumClass} aria-hidden="true">
+          {String(i + 1).padStart(2, '0')}
+        </span>
+        <span class="min-w-0 flex-1 truncate">{h.text}</span>
       </a>
     ))}
   </nav>
 </aside>
 
 {/* Mobile: disclosure */}
-<details class="group mb-6 border-y border-rule lg:hidden" data-toc-mobile>
-  <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 py-3 font-sans text-ui font-medium text-ink-muted transition-colors group-open:text-ink [&::-webkit-details-marker]:hidden marker:content-none">
+<details class="disclosure group lg:hidden" data-toc-mobile>
+  <summary class="min-h-11 list-none [&::-webkit-details-marker]:hidden marker:content-none">
     <svg
       width="14"
       height="14"
@@ -63,8 +75,8 @@ const tocNumClass =
     >
       <path d="M12 5v14M5 12h14"></path>
     </svg>
-    <span>{label}</span>
-    <span class="meta ml-auto" data-toc-mobile-current></span>
+    <span class="font-sans text-ui font-medium">{label}</span>
+    <span class="meta ml-auto" data-toc-mobile-current aria-hidden="true"></span>
   </summary>
   <div class="disclosure-flow">
     <div class="disclosure-content-inner disclosure-flow-inner">
@@ -75,14 +87,17 @@ const tocNumClass =
         {headings.map((h, i) => (
           <a
             href={`#${h.id}`}
-            class:list={[tocLinkClass, { 'pl-toc-indent': h.depth > 2 }]}
+            class:list={[
+              tocLinkClass,
+              { 'pl-toc-indent': h.depth === 3, 'pl-toc-indent-4': h.depth === 4 },
+            ]}
             data-toc-link={h.id}
             data-active="false"
-            title={h.text}
-            aria-label={h.text}
           >
-            <span class={tocNumClass}>{String(i + 1).padStart(2, '0')}</span>
-            <span>{h.text}</span>
+            <span class={tocNumClass} aria-hidden="true">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <span class="min-w-0 flex-1">{h.text}</span>
           </a>
         ))}
       </nav>

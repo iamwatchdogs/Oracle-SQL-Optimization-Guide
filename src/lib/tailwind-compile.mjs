@@ -1,10 +1,13 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { build } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 
-const projectRoot = new URL('../../', import.meta.url).pathname;
+/* fileURLToPath, not `.pathname`: a percent-encoded pathname is not a valid
+   filesystem path on Windows, and every integration test imports this module. */
+const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const projectStylesheet = path.join(projectRoot, 'src/styles/global.css');
 
 const runViteCssBuild = async (root, cssPath) => {
@@ -20,7 +23,6 @@ const runViteCssBuild = async (root, cssPath) => {
         outDir,
         emptyOutDir: true,
         copyPublicDir: false,
-        lib: false,
         minify: false,
         rollupOptions: {
           input: cssPath,
@@ -52,7 +54,6 @@ const writeMirror = (mirror, files) =>
 
 export const compileMirroredStylesheet = async (stylesheet, files) => {
   const mirror = await mkdtemp(path.join(tmpdir(), 'tw-mirror-'));
-  const outDir = await mkdtemp(path.join(tmpdir(), 'tw-out-'));
   try {
     await symlink(path.join(projectRoot, 'node_modules'), path.join(mirror, 'node_modules'), 'dir');
     await writeMirror(mirror, files);
@@ -62,6 +63,5 @@ export const compileMirroredStylesheet = async (stylesheet, files) => {
     return await runViteCssBuild(mirror, mirroredStylesheet);
   } finally {
     await rm(mirror, { recursive: true, force: true });
-    await rm(outDir, { recursive: true, force: true });
   }
 };

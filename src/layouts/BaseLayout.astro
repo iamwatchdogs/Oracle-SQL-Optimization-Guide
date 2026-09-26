@@ -16,9 +16,18 @@ interface Props {
   bare?: boolean;
   sections?: SectionLink[];
   sectionPosition?: number | undefined;
+  /** Emit `<meta name="robots" content="noindex">`. Use for error pages. */
+  noindex?: boolean;
 }
 
-const { title, description, bare = false, sections = [], sectionPosition } = Astro.props;
+const {
+  title,
+  description,
+  bare = false,
+  sections = [],
+  sectionPosition,
+  noindex = false,
+} = Astro.props;
 const fallbackSections: SectionLink[] = [
   { href: '/00-preface/', title: 'Preface' },
   { href: '/01-proven-techniques/', title: 'Proven Techniques' },
@@ -37,6 +46,19 @@ const fullTitle =
   title === 'Oracle SQL Optimization for Junior Devs'
     ? `${title} — Evidence-graded tuning`
     : `${title} · Oracle SQL Optimization`;
+
+/* One fallback, used by BOTH `<meta name="description">` and `og:description`.
+   Astro omits an attribute whose value is `undefined`, so having the fallback
+   on one line only meant a page without frontmatter `description` shipped a
+   human-readable description and no social one at all. */
+const metaDescription =
+  description ??
+  'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.';
+
+/* Canonical must never carry a query string or fragment, and must resolve
+   against the configured site origin rather than whatever host served the page. */
+const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).href;
+const isArticle = Astro.url.pathname !== '/';
 ---
 
 <!doctype html>
@@ -45,23 +67,20 @@ const fullTitle =
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{fullTitle}</title>
-    <meta
-      name="description"
-      content={
-        description ??
-        'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.'
-      }
-    />
+    <meta name="description" content={metaDescription} />
     <meta name="generator" content={Astro.generator} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
     <ClientRouter fallback="animate" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0c0e'/%3E%3Cpath d='M7 9h18M7 16h18M7 23h11' stroke='%238aa4ff' stroke-width='2'/%3E%3C/svg%3E"
     />
-    <link rel="canonical" href={Astro.url.href} />
-    <meta property="og:type" content="website" />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content={isArticle ? 'article' : 'website'} />
     <meta property="og:title" content={fullTitle} />
-    <meta property="og:description" content={description} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary_large_image" />
 
     {/* Fonts — Astro Fonts API */}
     <Font cssVariable="--face-serif" preload />
@@ -84,31 +103,69 @@ const fullTitle =
     </script>
   </head>
   <body>
+    {/* `focus-visible:fixed` (not `absolute`) so the link stays reachable after
+        the reader has scrolled, and the positioning lives on the focus variant
+        only so the outcome never depends on Tailwind's utility sort order. */}
     <a
       href="#main"
-      class="primary-control leading-none sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2"
+      class="primary-control leading-none sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-50"
     >
       Skip to content
     </a>
 
     {!bare && (
       <header
-        transition:animate={fade({ duration: '0.18s' })}
-        class="sticky top-0 z-40 border-b border-rule bg-paper"
+        transition:animate={fade({ duration: '0.18s' })} /*
+          `max-[48rem]:static`. The mobile menu is in flow (see the note on the
+          `<details>` below), so an open panel makes the header as tall as the
+          section list. A sticky header that owns 905px of an 844px viewport is
+          worse than one that scrolls away, so below `48rem` the header returns
+          to normal flow and the menu is simply the next thing in the page.
+        */
+        class="sticky top-0 z-40 border-b border-rule bg-paper max-[48rem]:static"
       >
-        <div class="mx-auto flex h-12 w-shell items-center justify-between gap-3 max-[30rem]:gap-2">
+        <div class="mx-auto flex min-h-12 w-shell items-center justify-between gap-3 max-[30rem]:gap-2 max-[48rem]:flex-wrap max-[48rem]:gap-y-2">
+          {/*
+            `min-h-11` + `flex items-center` on the wordmark itself: as a bare
+            flex child it sized to its 18px line box, so the only route home in
+            the header was an 18px touch target on a phone.
+          */}
           <a
             href="/"
-            class="running-head shrink-0 transition-colors hover:text-accent no-underline"
+            class="running-head flex min-h-11 shrink-0 items-center no-underline transition-colors hover:text-accent"
           >
             Oracle SQL <span class="max-[30rem]:hidden">· Notebook</span>
           </a>
 
+          {/*
+              Below `48rem` the menu is IN FLOW, full width, under the header
+              controls — not an overlay.
+
+              A `<details>` establishes a containing block for its non-summary
+              children REGARDLESS of `position` (Chrome wraps them in
+              `::details-content`, whose `content-visibility` implies
+              `contain: layout paint size`). So a panel positioned `fixed` or
+              `absolute` from inside one resolves `left`, `right` and `width`
+              against the ~104px summary box rather than the viewport. Measured:
+              the overlay was 71.78px wide at x=234 and ran 358px off a 390px
+              screen. Nothing positioned from inside a `<details>` can overlay
+              the viewport, so the mobile presentation stops trying.
+
+              `max-[48rem]:open:basis-full` is what keeps the CLOSED header at
+              48px: `basis-full` unconditionally would wrap the summary onto its
+              own row even when the menu is shut, doubling the height of a
+              sticky header that is on screen at all times.
+            */}
           {navigationSections.length > 0 ? (
-            <details class="group relative ml-auto">
-              <summary class="flex min-h-11 cursor-pointer list-none items-center gap-[0.6rem] rounded-ui border border-rule px-3 py-2 font-sans text-ui font-medium text-ink-muted transition-colors hover:border-rule-strong hover:text-ink group-open:border-rule-strong group-open:text-ink max-[30rem]:px-[0.55rem] [&::-webkit-details-marker]:hidden marker:content-none">
+            <details class="group relative ml-auto max-[48rem]:static max-[48rem]:open:basis-full">
+              <summary class="flex min-h-11 list-none items-center gap-[0.6rem] rounded-ui border border-rule px-3 py-2 font-sans text-ui font-medium text-ink-muted transition-colors hover:border-rule-strong hover:text-ink group-open:border-rule-strong group-open:text-ink max-[30rem]:px-[0.55rem] [&::-webkit-details-marker]:hidden marker:content-none">
                 <span>Contents</span>
-                <span class="font-mono text-chip whitespace-nowrap text-ink-faint max-[30rem]:hidden">
+                {/* Decorative: the accessible name of this button must not change
+                    with viewport width (WCAG 2.5.3, Label in Name). */}
+                <span
+                  class="font-mono text-chip whitespace-nowrap text-ink-faint max-[30rem]:hidden"
+                  aria-hidden="true"
+                >
                   {sectionPosition
                     ? `Section ${String(sectionPosition).padStart(2, '0')} / ${String(navigationSections.length).padStart(2, '0')}`
                     : `${String(navigationSections.length).padStart(2, '0')} sections`}
@@ -128,7 +185,12 @@ const fullTitle =
                   <path d="M12 5v14M5 12h14"></path>
                 </svg>
               </summary>
-              <div class="absolute right-0 top-[calc(100%_+_0.5rem)] z-50 w-[min(22rem,calc(100vw_-_2rem))] max-[48rem]:fixed max-[48rem]:top-16 max-[48rem]:right-4 max-[48rem]:left-4 max-[48rem]:w-auto disclosure-flow">
+              {/*
+                Desktop: a right-anchored dropdown capped at 22rem, hanging off
+                the summary. Mobile: `static` and full width, so it joins the
+                header's wrapping flow — see the note on the `<details>` above.
+              */}
+              <div class="absolute right-0 top-[calc(100%_+_0.5rem)] z-50 w-[min(22rem,calc(100vw_-_2rem))] max-[48rem]:static max-[48rem]:mt-2 max-[48rem]:max-h-[70vh] max-[48rem]:w-full disclosure-flow">
                 <div class="disclosure-flow-inner">
                   <nav
                     class="nav-overlay-viewport w-full overflow-y-auto overscroll-contain border border-rule-strong bg-paper p-2"
@@ -144,10 +206,20 @@ const fullTitle =
                           aria-current={isActive ? 'location' : undefined}
                           data-active={isActive ? 'true' : 'false'}
                         >
-                          <span class="font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent">
+                          <span
+                            class="font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent"
+                            aria-hidden="true"
+                          >
                             {String(index + 1).padStart(2, '0')}
                           </span>
-                          <span>{section.title}</span>
+                          <span class="min-w-0">
+                            <span class="block">{section.title}</span>
+                            {section.description && (
+                              <span class="mt-0.5 block text-chip leading-[1.4] text-ink-faint">
+                                {section.description}
+                              </span>
+                            )}
+                          </span>
                         </a>
                       );
                     })}
@@ -200,6 +272,23 @@ const fullTitle =
 
     <slot />
 
+    {/*
+      Hit testing is deliberately never re-enabled. The loader is a decorative
+      `aria-hidden` skeleton plus an `sr-only` status message — nothing in it is
+      interactive, so a visible-state variant that restores pointer events only
+      makes a viewport-wide, z-50 click blocker sit over the content
+      mid-navigation.
+
+      That variant's class name is spelled out nowhere in this file, and that is
+      not an accident. `src/**` is a declared Tailwind source and Tailwind's
+      scanner does not skip comments, so writing the utility name here — even
+      inside a comment explaining why it must not be used — emits a real rule at
+      (0,2,0) specificity, which beats the base `pointer-events-none` at (0,1,0).
+      The class was reintroduced exactly this way once, and the loader silently
+      became a click blocker again while every test stayed green.
+      `test/integration/client-script-quality.test.mjs` compiles the sheet and
+      asserts the utility is absent, so the next occurrence fails the build.
+    */}
     <div
       id="route-loader"
       data-route-loader
@@ -208,7 +297,7 @@ const fullTitle =
       aria-live="polite"
       aria-atomic="true"
       data-visible="false"
-      class="pointer-events-none fixed inset-x-0 top-20 z-50 mx-auto w-shell opacity-0 transition-opacity duration-[180ms] data-[visible=true]:pointer-events-auto data-[visible=true]:opacity-100"
+      class="pointer-events-none fixed inset-x-0 top-20 z-50 mx-auto w-shell opacity-0 transition-opacity duration-[180ms] data-[visible=true]:opacity-100"
     >
       <span data-route-loader-message class="sr-only"></span>
       <div aria-hidden="true" class="space-y-3">
@@ -232,6 +321,30 @@ const fullTitle =
           );
         });
         document.addEventListener('astro:page-load', () => controller.pageLoad());
+        /* Safety net. Every documented exit from a transition is already covered
+           by pageLoad, an abort, or defaultPrevented — but if a future Astro
+           release settles a navigation through some other path, the loader must
+           not be left on screen with a permanently announcing live region.
+           `beforeSwap` hides the skeleton WITHOUT discarding the "a navigation
+           was prepared" flag that `pageLoad` needs for the focus handoff. */
+        document.addEventListener('astro:before-swap', () => controller.beforeSwap());
+        /* Astro announces the new title from an `aria-live="assertive"` node it
+           appends to <body> on every completed navigation, and never removes it.
+           The route loader already moves focus to `main#main`, so the assertive
+           announcement is a duplicate at best and an unbounded DOM leak at
+           worst. It is created after `astro:page-load` fires, hence the defer.
+
+           An earlier version also observed insertions with a `MutationObserver`.
+           It was removed: it made three Firefox route-loader tests fail that had
+           been passing, and the leak it guarded against is already closed by
+           this sweep on every navigation the reader actually completes. */
+        document.addEventListener('astro:page-load', () => {
+          setTimeout(() => {
+            for (const stale of document.querySelectorAll('.astro-route-announcer')) {
+              stale.remove();
+            }
+          }, 150);
+        });
         Object.defineProperty(document, 'routeLoaderInitialized', { value: true });
       }
     </script>

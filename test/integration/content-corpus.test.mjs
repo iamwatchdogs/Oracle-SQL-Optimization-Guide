@@ -56,73 +56,98 @@ test('the notebook corpus is the full 37 documents', async () => {
   expect((await notebookFiles()).length).toBe(EXPECTED_DOCUMENTS);
 });
 
-test('every shipped notebook document renders through the production processor', async () => {
-  const documents = await loadCorpus();
+/*
+ * These four tests render all 37 documents through Astro's real processor and
+ * Tailwind, which is tens of seconds of real work. The suite default of 30s is
+ * only enough on an idle machine: under load these exceeded it and failed
+ * intermittently while passing in isolation, which reads as a product defect
+ * and is not one. Each gets a budget that survives a busy machine.
+ */
+const CORPUS_TIMEOUT = 180_000;
 
-  expect(documents.length).toBe(EXPECTED_DOCUMENTS);
-  expect(
-    documents.filter(({ once }) => once.length === 0).map(({ file }) => relative(file)),
-  ).toEqual([]);
-});
+test(
+  'every shipped notebook document renders through the production processor',
+  { timeout: CORPUS_TIMEOUT },
+  async () => {
+    const documents = await loadCorpus();
 
-test("all 37 documents survive Astro's mandatory raw pass structurally unchanged", async () => {
-  const documents = await loadCorpus();
+    expect(documents.length).toBe(EXPECTED_DOCUMENTS);
+    expect(
+      documents.filter(({ once }) => once.length === 0).map(({ file }) => relative(file)),
+    ).toEqual([]);
+  },
+);
 
-  const drifted = documents
-    .filter(({ once, twice }) => canonicalize(once) !== canonicalize(twice))
-    .map(({ file }) => relative(file));
-  const detailDrift = documents
-    .filter(
-      ({ once, twice }) =>
-        canonicalize(disclosureSignature(once).join('')) !==
-        canonicalize(disclosureSignature(twice).join('')),
-    )
-    .map(({ file }) => relative(file));
+test(
+  "all 37 documents survive Astro's mandatory raw pass structurally unchanged",
+  { timeout: CORPUS_TIMEOUT },
+  async () => {
+    const documents = await loadCorpus();
 
-  expect(documents.length).toBe(EXPECTED_DOCUMENTS);
-  expect(drifted).toEqual([]);
-  expect(detailDrift).toEqual([]);
-});
+    const drifted = documents
+      .filter(({ once, twice }) => canonicalize(once) !== canonicalize(twice))
+      .map(({ file }) => relative(file));
+    const detailDrift = documents
+      .filter(
+        ({ once, twice }) =>
+          canonicalize(disclosureSignature(once).join('')) !==
+          canonicalize(disclosureSignature(twice).join('')),
+      )
+      .map(({ file }) => relative(file));
 
-test("Astro's raw pass adds no disclosure and escapes no details markup", async () => {
-  const documents = await loadCorpus();
-  const problems = [];
+    expect(documents.length).toBe(EXPECTED_DOCUMENTS);
+    expect(drifted).toEqual([]);
+    expect(detailDrift).toEqual([]);
+  },
+);
 
-  for (const { file, once, twice } of documents) {
-    const first = disclosureSignature(once).length;
-    const second = disclosureSignature(twice).length;
+test(
+  "Astro's raw pass adds no disclosure and escapes no details markup",
+  { timeout: CORPUS_TIMEOUT },
+  async () => {
+    const documents = await loadCorpus();
+    const problems = [];
 
-    if (first !== second) {
-      problems.push(`${relative(file)}: ${first} -> ${second} disclosures`);
+    for (const { file, once, twice } of documents) {
+      const first = disclosureSignature(once).length;
+      const second = disclosureSignature(twice).length;
+
+      if (first !== second) {
+        problems.push(`${relative(file)}: ${first} -> ${second} disclosures`);
+      }
+      if (twice.includes('&lt;details')) {
+        problems.push(`${relative(file)}: escaped details markup`);
+      }
     }
-    if (twice.includes('&lt;details')) {
-      problems.push(`${relative(file)}: escaped details markup`);
+
+    expect(problems).toEqual([]);
+  },
+);
+
+test(
+  'no shipped document relies on a project-added whole-document raw pass',
+  { timeout: CORPUS_TIMEOUT },
+  async () => {
+    const documents = await loadCorpus();
+    const unexpanded = [];
+
+    for (const { file, markdown, once } of documents) {
+      const tags = (markdown.match(/<details/giu) ?? []).length;
+
+      if (tags === 0) {
+        continue;
+      }
+      const canonical = (once.match(/class="disclosure-content disclosure-flow"/gu) ?? []).length;
+
+      if (canonical !== tags) {
+        unexpanded.push(`${relative(file)}: ${tags} tags -> ${canonical} disclosures`);
+      }
     }
-  }
 
-  expect(problems).toEqual([]);
-});
-
-test('no shipped document relies on a project-added whole-document raw pass', async () => {
-  const documents = await loadCorpus();
-  const unexpanded = [];
-
-  for (const { file, markdown, once } of documents) {
-    const tags = (markdown.match(/<details/giu) ?? []).length;
-
-    if (tags === 0) {
-      continue;
-    }
-    const canonical = (once.match(/class="disclosure-content disclosure-flow"/gu) ?? []).length;
-
-    if (canonical !== tags) {
-      unexpanded.push(`${relative(file)}: ${tags} tags -> ${canonical} disclosures`);
-    }
-  }
-
-  expect(documents.length).toBe(EXPECTED_DOCUMENTS);
-  expect(unexpanded).toEqual([]);
-});
+    expect(documents.length).toBe(EXPECTED_DOCUMENTS);
+    expect(unexpanded).toEqual([]);
+  },
+);
 
 test('rehype-raw is a transitive dependency of Astro only, never of this project', async () => {
   const packageJson = JSON.parse(

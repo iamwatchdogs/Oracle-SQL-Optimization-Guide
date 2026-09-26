@@ -43,11 +43,22 @@ const isUnconditionalInnerSubject = (selector) => {
   );
 };
 
+/*
+ * Contexts model the REAL shipped DOM.
+ *
+ * These previously carried a `div.prose` ancestor, which fabricated a structure
+ * that exists on no built page: not one of the three shipped disclosures (site
+ * nav, evidence key, mobile table of contents) lives inside the article body.
+ * The whole point of the component contract is that it is scoped to the
+ * `details` element, so the context must not imply a `.prose` scope. The
+ * `.prose` variants are covered separately by
+ * `disclosure-native-fallback.test.mjs`.
+ */
 const flowContext = (detailsAttributes = {}) => ({
   classes: ['disclosure-flow'],
   ancestors: [
     { types: ['details'], attributes: detailsAttributes, children: [{}] },
-    { types: ['div'], classes: ['prose'] },
+    { types: ['div'], classes: ['w-shell'] },
   ],
 });
 
@@ -55,8 +66,8 @@ const innerContext = (detailsAttributes = {}) => ({
   classes: ['disclosure-content-inner', 'disclosure-flow-inner'],
   ancestors: [
     { types: ['div'], classes: ['disclosure-flow'] },
-    { types: ['details'], attributes: detailsAttributes },
-    { types: ['div'], classes: ['prose'] },
+    { types: ['details'], classes: ['disclosure'], attributes: detailsAttributes },
+    { types: ['div'], classes: ['w-shell'] },
   ],
 });
 
@@ -68,7 +79,7 @@ const iconContext = (attributes = {}) => ({
   ancestors: [
     { types: ['summary'] },
     { types: ['details'], attributes },
-    { types: ['div'], classes: ['prose'] },
+    { types: ['div'], classes: ['w-shell'] },
   ],
 });
 
@@ -106,16 +117,16 @@ test('the disclosure inner selector itself declares no padding at all', async ()
   expect(declaringOnInner.map((rule) => rule.selector)).toEqual([]);
 });
 
-test('a closed prose disclosure inner resolves no padding at all', async () => {
+test('a closed disclosure inner resolves no padding at all', async () => {
   expect(await resolve(innerContext(), 'padding-block')).toBeNull();
   expect(await resolve(innerContext(), 'padding-inline')).toBeNull();
 });
 
-test('an open prose disclosure inner keeps its block padding', async () => {
-  expect(await resolve(innerContext({ open: '' }), 'padding-block')).toBe('.75rem .85rem');
+test('an open disclosure inner keeps its block padding', async () => {
+  expect(await resolve(innerContext({ open: '' }), 'padding-block')).toBe('.2rem .85rem');
 });
 
-test('a collapsing prose disclosure inner releases its block padding', async () => {
+test('a collapsing disclosure inner releases its block padding', async () => {
   const closing = innerContext({ open: '', [CLOSING_ATTRIBUTE]: '' });
 
   expect(await resolve(closing, 'padding-block')).toBe('0');
@@ -152,14 +163,12 @@ test('the compiled stylesheet ships both disclosure row states', async () => {
   ).toBe(true);
 });
 
-test('every disclosure glyph snaps to its closed form while closing', async () => {
+test('every disclosure chevron snaps to its closed form while closing', async () => {
   const [css, ...astroSources] = await Promise.all([
     readSource('../../src/styles/global.css'),
     ...DISCLOSURE_ASTRO_SOURCES.map((path) => readSource(path)),
   ]);
 
-  expect(css).toContain(`details[open]:not([${CLOSING_ATTRIBUTE}]) summary::before`);
-  expect(css).toContain(`details[open]:not([${CLOSING_ATTRIBUTE}]) summary::after`);
   expect(css).toMatch(
     new RegExp(`details\\[${CLOSING_ATTRIBUTE}\\] \\.disclosure-icon \\{[^}]*rotate: 0deg;`, 'su'),
   );
@@ -170,14 +179,26 @@ test('every disclosure glyph snaps to its closed form while closing', async () =
   }
 });
 
-test('no summary glyph rule keys off the open state without exempting the closing state', async () => {
-  const stylesheet = parseCompiledStylesheet(await compiled);
-  const glyphRules = stylesheet.rules.filter(
-    (rule) => rule.selector.includes('summary') && rule.declarations.has('transform'),
-  );
+/*
+ * The old component drew its marker as two CSS pseudo-element bars rotating
+ * from `+` to `x` via `summary::before` / `summary::after`. That glyph was dead
+ * (it only existed under `.prose details`, matched by nothing) and it duplicated
+ * the authored SVG chevron every component already ships. DESIGN.md also
+ * forbids substituting a glyph where an authored SVG belongs. These assertions
+ * keep it gone.
+ */
+test('no CSS-glyph disclosure marker is reintroduced', async () => {
+  const css = await readSource('../../src/styles/global.css');
+  expect(css).not.toContain('summary::before');
+  expect(css).not.toContain('summary::after');
+});
 
-  expect(glyphRules.length).toBeGreaterThan(0);
-  for (const rule of glyphRules) {
+test('no summary rule keys off the open state without exempting the closing state', async () => {
+  const stylesheet = parseCompiledStylesheet(await compiled);
+  const summaryRules = stylesheet.rules.filter((rule) => rule.selector.includes('summary'));
+
+  expect(summaryRules.length).toBeGreaterThan(0);
+  for (const rule of summaryRules) {
     for (const selector of rule.selector.split(',')) {
       if (!selector.includes('[open]')) {
         continue;
@@ -225,11 +246,11 @@ test('the summary glyph and the flow collapse share one transition duration', as
     css.indexOf(`@utility ${FLOW_CLASS}-inner {`),
   );
   const glyph = css.slice(
-    css.indexOf('.prose details summary::before,'),
-    css.indexOf('.prose details summary:hover'),
+    css.indexOf('details::details-content {'),
+    css.indexOf('details[open]::details-content {'),
   );
   const collapse = /transition: grid-template-rows (\d+)ms/u.exec(flow)?.[1];
-  const glyphDuration = /transition: transform (\d+)ms/u.exec(glyph)?.[1];
+  const glyphDuration = /translate (\d+)ms/u.exec(glyph)?.[1];
 
   expect(collapse).toBeDefined();
   expect(glyphDuration).toBe(collapse);
@@ -254,6 +275,7 @@ test('disclosure flow, inner, and closing literals agree across controller, rehy
   expect(css).toContain(`@utility ${FLOW_CLASS}-inner {`);
   expect(css).toContain(`details[open]:not([${CLOSING_ATTRIBUTE}]) > &`);
   expect(css).toContain(`details[${CLOSING_ATTRIBUTE}] .disclosure-icon`);
-  expect(css).toContain(`details[open]:not([${CLOSING_ATTRIBUTE}]) summary::before`);
-  expect(css).toContain(`details[open]:not([${CLOSING_ATTRIBUTE}]) summary::after`);
+  expect(css).toContain(`details[open]:not([${CLOSING_ATTRIBUTE}]) > summary`);
+  expect(css).toContain('details.disclosure,');
+  expect(css).toContain('.prose details {');
 });

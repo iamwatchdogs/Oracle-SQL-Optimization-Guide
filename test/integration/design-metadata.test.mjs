@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
+import { LOADER_DELAY, LOADER_MAX_VISIBLE_MS } from '../../src/lib/route-loader-timer.mjs';
 
 const readRepoFile = (relativePath) =>
   readFile(new URL(`../../${relativePath}`, import.meta.url), 'utf8');
@@ -68,15 +69,30 @@ test('the shipped route loader reveals at 180ms, not 150ms', () => {
   expect(loader).toMatch(/opacity-0[\s\S]{0,400}?data-\[visible=true\]:opacity-100/u);
 });
 
-test('the shipped reveal duration matches the shipped loader delay', async () => {
-  const loaderSource = await readRepoFile('src/lib/route-loader.mjs');
-  const delay = Number(/const LOADER_DELAY = (\d+);/u.exec(loaderSource)?.[1]);
+test('the shipped reveal duration matches the shipped loader delay', () => {
+  /*
+   * The constants are IMPORTED, not parsed out of the source text.
+   *
+   * The previous version ran `/export const LOADER_DELAY = (\d+);/` against the
+   * file. That couples the test to the literal spelling of an export: rename the
+   * constant, or reformat the declaration, and the regex quietly stops matching
+   * and `Number(undefined)` becomes `NaN` — at which point the assertion either
+   * fails for a formatting reason or, worse, is loosened to accommodate it. The
+   * values are the contract; importing them tests the contract.
+   *
+   * Only the CSS duration still has to be read from the markup, because it lives
+   * in a Tailwind arbitrary value rather than in JavaScript.
+   */
   const duration = Number(
     /transition-opacity duration-\[(\d+)ms\]/u.exec(routeLoaderMarkup())?.[1],
   );
 
-  expect(delay).toBe(180);
+  expect(LOADER_DELAY).toBe(180);
   expect(duration).toBe(180);
+  expect(duration).toBe(LOADER_DELAY);
+  // The cap must outlast the reveal by a wide margin or it would hide the
+  // skeleton before it ever appeared.
+  expect(LOADER_MAX_VISIBLE_MS).toBeGreaterThan(LOADER_DELAY * 10);
 });
 
 test('the loader is the only shipped opacity transition', () => {

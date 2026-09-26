@@ -8,6 +8,27 @@ const descendants = (context) => {
   return found;
 };
 
+/*
+ * Adjacent (`+`) and general-sibling (`~`) combinators.
+ *
+ * These used to return `false` outright, so any selector containing one was
+ * reported as never matching. That is not a harmless limitation: the project's
+ * own `mt-prose-sibling` utility compiles to `…>*+:not(h2)…`, so
+ * `resolveToken` could not see a rule that demonstrably wins. The result was a
+ * silent false negative in the audit tooling, indistinguishable from "correctly
+ * absent" — which is how authored prose rules losing a cascade layer went
+ * unnoticed.
+ */
+const previousSiblings = (context) => {
+  const parent = context.ancestors[0];
+  if (!parent) {
+    return [];
+  }
+  const siblings = parent.children ?? [];
+  const index = siblings.indexOf(context);
+  return index <= 0 ? [] : siblings.slice(0, index);
+};
+
 const matchesParts = (parts, context, index) => {
   if (index < 0) {
     return true;
@@ -24,15 +45,46 @@ const matchesParts = (parts, context, index) => {
     return parent !== undefined && matchesParts(parts, parent, index - 1);
   }
   if (combinator === '+' || combinator === '~') {
-    return false;
+    const candidates = previousSiblings(context);
+    const pool = combinator === '+' ? candidates.slice(-1) : candidates;
+    return pool.some((sibling) => matchesParts(parts, sibling, index - 1));
   }
   return context.ancestors.some((ancestor) => matchesParts(parts, ancestor, index - 1));
 };
 
-const matchesSelector = (selector, context) => {
+const matchesSingleSelector = (selector, context) => {
   const parts = splitSelector(selector);
   return parts.length > 0 && matchesParts(parts, context, parts.length - 1);
 };
+
+/*
+ * A rule's `selector` may be a comma-separated LIST, not a single chain. A
+ * comma is also legal inside `:is()`, `:not()` and `:has()`, so only top-level
+ * commas (those outside brackets) split the rule.
+ */
+const splitSelectorList = (selector) => {
+  const list = [];
+  let depth = 0;
+  let current = '';
+  for (const character of selector) {
+    if (character === '(' || character === '[') {
+      depth += 1;
+    } else if (character === ')' || character === ']') {
+      depth = Math.max(0, depth - 1);
+    }
+    if (character === ',' && depth === 0) {
+      list.push(current);
+      current = '';
+      continue;
+    }
+    current += character;
+  }
+  list.push(current);
+  return list.map((entry) => entry.trim()).filter(Boolean);
+};
+
+const matchesSelector = (selector, context) =>
+  splitSelectorList(selector).some((entry) => matchesSingleSelector(entry, context));
 
 const RELATIVE_ANCHORS = new Set([null, ' ', '>']);
 

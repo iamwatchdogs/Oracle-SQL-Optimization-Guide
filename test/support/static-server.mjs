@@ -53,9 +53,19 @@ const resolveFile = async (urlPath) => {
 const server = createServer(async (req, res) => {
   const file = await resolveFile(req.url ?? '/');
   if (!file) {
-    res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end('Not found');
-    return;
+    /* Serve dist/404.html for an unresolvable path, the way a static host
+       would. Without this the 404 page is unreachable through e2e and can
+       never be regression-tested: the reader gets a bare text/plain body. */
+    try {
+      const body = await readFile(path.join(dist, '404.html'));
+      res.writeHead(404, { 'content-type': TYPES['.html'] });
+      res.end(body);
+      return;
+    } catch {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('Not found');
+      return;
+    }
   }
   try {
     const body = await readFile(file);
