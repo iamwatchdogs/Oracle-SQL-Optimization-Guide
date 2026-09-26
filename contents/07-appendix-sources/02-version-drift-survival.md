@@ -1,82 +1,137 @@
 ---
 title: Version Drift Survival for Oracle Docs and OSS
-description: 19c to 26ai changes, superseded briefs, and archived repos without pain.
+description: 'The release map, why 19c advice does not borrow a later feature, what a superseded brief is good for, and why a repository fact belongs to a date.'
 order: 72
 draft: false
 ---
 
 Version drift starts when a live link outlives the behavior it describes. A URL is not a release contract. A README is not a support window. A star count is not maintenance.
 
-The fix is small: pin the release, record the date, and state the boundary you could not verify.
+Every one of those is a page on the internet that will still be there next year, describing a system that has moved. The fix is small and mechanical: pin the release, date the fact, and state the boundary you could not verify.
 
-## The release map
+This page owns that rule for the whole book. Every other page links here rather than repeating it, and the dated per-tool inventory it owns lives on the [OSS gate page](/06-oss-guide/01-how-to-vet-oss/).
 
-| Feature                                    | Release boundary used here                       | Evidence boundary                                                                                                                                                                                                                                                         |
-| ------------------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Real-Time Statistics                       | **19c**                                          | Documented in the 19c tuning guide. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)                                                                                                                                                           |
-| Regression models for Real-Time Statistics | **26ai guide mention; exact release unverified** | The 26ai guide's TOC exposed the topic, but this pass did not verify the introduction release. Treat the detail as **TOC-only/unverified here**. [S02](https://docs.oracle.com/en/database/oracle/oracle-database/26/tgsql/index.html)                                    |
-| PL/SQL dynamic statistics                  | **26ai guide mention; exact release unverified** | The 26ai guide mentions the feature, but this pass did not verify its introduction release. Do not backport it into a 19c claim. [S02](https://docs.oracle.com/en/database/oracle/oracle-database/26/tgsql/index.html)                                                    |
-| Automatic SPM                              | **19c**                                          | The research paper and 19c guidance describe background verification. [S11](https://arxiv.org/html/2608.27758v1) [S21](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html)                                          |
-| Real-Time SPM                              | **26ai**                                         | Foreground verification is a 26ai feature. It does not retroactively repair the execution that regressed. [S11](https://arxiv.org/html/2608.27758v1) [S21](https://docs.oracle.com/en/database/oracle/oracle-database/26/tgsql/overview-of-sql-plan-management.html)      |
-| Automatic SQL Transpiler                   | **23ai/26ai**                                    | Eligibility and configuration are release-specific. [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf)                                                                                             |
-| Automatic SQL error mitigation             | **26ai**                                         | Keep it separate from the transpiler; verify the parameter and eligibility scope on the installed release. [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf)                                      |
-| SQL Quarantine                             | **19c+ in this pass**                            | The mechanism is documented, but API names and signatures must be checked on the installed release. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html) |
+> **Track:** Core (1–4) · Practice (5, 6) · Recovery (none) · Advanced / gated (none)
+>
+> **Prerequisites:** None, though the [class legend](/00-preface/01-why-evidence-grades/) explains what a record in the map below is allowed to support.
+>
+> **Evidence status:** The release map is A1 versioned Oracle documentation, with 26ai records marked as such and A2 Oracle-authored papers behind the plan-management rows. The repository facts are C2 records read at a single dated snapshot on **2026-09-22 UTC**. The two supplementary records in section 5 are D-class corroboration. **No live Oracle database was available**, so no feature on this page was observed running, and no row is a result.
+>
+> **Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.
 
-The 26ai guide documents features introduced across releases. A feature appearing in that guide is not automatically a 26ai introduction. The release label belongs next to the behavior.
+## How this page is banded
 
-## 19c advice should not borrow 26ai features
+| Band                 | Sections   |
+| -------------------- | ---------- |
+| **Core**             | 1, 2, 3, 4 |
+| **Practice**         | 5, 6       |
+| **Recovery**         | none       |
+| **Advanced / gated** | none       |
 
-A 19c environment can use 19c guidance without pretending that Real-Time SPM, the PL/SQL dynamic-statistics behavior mentioned in the 26ai guide, or the 23ai+ named plan-comparison API is available. A 26ai environment can use the newer guide while still citing 19c sources for behavior that the 19c guide covers.
+- **Core (1, 2, 3, 4):** the release map, the rule for 19c advice, what a superseded document is still good for, and the dating rule for repository facts. Read once; the two later sections apply it.
+- **Practice (5, 6):** two things you do with a claim in hand. Section 5 shows what a corroborating source settles and what it cannot; section 6 is the checklist to run before reusing any recommendation.
+- **Recovery (none):** nothing here undoes a change. Version drift is not fixed by rolling back; it is fixed by a boundary you can test.
+- **Advanced / gated (none):** nothing on this page is gated, because deciding what a release supports never needs a privilege. The feature gates in this book live with the features themselves.
 
-Use this pattern:
+## 1. The release map
 
-- **19c claim:** cite S01, S03, S05, S07, or the relevant 19c package reference.
-- **26ai claim:** cite S02, S21, S46, or the 26ai paper/reference for that feature.
-- **Boundary claim:** say what the pass did not read or verify firsthand.
+This book's primary release is **19c**. Everything else is either a later release you may cite with a version note, or a mention whose introduction release was not verified.
 
-That pattern is less exciting than a universal feature claim. It is also the version that survives an upgrade review.
+| Feature                                        | Release boundary used here          | Evidence boundary                                                |
+| ---------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------- |
+| Real-Time Statistics                           | **19c**                             | Documented in the 19c tuning guide [S01]                         |
+| Plan comparison (`COMPARE_PLANS`, `DIFF_PLAN`) | **19c**                             | The 19c package reference documents both [S05]                   |
+| Automatic SQL Plan Management                  | **19c**                             | Paper and 19c guidance: background verification [S11]            |
+| SQL Quarantine                                 | **19c**                             | Documented; names and signatures confirmed locally [S40]         |
+| Real-Time SPM                                  | **26ai**                            | Foreground verification, and it does not undo a regression [S21] |
+| Automatic SQL Transpiler                       | **23ai and later**                  | Eligibility and configuration are release-specific [S46]         |
+| Automatic SQL error mitigation                 | **26ai**                            | Confirm the parameter and its eligibility scope [S46]            |
+| Regression models for Real-Time Statistics     | **Later guide, release unverified** | In the 26ai contents; introducing release unverified [S02]       |
+| PL/SQL dynamic statistics                      | **Later guide, release unverified** | Mentioned in the 26ai guide; do not backport [S02]               |
 
-## Superseded guidance stays as a warning
+The records are [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) the 19c tuning guide, [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) the 19c `DBMS_XPLAN` reference, [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html) the 19c `DBMS_SQLQ` reference, and [S02](https://docs.oracle.com/en/database/oracle/oracle-database/26/tgsql/index.html) the 26ai guide. The plan-management rows are [S11](https://arxiv.org/html/2608.27758v1) and the 19c and 26ai chapters of [S21](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html), and the two later-release feature rows are both [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf).
 
-The 19c statistics brief S08 replaces the older 2012 edition. Keep the older link only as a warning against stale scripts. Pair current statistics decisions with S09 for concepts and the release-specific guide for behavior. [S08](https://www.oracle.com/docs/tech/database/technical-brief-bp-for-stats-gather-19c.pdf) [S09](https://www.oracle.com/docs/tech/database/technical-brief-stats-concepts-19c.pdf)
+Three rows carry a version note because they point past 19c, and each of them is a place where a 19c runbook can go wrong silently. The general rule is short: **a feature appearing in a later guide is not automatically new in that release.** The guide collects features introduced across releases, so presence in a table of contents is a pointer, not a version.
 
-The same rule applies to optimizer advice. Adaptive plans are workload-dependent in the evidence set. A vendor blog claiming a universal win or loss is not a release contract. Measure the feature enabled and disabled on the workload, then record the result. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) [S19](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/influencing-the-optimizer.html)
+One absence is deliberate. The official Lifetime Support Policy is published and located, but its text was not extracted in this pass, so **no support date is asserted anywhere in this book**. Cite the document itself when a recency claim is needed, and record the extraction date when someone finally reads it. [S78](https://www.oracle.com/assets/lifetime-support-technology-069183.pdf)
 
-## Repository drift is a dated fact
+## 2. 19c advice does not borrow later features
 
-The GitHub API snapshot is dated **2026-09-22 UTC**. It can tell you what the API returned that day. It cannot tell you what the repository looks like later.
+A 19c environment can use 19c guidance without pretending that Real-Time SPM, the automatic SQL Transpiler, or the PL/SQL dynamic-statistics behavior belongs to its release. A later-release environment can use the newer guide while still citing 19c sources for behavior the 19c guide covers.
 
-- **OtterTune:** 1,233 stars, last push 2020-11-13, and archived/read-only in the snapshot. Treat it as design evidence. The research pass did not establish an install history, so do not invent one. [S54](https://github.com/cmu-db/ottertune)
-- **SQLd360:** 65 stars, last push 2018-01-14, dormant under the pass's label. **SQLdb360:** 123 stars, last push 2024-12-03, low activity. Both returned `NOASSERTION` for license metadata. [S67](https://github.com/sqldb360/sqldb360)
-- **HammerDB:** GPL-3.0, 786 stars, last push 2026-09-18, active in the snapshot. It is a load tool, not a promise that a regression will appear within a fixed time. [S65](https://github.com/TPC-Council/HammerDB)
-- **Swingbench:** 80 stars, last push 2026-05-26, no declared license in the snapshot. Check rights before treating it as a project dependency. [S66](https://github.com/domgiles/swingbench-public)
+The pattern to use, and it is three lines long:
 
-A repository can be archived and still useful. It can be popular and still wrong for your release. The labels describe the snapshot; the decision describes your workload.
+- **A 19c claim** cites the 19c guide or the 19c package reference.
+- **A later-release claim** cites the later guide or the paper that introduced it, and says which release.
+- **A boundary claim** states what was not read or not verified firsthand, instead of guessing.
 
-## S78 is a source boundary, not a support date
+This is less satisfying than a universal feature claim, and it is the version that survives an upgrade review. The failure it prevents is specific: a 19c team reads a later guide, believes a feature is available, designs around it, and discovers the gap during a release window rather than in a design document.
 
-S78 is the official Oracle Lifetime Support Policy PDF. The PDF was located through search, but its text was not extracted in this pass. Therefore, **no specific support date is asserted here**. Cite S78 when a future pass needs the exact window, and record the extraction date when that happens. [S78](https://www.oracle.com/assets/lifetime-support-technology-069183.pdf)
+The same rule runs in the other direction, and it is the one most often got wrong: extending an API's options in a later release is not the same as introducing the API. [How Citations Work](/07-appendix-sources/01-how-citations-work/) owns the rule and the worked plan-comparison example.
 
-Do not fill that gap with a blog's support date. An unverified date is worse than an explicit blank.
+## 3. Superseded guidance stays as a warning
 
-## S79 and S80 narrow the claim
+The 19c statistics best-practices brief supersedes the 2012 edition of the same document. Keep the old link for exactly one reason: to warn someone whose script or runbook still points at it. A superseded document is not evidence and not a fallback, and citing it as either would be a quiet error that survives for years. [S08](https://www.oracle.com/docs/tech/database/technical-brief-bp-for-stats-gather-19c.pdf) [S09](https://www.oracle.com/docs/tech/database/technical-brief-stats-concepts-19c.pdf)
 
-S79 is Oracle's *SQL*Plus User's Guide and Reference, 19c, E96459-09, June 2025. Use it when SQL*Plus is the client assumed by the procedure. It does not establish behavior for another client or another release. [S79](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqpug/)
+The same applies to optimizer advice, and it is harder because no document is superseded. Vendor commentary on adaptive plans disagrees with itself across releases, and both sides are written by people who have run the feature. Treat adaptive behavior as **workload-dependent**, measure it enabled and disabled on your own workload, and record the result rather than adopting a position. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) [S19](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/influencing-the-optimizer.html)
 
-S80 is QueryBooster paper evidence from _PVLDB_ 16:2911 (2023). Oracle support is not verified in this pass, so it remains a candidate for middleware-assisted rewriting, not a proven Oracle replacement. [S80](https://doi.org/10.14778/3611479.3611497)
+So there are two different kinds of drift, and they need different handling. A **superseded document** is retired and stays only as a warning. A **contested behavior** is alive, and the way to settle it is measurement rather than citation.
 
-The research trail that produced these boundaries is summarized in the appendix index: 55 grouped searches and verification checks, not 55 live guarantees.
+## 4. Repository drift is a dated fact
 
-## The survival checklist
+**This is the book's rule for repositories, and it is the reason the OSS chapter dates its facts against this page.** A repository's licence, star count, last-push date, and archive flag are properties of a moment, not of a project. Print them with the date they were read, and treat them as expired the moment a newer read is possible.
 
-Before reusing a recommendation, write down:
+The snapshot behind the ledger is **2026-09-22 UTC**, and the only complete dated inventory in this book is on the [OSS gate page](/06-oss-guide/01-how-to-vet-oss/). This page keeps one row as the worked example of how to record it:
 
-- Oracle release and feature introduction release;
-- source ID, class, and access date;
-- repository snapshot date, license, last push, and archive state;
-- what was verified firsthand and what was not;
-- the exact client or API name you will use.
+| Repository | Facts recorded at the 2026-09-22 UTC snapshot | What the record licenses                          |
+| ---------- | --------------------------------------------- | ------------------------------------------------- |
+| SQLdb360   | 123 stars; last push 2024-12-03; no licence   | A collector that needs a fresh rights check [S67] |
 
-Then run the procedure on a disposable environment. Version drift is not fixed by confidence. It is fixed by a boundary you can test.
+That record covers both diagnostic collectors, so it resolves to two repositories: [S67](https://github.com/mauropagano/sqld360) SQLd360 and [SQLdb360](https://github.com/sqldb360/sqldb360).
 
-**Pin the release. Date the snapshot. State the gap.**
+Two habits make this rule hold under pressure. **Re-read before you depend**, and **carry the date in the sentence** rather than in a footnote, because the sentence is what gets copied into somebody's runbook. A repository can be archived and still useful, and it can be popular and still wrong for your release; the labels describe the snapshot, and the decision describes your workload.
+
+## 5. Corroboration settles purpose, not rights
+
+Two independent write-ups describe the community diagnostic collectors, and they are the cleanest example in this book of what corroboration can and cannot do. This is a different record set from the five narrowing records on [How Citations Work](/07-appendix-sources/01-how-citations-work/), which this section does not repeat.
+
+One independent database blog describes the SQL-level diagnostic tool as a tool for deep analysis of individual SQL statements, and another independent write-up describes the successor as the database-wide tool that grew out of the SQL-level one. [S74](https://aws.amazon.com/blogs/database/transform-your-oracle-database-journey-with-accenture-and-aws/) [S75](https://dincosman.com/2025/02/23/oracle-database-health/)
+
+Those two sentences are useful and they are both class D. What they settle is **what the tools are for**: collecting a diagnostic bundle, per statement and per database, that a human reads later. What they do not settle is the licence, the maintenance state, or whether the output agrees with what Oracle reports, and the dated inventory on the [gate page](/06-oss-guide/01-how-to-vet-oss/) is the only place in this book that speaks to the second of those.
+
+The general lesson is worth more than the two rows. A corroborating source is the right tool for **existence and purpose**, and the wrong tool for **rights, versions, and behavior**. When a secondary description and a versioned reference disagree, the reference wins and the disagreement gets recorded rather than smoothed over.
+
+## 6. The survival checklist
+
+Before reusing any recommendation from this book or from a source it cites, write down five things.
+
+- The Oracle release, and the release that introduced the feature if they differ.
+- The source ID, its class, and the access or snapshot date.
+- For a repository: the snapshot date, the licence as read from the file, the last push, and the archive flag.
+- What was read directly, and what was not extracted.
+- The exact package, client, or API name you will call.
+
+Then run the procedure on a disposable environment. Version drift is not fixed by confidence and it is not fixed by a longer note; it is fixed by a boundary you can test and a name you have actually called.
+
+## Artifact
+
+A drift record with five fields: the release and the feature's introducing release, the source ID with its class and date, the repository snapshot fields where a repository is involved, the read-firsthand versus not-extracted split, and the exact name you called. Keep it with the run it authorizes, because that is where a future reader will look when the release moves.
+
+**PLACEHOLDER — the drift record. One block per recommendation you reuse. Fill it in before the run, not after.**
+
+```text
+claim and release:                 ____________________
+feature introduced in:             ____________________
+source ID, class, access date:     ____________________
+repository snapshot (if any):      ____________________
+read firsthand / not extracted:    ____________________
+exact name called on your release: ____________________
+```
+
+Behind it, the [citations page](/07-appendix-sources/01-how-citations-work/) owns how a record is read and how a release-sensitive name is marked, and the [OSS gate page](/06-oss-guide/01-how-to-vet-oss/) supplies the dated per-tool inventory that section 4's rule governs. Nothing on this page is Oracle execution output.
+
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+
+**Decision:** pin the release, date the fact, and state the gap. A link that outlives the behavior it describes is not a citation.
+
+**Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.

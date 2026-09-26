@@ -1,59 +1,120 @@
 ---
 title: What Has No OSS Replacement
-description: The proven techniques that still need Oracle built-ins, and why.
+description: 'The proven techniques Oracle owns outright, what a thin script can and cannot substitute for, and the controls that are release-sensitive enough to mark rather than trust.'
 order: 63
 draft: false
 ---
 
-Most proven Oracle fixes do not have a verified OSS replacement. That is the finding, not a failure to fill a table. Oracle owns the state, semantics, or decision that makes the change safe. OSS can prepare inputs, collect outputs, and run load around it.
+Most proven Oracle fixes have no verified open-source replacement. That is the finding, not a gap in the table. Oracle owns the state, the semantics, or the decision that makes a change safe, and open source can prepare inputs, collect outputs, and run load around it.
 
-The matrix uses `None found` for a narrow reason: no actively maintained OSS implementation of that exact intervention was verified in the **2026-09-22 UTC** pass. It is not a universal claim about every repository, paper, private tool, or future release.
+`None found` in this chapter set has one narrow meaning: no actively maintained implementation of that exact intervention was verified in a **2026-09-22 UTC** pass. It is not a claim about every repository, paper, private tool, or future release.
 
-## What the built-ins own
+> **Track:** Core (1, 2) · Practice (3, 4) · Recovery (none) · Advanced / gated (5)
+>
+> **Prerequisites:** Basic SQL and the [environment and setup hub](/00-preface/).
+>
+> **Evidence status:** The Oracle behaviors named here are A1 versioned documentation for this book's primary release, 19c, except the 18c `DBMS_SPM` package reference marked as such in section 2. The collector and load rows, and the driver named in section 2, are C2 repository records at a dated snapshot. The [preface's class legend](/00-preface/01-why-evidence-grades/) defines what each class may support. **No live Oracle database was available**, so this page names mechanisms and gaps and reports no result.
+>
+> **Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.
 
-| Technique family                                      | Oracle implementation                                                                                                                               | What OSS can do instead                                                                                                                                                                                                                                                                            |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T-01–T-08: measurement and diagnosis                  | AWR, ASH, SQL Monitor, `DBMS_XPLAN`, SQL Trace/TKPROF, SQL Tuning Sets, and SQL Test Case Builder                                                   | SQLdb360/SQLd360 can package output. T-08 is **CONDITIONAL**, and the bundle still needs an Oracle cross-check. [S67](https://github.com/sqldb360/sqldb360)                                                                                                                                        |
-| T-09–T-23: optimizer statistics                       | `DBMS_STATS`, histograms, extended/expression statistics, plan directives, pending statistics, and Optimizer Statistics Advisor                     | No maintained OSS implementation was verified in this pass. Script the calls; do not invent a second stats authority. [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)                                                                                                  |
-| T-24–T-33, T-67–T-68: access, layout, and parallelism | Access paths, partitioning, materialized views, caches, In-Memory, Exadata, Automatic Indexing, compression, and the optimizer's parallel decisions | HammerDB and Swingbench can add load. They do not choose the structure or certify the result. [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html) [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html) |
-| T-34–T-44: transformations                            | The documented optimizer transformations and their eligibility rules                                                                                | sqlglot and Calcite can generate candidates. VeriEQL, SQLSolver, and WeTune remain research candidates for Oracle coverage. [S48](https://dl.acm.org/doi/10.1145/3514221.3526125) [S50](https://github.com/VeriEQL/VeriEQL)                                                                        |
-| T-45–T-57: plan controls and advisors                 | Hints, profiles, patches, SPM, adaptive plans, SQL Tuning Advisor, and SPA                                                                          | A driver can call the APIs and save reports. It cannot become the plan-control policy. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) [S07](https://docs.oracle.com/en/database/oracle/oracle-database/18/arpls/DBMS_SPM.html)                         |
-| T-62–T-66: safe change and guardrails                 | `DBMS_REDEFINITION`, EBR, Resource Manager, SQL Quarantine, automatic error mitigation, and SQL Repair Advisor                                      | CI can sequence these controls. It cannot replace their release-specific state transitions. [S41](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_REDEFINITION.html) [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html)            |
+## How this page is banded
 
-This is why the OSS matrix has a thin replacement column for several rows. A text parser can see a predicate. Only Oracle can know whether the executed plan, statistics, binds, and workload make the predicate cheaper.
+| Band                 | Sections |
+| -------------------- | -------- |
+| **Core**             | 1, 2     |
+| **Practice**         | 3, 4     |
+| **Recovery**         | none     |
+| **Advanced / gated** | 5        |
 
-## The difference between a script and a replacement
+- **Core (1, 2):** why the built-ins are not a target, and the line between orchestrating a package and replacing it. Read before you scope any external tooling work.
+- **Practice (3, 4):** two things you do with a specific plan or project in hand. Section 3 sizes the load lane honestly; section 4 is the list you hand over when someone asks what was not covered.
+- **Recovery (none):** nothing here undoes a change. The undo path by change class is the [accept-or-rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/).
+- **Advanced / gated (5):** read before you paste a package signature into a runbook. These controls are documented for a named release, and the release is part of the claim.
 
-Use `python-oracledb` when you need to connect, run a frozen statement, collect timings, and call a release-supported package procedure. That is a harness. [S64](https://github.com/oracle/python-oracledb)
+## 1. What the built-ins own
 
-Use SPA when you need the before trial, the after trial, the comparison metric, and the per-statement report. That is Oracle's measurement spine. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
+The reason is the same in every row, and it is worth naming once: the decision depends on state that only the database holds.
 
-Use `DBMS_STATS` when the change is statistics. A script that gathers data without Oracle's statistics semantics is not a safer substitute. Use a pending-statistics workflow when the release and environment support it, then publish or discard from measured evidence. [S29](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/)
+| Family                  | What Oracle owns                                          | Why a script cannot replace it                                          |
+| ----------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Measurement state       | Retention and the snapshot interval                       | The evidence expires on the instance's own schedule and lives there     |
+| Statistics semantics    | Incrementality, histograms, directive decisions           | Estimates are computed against this state, not supplied to it           |
+| Plan and cursor control | Baselines, profiles, patches, cursor identity and sharing | A control has to survive a statistics job, a patch, or a restart        |
+| Guardrails              | Resource ceilings, the edition switch, quarantine         | The refusal has to happen inside the server, not beside it              |
+| Advisor decisions       | The trial, the metric, the comparison report              | A before-and-after claim is only meaningful from the engine that ran it |
 
-Use `DBMS_SPM` when the question is which plan is allowed to survive a change. Parsing a hint or comparing plan hashes does not answer that question. [S07](https://docs.oracle.com/en/database/oracle/oracle-database/18/arpls/DBMS_SPM.html)
+A text parser can see a predicate. Only Oracle can say whether the executed plan, the current statistics, the bind values, and the surrounding workload make that predicate cheaper. That is the whole boundary, and it is why several rows in the catalog carry no replacement at all.
 
-## The load boundary is real, but not magical
+## 2. A script is not a replacement
 
-HammerDB is GPL-3.0 in the dated snapshot: 786 stars, last push 2026-09-18, and active under the pass's label. [S65](https://github.com/TPC-Council/HammerDB) It can generate a workload that exposes contention, I/O pressure, or resource exhaustion.
+Four pairings, each one drawn from an existing page in this book rather than from a general principle.
 
-Swingbench's dated snapshot recorded 80 stars, a 2026-05-26 push, and no declared license. [S66](https://github.com/domgiles/swingbench-public) Use it only after checking rights and the workload's fit. The research corpus does not establish a universal install history or a universal result.
+**A driver is a harness.** `python-oracledb` can connect, run a frozen statement, collect timings, and call a release-supported package procedure. Use it when the work is orchestration. [S64](https://github.com/oracle/python-oracledb) · **The built-in is the measurement.** SQL Performance Analyzer owns the before trial, the after trial, the comparison metric, and the per-statement report. A harness schedules it; it does not reimplement it. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
 
-Neither tool promises a fixed detection window. Run duration depends on the data, session count, hardware, and stop criteria. The important question is whether the test represents the failure mode you care about. Oracle's 19c parallel-execution guidance warns that parallelism can reduce performance on an overutilized system. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html)
+**A script is not a statistics authority.** When the change is statistics, `DBMS_STATS` and the release's own statistics semantics apply, and a pending-statistics workflow where the release supports one is the safe shape: gather pending, measure, then publish or discard from evidence. [S29] · **The built-in is the control.** `DBMS_SPM` answers which plan is allowed to survive a change. Parsing a hint or comparing plan hashes does not answer that, because the baseline state is the answer. [S07](https://docs.oracle.com/en/database/oracle/oracle-database/18/arpls/DBMS_SPM.html) — the 18c package reference, with the 19c companion chapter.
 
-## The gap list is part of the answer
+The test is short and it survives review: **if your script could be deleted and the claim would still hold, it was a harness. If deleting it would leave the claim unsupported, you have a dependency and you owe it a licence, a snapshot, and a rollback.**
 
-The pass did not triage the `oracle-samples/db-sample-schemas` HR/OE/SH schemas or the `opentelemetry-instrumentation-oracledb` instrumentation. It also did not compare migration CI coverage for Liquibase and Flyway on Oracle. It did not establish code, license, or Oracle coverage for SLER [S68] and the survey [S69], QueryBooster [S80], or QED [S51].
+## 3. The load boundary is real, not magical
 
-Those are **untriaged or candidate** entries, not evidence against the projects. Keep them out of the proven OSS set until the repository, license, version, and Oracle integration are checked. [S68](https://arxiv.org/abs/2603.04169) [S69](https://ieeexplore.ieee.org/iel8/11629178/11629165/11629242.pdf) [S80](https://doi.org/10.14778/3611479.3611497) [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf)
+The load lane is the narrowest place an external tool does real work, and the one most often oversold. What decides it is the licence, not the popularity: at the dated snapshot **HammerDB** carried GPL-3.0 and **Swingbench** declared no licence at all, so one of the two load lanes in this ledger is still waiting on a rights answer. The dated numbers behind both are on the [vetting page](/06-oss-guide/01-how-to-vet-oss/). [S65](https://github.com/TPC-Council/HammerDB) [S66](https://github.com/domgiles/swingbench-public)
 
-## Release-sensitive controls are not “None found” excuses
+What a load run can do is expose contention, I/O pressure, and resource exhaustion that a single session never will. That is why the 19c parallel-execution guidance makes a concurrency-realistic run part of the evidence for the parallelism technique: it documents both when parallelism helps and when resource pressure makes it worse. [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html)
 
-SQL Quarantine and its API names are release-sensitive. The research corpus marks names such as `CREATE_QUARANTINE_BY_SQL_ID` and `CREATE_QUARANTINE_BY_SQL_TEXT` as sketches to verify against the installed release. [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html) Do not paste a signature from another version and call the guardrail implemented.
+What no load tool gives you is a **detection window**, a stop criterion, or a diagnosis. Run duration depends on the data volume, the session count, the hardware, and the criteria you declared in advance. A tool that finds nothing in ten minutes has proved nothing, and the honest question is whether the run resembles the failure mode you care about. The [load gate](/03-toolbox/03-load-test-without-prod/) owns the guardrails, and it owns them because a load run changes shared state and needs a rehearsed rollback.
 
-The same rule applies to `DBMS_XPLAN.COMPARE_PLANS`: the side-by-side `DISPLAY_*` facilities are documented for 19c, while the named comparison API is release-checked for 23ai+. [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) The 26ai guide documents features introduced across releases; it is not proof that every feature belongs to 26ai. The version boundary belongs in the runbook.
+## 4. The gap list is part of the answer
 
-## The artifact
+The list below is the real one. Each row names the catalog entries with no verified open-source implementation, states the support status, and says what the built-in does instead, so a reader never has to guess whether a gap is a defect or a design. The link in the first column is the **primary page** for the range; the [T-number map](/07-appendix-sources/01-how-citations-work/) is the authority when a range is split.
 
-For a candidate with `None found`, save the thin script, the Oracle package call, the release reference, the before/after report, and the rollback command. That packet shows what automation did and what Oracle decided.
+| T-IDs                                                               | Support status                               | What the built-in does instead                                 |
+| ------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
+| [T-01, T-02](/01-proven-techniques/01-measure-first/)               | None found                                   | AWR retains the snapshots; ASH samples active sessions by wait |
+| [T-03, T-04](/01-proven-techniques/01-measure-first/)               | None found; collectors package it            | SQL Monitor and `DBMS_XPLAN` produce the plan and runtime rows |
+| [T-05](/01-proven-techniques/01-measure-first/)                     | None found                                   | SQL Trace and `tkprof` split parse, execute, and fetch time    |
+| [T-06, T-07](/01-proven-techniques/01-measure-first/)               | None found                                   | Tuning sets and the Test Case Builder freeze and replay a case |
+| [T-08](/01-proven-techniques/01-measure-first/)                     | Collectors only; entry stays **conditional** | The bundle needs an Oracle cross-check [S67]                   |
+| [T-09 to T-23](/01-proven-techniques/02-stats-run-the-show/)        | None found                                   | `DBMS_STATS`, histograms, extended stats, directives, advisor  |
+| [T-24 to T-33](/01-proven-techniques/03-indexes-and-layout/)        | Load validation only                         | Access paths, partitioning, views, caches, auto indexing       |
+| [T-45 to T-53](/01-proven-techniques/05-stabilize-and-ship-safely/) | None found                                   | Hints, profiles, patches, baselines, and cursor sharing        |
+| [T-54 to T-57](/01-proven-techniques/05-stabilize-and-ship-safely/) | None found; a driver orchestrates            | SQL Tuning Advisor, SPA, and ADDM make the decisions           |
+| [T-62 to T-66](/04-recipes/04-safe-ddl-and-ci-gates/)               | None found                                   | Redefinition, EBR, Resource Manager, and quarantine hold state |
+| [T-67](/01-proven-techniques/03-indexes-and-layout/)                | None found                                   | The 19c Administrator's Guide documents the DDL [S76]          |
+| [T-68](/01-proven-techniques/03-indexes-and-layout/)                | Load validation only                         | The VLDB guide owns the when and when-not conditions [S77]     |
 
-**If the matrix says `None found`, script around Oracle. Do not swap Oracle out.**
+Two ranges are split and the link above is only the first page. **T-54 to T-57** also runs through [Before/After With SPA](/04-recipes/02-before-after-with-spa/) and, for T-57, the ADDM reference on [Measure First](/01-proven-techniques/01-measure-first/). **T-62 to T-66** is shared with the [accept-or-rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/). The map resolves both; this table only names where to start.
+
+The three records behind that table are [S67](https://github.com/mauropagano/sqld360) SQLd360 and [SQLdb360](https://github.com/sqldb360/sqldb360) — one row covering both collectors — [S76](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-indexes.html) for the compression documentation, and [S77](https://docs.oracle.com/en/database/oracle/oracle-database/19/vldbg/parallel-exec-intro.html) for the parallel-execution conditions.
+
+Two families are not listed because they do have verified tooling, and the [trio page](/06-oss-guide/02-parse-lint-test-trio/) owns them: the transformation range, where parsers and rule frameworks generate candidates, and the method and test ranges, where lint and assertions keep bad text out of a performance run.
+
+## 5. Release-sensitive rows in the gap list
+
+Three rows in that list are release-sensitive rather than merely unsupported, and they behave differently. The guardrail row covers quarantine and error-mitigation controls whose names and eligibility rules belong to a named release. The two access-structure rows cover compression, which carries documented compatibility prerequisites, and parallelism, whose when-and-when-not conditions are versioned guidance.
+
+The [citations page](/07-appendix-sources/01-how-citations-work/) owns the general rule and the worked plan-comparison example, so this page does not repeat it. The part that belongs here is the record you keep per row, and it is small:
+
+**PLACEHOLDER — the release-confirmation record. One row per control you depend on. Fill it before the control enters a runbook.**
+
+```text
+control:              ____________________
+documented release:   ____________________
+source:               ____________________
+signature confirmed on installed release: yes / no
+parameter set differs from the reference:  yes / no / unknown
+if unknown, the control is: SKETCH
+```
+
+An unanswered field is not a small gap. It means the control is still a sketch, and a sketch is not something you arm at 02:00.
+
+## Artifact
+
+For every entry you intend to script around, one packet containing: the T-ID or the mechanism name, the thin script, the Oracle package call, the release reference with the access date, the before-and-after report, and the rollback command. That packet shows what the automation did and what Oracle decided, and it is what a reviewer reads instead of a promise.
+
+The gap list in section 4 travels with the packet. A gap you have named is a boundary you can plan around; a gap you have not named is a discovery you have scheduled for someone in production.
+
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+
+**Decision:** where the catalog says no verified implementation exists, script around Oracle and name the gap. A release-sensitive control gets marked, dated, and confirmed, or it stays a sketch.
+
+**Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.

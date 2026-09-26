@@ -1,19 +1,41 @@
 ---
 title: Static Checks Before DB Time
-description: Parse, lint, and regression-test SQL before you spend DB time.
+description: Parse, lint, assert, and gate a candidate before it spends a minute of database time.
 order: 34
 draft: false
 ---
 
 Most expensive SQL mistakes are not exotic. They are a dropped predicate, an accidental cross join, an unqualified column, a changed fetch shape, or a rewrite that returns different rows.
 
-Static checks catch some of those before Oracle spends a minute on them. They do not catch every semantic or plan problem. The gate is useful because it is cheap, not because it is magic.
+Static checks catch some of those before Oracle spends a minute on them. They do not catch every semantic or plan problem. The gate earns its place because it is cheap, not because it is magic. This page is where the open-source bridge lives: parse and lint offline, lock behavior with assertions, keep equivalence provers in the candidate lane, and run the stages in an order a CI can follow.
 
-> **Execution boundary:** the examples below are local tooling patterns, not live Oracle results. Keep production data out of the parse and lint stage. Run behavior tests only against a controlled test database.
+> **Track:** Core (1, 2) · Practice (3, 5) · Recovery (none) · Advanced / gated (4)
+>
+> **Prerequisites:** Basic SQL, a repository where the candidate SQL text lives, and a controlled test database for the assertion stage.
+>
+> **Evidence status:** The tools below are C1/C2 records from this guide's ledger with their licenses verified at the recorded repository snapshot: sqlglot [S60](https://github.com/tobymao/sqlglot), SQLFluff [S61](https://docs.sqlfluff.com/), Apache Calcite [S62](https://calcite.apache.org/), utPLSQL [S63](https://github.com/utplsql/utplsql), and python-oracledb [S64](https://github.com/oracle/python-oracledb). The provers are B1 research records: WeTune's paper and its reproducibility report [S48](https://ipads.se.sjtu.edu.cn/_media/publications/wetune_final.pdf), SQLSolver's repository [S49](https://github.com/SJTU-IPADS/SQLSolver), VeriEQL's repository [S50](https://github.com/VeriEQL/VeriEQL), and QED's paper [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf). **No live Oracle database was available**, and no tool run is reported here. Local blocks are labeled `ILLUSTRATIVE`.
+>
+> **Next required page:** [Recipes You Can Script](/04-recipes/).
+
+## How this page is banded
+
+| Band                 | Sections |
+| -------------------- | -------- |
+| **Core**             | 1, 2     |
+| **Practice**         | 3, 5     |
+| **Recovery**         | none     |
+| **Advanced / gated** | 4        |
+
+- **Core (1, 2):** parse and lint run offline against SQL text. No database, no privilege, no entitlement; a failure is visible in the editor.
+- **Practice (3, 5):** assertions run against a controlled test database, and the gate order is what you apply on a real ticket before database time is spent.
+- **Recovery (none):** nothing here changes a database object, so nothing here needs an undo. The rollback belongs to the change class that follows the gate.
+- **Advanced / gated (4):** the provers are research artifacts whose Oracle dialect support was not verified. Gated on that verification, which is why they stay in the candidate lane.
 
 ## 1. Parse and normalize the candidate
 
 Use `sqlglot` with the Oracle dialect to make the SQL text inspectable before it reaches the database:
+
+**ILLUSTRATIVE — local Python with sqlglot installed; no database and no Oracle client. Expected output: both statements printed back in Oracle dialect, so the diff is visible.**
 
 ```python
 import sqlglot
@@ -31,20 +53,27 @@ print(before.sql(dialect="oracle"))
 print(after.sql(dialect="oracle"))
 ```
 
-A parse pass proves that the tool can represent the text. It does not prove that the database will choose the same semantics, that a hint is valid, or that a predicate is selective. Dialect coverage and edge cases still need tests.
+sqlglot is MIT at the recorded snapshot, with Oracle listed among its dialects [S60]. A parse pass proves the tool can represent the text. It does not prove that the database will choose the same semantics, that a hint is valid, or that a predicate is selective.
 
-Apache Calcite with `OracleSqlDialect` is another normalization and rule-checking option. It can help compare relational structures before execution. It is not an Oracle behavior test.
+Apache Calcite with `OracleSqlDialect` is another normalization and rule-checking option, Apache-2.0 at the recorded snapshot [S62]. It can help compare relational structures before execution. It is not an Oracle behavior test, and a generated relational form is a candidate, not a result.
 
 ## 2. Lint the configured rules
 
-SQLFluff supports the Oracle dialect and works as a CLI, Python API, and CI gate:
+SQLFluff supports the Oracle dialect and works as a CLI, a Python API, and a CI gate. It is MIT at the recorded snapshot, with Oracle named in its dialect reference [S61]:
+
+**ILLUSTRATIVE — read-only local shell with SQLFluff installed; no database. `lint` reports and changes nothing. Expected output: one pass/fail result per file, with rule violations listed.**
 
 ```bash
 sqlfluff lint --dialect oracle queries/sales_report.sql
+```
+
+**MUTATING — ILLUSTRATIVE — local shell with SQLFluff installed; no database. `fix` rewrites the candidate file in place, so it is a state change like any other: run it on a branch where the rewrite is reviewable and revertible, and keep the `lint` result above as the record of what was wrong. Expected output: the files it rewrote, each reviewed as a diff before it goes anywhere.**
+
+```bash
 sqlfluff fix --dialect oracle queries/sales_report.sql
 ```
 
-A clean run means the selected rules passed. It does **not** mean all shape faults are gone. Rule coverage depends on the configuration, disabled rules, parser limitations, and the SQL features present in your project. Keep the configuration in version control and review new rule suppressions.
+A clean run means the selected rules passed. It does not mean all shape faults are gone. Rule coverage depends on the configuration, disabled rules, parser limitations, and the SQL features present in your project. Keep the configuration in version control and review new rule suppressions.
 
 Use lint to catch mechanical problems such as ambiguous aliases, formatting drift, or configured join conventions. Use behavior tests to catch meaning changes.
 
@@ -52,50 +81,58 @@ Use lint to catch mechanical problems such as ambiguous aliases, formatting drif
 
 A row count is a weak oracle. A count can stay the same while values, ordering, duplicates, or null handling change. Assert the rows and the business-relevant aggregates.
 
-utPLSQL runs tests inside Oracle and is the current practical behavior gate for SQL and PL/SQL changes. A test should run the old and new query against controlled fixtures and compare the expected result set or checksum, not only the elapsed time.
+utPLSQL runs tests inside Oracle and is the practical behavior gate for SQL and PL/SQL changes. It is Apache-2.0 at the recorded snapshot, and its README requires Oracle Database 19c or newer [S63]. A test should run the old and new query against controlled fixtures and compare the expected result set or checksum, not only elapsed time.
 
-A `python-oracledb` harness is useful when the test is easier to express in Python. Use the same binds, fetch shape, and deterministic ordering for both candidates. The driver removes client-library requirements in thin mode; it does not remove the need for a test database.
+Run both candidates with the same binds, the same fetch shape, and deterministic ordering. A checksum comparison is order-sensitive, so an unordered result set can fail, or pass, for reasons that have nothing to do with the rewrite.
+
+A `python-oracledb` harness is useful when the test is easier to express in Python. The driver is dual-licensed UPL-1.0 OR Apache-2.0 at the recorded snapshot [S64], and its thin mode removes the client-library requirement. It does not remove the need for a test database, and it is not an optimizer, an advisor, or a before/after judge.
 
 ## 4. Keep equivalence provers in the candidate lane
 
-WeTune, SQLSolver, VeriEQL, and QED are research systems with relevant ideas for rewrite discovery and semantic verification. Their Oracle dialect support was not verified in this book’s evidence pass. Keep them labeled **CANDIDATE for Oracle**.
+WeTune, SQLSolver, VeriEQL, and QED are research systems with relevant ideas for rewrite discovery and semantic verification. None of them is a production gate, and none of them has verified Oracle dialect coverage.
 
-A formal proof, if it ever becomes available for your dialect and constraints, would complement tests; it would not replace tests for null semantics, bind behavior, data distribution, or application contracts. Today, a passing behavior suite plus a measured SPA result is the honest path.
+| Prover    | What the record says                                                                   | License and record status                   |
+| --------- | -------------------------------------------------------------------------------------- | ------------------------------------------- |
+| WeTune    | SIGMOD 2022 paper plus a third-party reproducibility report; no official repo verified | Paper and report only [S48]                 |
+| SQLSolver | Unbounded-equivalence prover, SIGMOD 2024, dedicated artifacts repo                    | Apache-2.0; Oracle support unverified [S49] |
+| VeriEQL   | Bounded equivalence with integrity constraints, OOPSLA 2024                            | No license declared in the repository [S50] |
+| QED       | Query equivalence decider, PVLDB 17:3602                                               | Paper only; no repository verified [S51]    |
+
+Keep them labeled **CANDIDATE for Oracle**. A formal proof, if it ever becomes available for your dialect and your constraints, would complement tests; it would not replace tests for null semantics, bind behavior, data distribution, or application contracts. Today, a passing behavior suite plus a measured comparison is the honest path.
 
 ## 5. Use the gate in this order
 
-1. Parse the candidate with the Oracle dialect.
-2. Normalize and diff the AST or relational form.
-3. Run the configured SQLFluff rules.
-4. Run result assertions on controlled data.
-5. Create a frozen STS and run the SPA trials.
-6. Test under realistic concurrency if the change can affect contention or resource use.
+Run these stages in order, and stop at the first failure:
 
-A lint failure blocks the next stage. A parse failure blocks the next stage. A behavior failure blocks the next stage. A clean static pass earns DB time; it does not earn a promotion.
+1. Parse both candidates with the Oracle dialect. A parse failure blocks the next stage.
+2. Normalize and diff the AST or relational form, and put the diff in the review.
+3. Run the configured SQLFluff rules from the repository configuration. A lint failure blocks the next stage.
+4. Run result assertions against controlled fixtures on a test database. A behavior failure blocks the next stage.
+5. Create the frozen set and run the controlled comparison, using the [STS runbook](/03-toolbox/02-freeze-work-with-sts/) and the [SPA recipe](/04-recipes/02-before-after-with-spa/).
+6. If the change can affect contention or resource use, run the [load gate](/03-toolbox/03-load-test-without-prod/).
+7. Record the verdict with the artifacts from every stage that ran.
 
-## Illustrative scenario
+A clean static pass earns database time. It does not earn a promotion, and a green CI badge is not a performance claim.
 
-A rewrite parses cleanly and passes the enabled SQLFluff rules. The test suite finds that rows with `status = 'CANCELLED'` disappeared. The linter did its configured job. The rewrite failed the actual contract.
+**ILLUSTRATIVE — a scenario, not a measurement.** A rewrite parses cleanly and passes the enabled SQLFluff rules. The test suite finds that rows with `status = 'CANCELLED'` disappeared. The linter did its configured job; the rewrite failed the actual contract.
 
-## Output checklist
+## Artifact
 
-- [ ] Oracle dialect parser used
-- [ ] Before and after structures diffed
+A gate record with one row per stage:
+
+- [ ] Oracle dialect parser used, before and after structures diffed
 - [ ] SQLFluff configuration and selected rules recorded
-- [ ] Clean lint described as “selected rules passed,” not “all faults clear”
+- [ ] Clean lint described as "selected rules passed," not "all faults clear"
 - [ ] Result assertions cover rows, duplicates, nulls, and relevant aggregates
-- [ ] Equivalence provers marked CANDIDATE for Oracle
-- [ ] SPA and load gates remain separate
+- [ ] Both candidates compared with the same binds, fetch shape, and deterministic ordering
+- [ ] Equivalence provers marked CANDIDATE for Oracle, with their license and record status
+- [ ] Controlled comparison and load gate kept as separate stages
+- [ ] Verdict written with the artifacts from every stage that ran
 
-## References
+The blocks above are `ILLUSTRATIVE` local tooling shapes, and the tool facts are repository and documentation records rather than results.
 
-- [sqlglot](https://github.com/tobymao/sqlglot)
-- [SQLFluff](https://docs.sqlfluff.com/)
-- [SQLFluff dialect reference](https://docs.sqlfluff.com/en/stable/reference/dialects.html)
-- [Apache Calcite OracleSqlDialect](https://calcite.apache.org/javadocAggregate/org/apache/calcite/sql/dialect/OracleSqlDialect.html)
-- [utPLSQL](https://github.com/utplsql/utplsql)
-- [python-oracledb](https://github.com/oracle/python-oracledb)
-- [VeriEQL](https://github.com/VeriEQL/VeriEQL)
-- [SQLSolver](https://github.com/SJTU-IPADS/SQLSolver)
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
 
-**Keep this: lint the text, test the meaning, then measure the SQL.**
+**Decision:** lint the text, test the meaning, then measure the SQL. A stage that has not run is a stage that has not passed.
+
+**Next required page:** [Recipes You Can Script](/04-recipes/).

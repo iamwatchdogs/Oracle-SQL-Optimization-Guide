@@ -1,55 +1,88 @@
 ---
 title: Before and After With SPA
-description: Run test execute twice and compare on buffer_gets before you trust a change.
+description: Screen cheaply, run named trials on one frozen set, and capture the plan that ran.
 order: 42
 draft: false
 ---
 
-One fast run is a sample. A controlled before/after pair is evidence. SQL Performance Analyzer gives you the controlled trials; your harness decides whether the measured difference is larger than the noise.
+One fast run is a sample. A controlled before and after pair on one frozen set is evidence. SQL Performance Analyzer produces the named trials and the comparison report; your harness decides whether the measured difference is larger than the noise.
 
-> **Execution boundary:** this page contains no live Oracle results. Run the sequence on a test or staging database with the required `ADVISOR` privilege and the licensing appropriate to your environment.
+The [STS runbook](/03-toolbox/02-freeze-work-with-sts/) freezes the input. This page owns the analysis-task sequence it defers to: create the task, run the first trial, apply one change, run the after trial, compare the named trials, and capture the plan that actually executed.
+
+> **Track:** Core (1, 7) · Practice (3, 4, 5, 6, Decision table) · Recovery (none) · Advanced / gated (2)
+>
+> **Prerequisites:** [Freeze With STS](/04-recipes/01-freeze-with-sts/) behind you, so the set exists, plus a test target where you may apply one candidate change.
+>
+> **Evidence status:** The task sequence is A1-sourced and read firsthand from the 19c `DBMS_SQLPA` package reference [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html); plan display and plan comparison come from the 19c `DBMS_XPLAN` reference [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html); the frozen set comes from [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html). The repetition principle is B1 methodology [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf). Blocks are `ILLUSTRATIVE`, `PLACEHOLDER`, or `MUTATING`. **No live Oracle database was available**, so no trial on this page has been run.
+>
+> **Next required page:** [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/).
+
+## How this page is banded
+
+| Band                 | Sections                   |
+| -------------------- | -------------------------- |
+| **Core**             | 1, 7                       |
+| **Practice**         | 3, 4, 5, 6, Decision table |
+| **Recovery**         | none                       |
+| **Advanced / gated** | 2                          |
+
+- **Core (1, 7):** the cheap screen and the capture of the plan that ran. Both are read actions against a target you already have, and neither needs the analysis task.
+- **Practice (3, 4, 5, 6, Decision table):** on a real ticket, once the gated task exists: apply exactly one change, compare the named trials, repeat under the policy, summarize outside SQLPA, and read the verdict rows.
+- **Recovery (none):** this page measures and reports; it does not undo. The revert that follows a failed verdict belongs to the change class and to the [accept or rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/).
+- **Advanced / gated (2):** creating and running an analysis task needs the `ADVISOR` privilege plus the Real Application Testing entitlement that SQL Performance Analyzer depends on. Confirm both before the first trial.
 
 ## 1. Screen cheaply, then execute fully
 
-`EXPLAIN PLAN` is a cheap screen. It can catch a malformed statement, an obvious access-path surprise, or a missing object before you spend time on execution. It is not a performance verdict.
+`EXPLAIN PLAN` is a cheap screen. It catches a malformed statement, an obvious access-path surprise, or a missing object before you spend execution budget, and it shows no runtime statistics. The analyzer package also offers `explain plan` as an execution type, which analyzes without executing, so it works as a pre-gate inside the task [S06]. Neither form is a performance verdict.
 
-A full scan is not automatically wrong. Evaluate selectivity, rows examined, cost, partition pruning, and the measured after delta. A broad predicate can make a full scan cheaper than an index probe; a selective predicate can make the same operation expensive. The plan is a hypothesis until `test execute` measures it.
+**A full scan is not automatically wrong.** Evaluate selectivity, rows examined, cost, partition pruning, and the measured after delta. A broad predicate can make a full scan cheaper than an index probe, and a selective predicate can make the same operation expensive. The plan stays a hypothesis until `test execute` measures it.
 
 ## 2. Create the task and run the first trial
 
-The STS must already exist. Use one task and give every trial a name:
+The set must already exist. Use one task for both sides and give every trial a name:
+
+**MUTATING — ILLUSTRATIVE. Creates an analysis task and runs its first trial. SQLcl or SQL\*Plus with the `ADVISOR` privilege on a target whose Real Application Testing entitlement is confirmed. Structure follows the 19c `DBMS_SQLPA` package reference [S06]; not executed here. Confirm every signature on the installed release. Expected output: the task name, then no rows.**
 
 ```sql
 VARIABLE tname VARCHAR2(64);
+
 EXEC :tname := DBMS_SQLPA.CREATE_ANALYSIS_TASK(
-  sqlset_name => 'OPT_LOOP_WL',
-  description => 'One candidate change on one frozen workload'
+  sqlset_name  => 'OPT_LOOP_WL',
+  description  => 'one candidate change on one frozen workload'
 );
 
 EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
-  task_name => :tname,
+  task_name      => :tname,
   execution_type => 'test execute',
   execution_name => 'before_01'
 );
 ```
 
-This is the baseline. Do not add an index, gather statistics, change a hint, or edit the STS after this trial unless that action is the one candidate under test.
+This is the baseline. After this line, do not add an index, gather statistics, change a hint, or edit the set unless that action is the single candidate under test. Every block here assumes one owner: the schema that owns `OPT_LOOP_WL` also creates and runs the task, so no owner argument is passed. If the set lives in another schema, pass the documented owner argument and confirm its name on the installed release. Record `sts_owner` and `task_owner` as separate fields in the run manifest.
 
 ## 3. Apply one change, then run the after trial
 
-Apply the candidate in the test environment. Then run the same set with the same execution context:
+Apply the candidate on the test target, then confirm it actually applied: read the change back from the dictionary — the index, the gathered statistics, the profile, the parameter — and record what you read beside the trial name. An after trial whose candidate was never confirmed shares its label with a second before trial.
+
+Then run the same set with the same execution context:
+
+**MUTATING — ILLUSTRATIVE. Runs the second named trial on the same task. SQLcl or SQL\*Plus, same session rules as section 2. Not executed here. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
-  task_name => :tname,
+  task_name      => :tname,
   execution_type => 'test execute',
   execution_name => 'after_01'
 );
 ```
 
-The SQLPA comparison metric defaults to elapsed time. This book records `buffer_gets` as a useful logical-work measure and elapsed time as the user-visible outcome. Do not call either one the truth before looking at the full report and the workload context.
+The comparison metric defaults to elapsed time [S06]. This guide records `buffer_gets` as the logical-work measure and elapsed time as the user-visible outcome. Set the metric once, record it in the manifest, and do not call either one the truth before you have read the report and the workload context.
 
 ## 4. Compare the named trials
+
+Point the comparison at the two names, then read the report:
+
+**MUTATING — ILLUSTRATIVE. Sets a task parameter and runs a comparison execution on the same task. SQLcl or SQL\*Plus with the privileges from section 2. Not executed here; confirm `execution_params`, `DBMS_ADVISOR.ARGLIST`, and the report arguments on the installed release. Expected output: no rows returned.**
 
 ```sql
 EXEC DBMS_SQLPA.SET_ANALYSIS_TASK_PARAMETER(
@@ -57,35 +90,37 @@ EXEC DBMS_SQLPA.SET_ANALYSIS_TASK_PARAMETER(
 );
 
 EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
-  task_name => :tname,
-  execution_type => 'compare performance',
-  execution_name => 'compare_01',
+  task_name        => :tname,
+  execution_type   => 'compare performance',
+  execution_name   => 'cmp_01',
   execution_params => DBMS_ADVISOR.ARGLIST(
     'execution_name1', 'before_01',
-    'execution_name2', 'after_01',
-    'comparison_metric', 'buffer_gets'
+    'execution_name2', 'after_01'
   )
 );
+```
 
+**ILLUSTRATIVE — SQLcl or SQL\*Plus, read-only over the task's report. Requires the privilege to read the analysis task. Expected output: one report as text, for the section you asked for.**
+
+```sql
 SELECT DBMS_SQLPA.REPORT_ANALYSIS_TASK(
   :tname, 'TEXT', 'TYPICAL', 'ALL'
 ) FROM dual;
 ```
 
-The report’s section argument matters:
+The metric is set once, on the task. The same value can ride inside `execution_params` instead: the two placements are alternatives in the package reference, so setting both is redundant [S06]. This page sets it on the task and keeps the `ARGLIST` to the two trial names.
 
-- `ALL` includes the summary and per-statement details. Use it when you claim that a statement improved, regressed, or stayed unchanged.
-- `SUMMARY` returns the workload summary only. Do not cite it as per-statement evidence.
-
-Read plan hash, rows, metric deltas, errors, and workload impact together. A plan change is useful context. It does not decide the verdict.
+The report's section argument decides what you may cite. `ALL` includes the summary and the per-statement detail, so use it when you claim that a statement improved, regressed, or stayed unchanged. `SUMMARY` returns the workload summary only, and citing it as per-statement evidence is a mistake. Confirm both values in the installed reference. Read plan hash, rows, metric deltas, errors, and workload impact together; a plan change explains the result instead of proving it.
 
 ## 5. Repeat enough to separate signal from noise
 
-Use the book policy: **K>=5 trials per side**, with **10–15 preferred** for a noisy or important statement. Add one full-workload SPA pass per side for the aggregate workload gate.
+Repeat enough to separate signal from noise, and let the policy say how much is enough. The [noise floor and repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/) owns the trial count, the A/A control, the estimator, and the confidence interval. SQLPA supplies the trials; the harness stores their metrics, calculates the medians, and bootstraps the interval. SQLPA produces none of those statistics itself.
 
-SC15 supports the general need to repeat measurements, measure long enough, and report variability and confidence. It does not prescribe this exact K floor. SQLPA supplies the comparison trials; the harness stores their metrics, calculates medians, and bootstraps 95% confidence intervals. SQLPA does not produce the book’s medians or bootstrap intervals.
+The repetition principle behind that policy is documented by the benchmarking methodology source [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf): repeat, measure long enough, and report variability rather than a point estimate. It is methodology rather than an Oracle rule, and it sets no trial count of its own.
 
-The harness should keep at least:
+A trial is invalid if the set, the binds, the database state, the host, the metric, or the candidate boundary changed. If the rows came back differently, the faster number buys nothing.
+
+**ILLUSTRATIVE — the harness record shape for one trial. Not a result, and not a schema you must copy verbatim.**
 
 ```text
 run_id, task_name, execution_name, sql_id, metric,
@@ -93,35 +128,19 @@ metric_value, plan_hash_value, started_at, finished_at,
 candidate_change, database_version
 ```
 
-A trial is invalid if the STS, binds, database state, host, metric, or candidate boundary changed. A faster result with a changed result set is not a win.
-
-## 6. Use a cheap Python summary for the harness
+## 6. Use a cheap summary for the harness
 
 A harness can calculate the summary around the SPA trials without pretending that SQLPA calculated it:
 
-```python
-import random
-import statistics
+The estimator itself lives in exactly one place: the [noise floor and repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/) states it as the difference of the side medians, `median(before) - median(after)`, so a positive value means the after side used less work, and its `COPYABLE` block is this book's one implementation — unpaired by default, paired when repetition i corresponds across sides, with the sign convention, seed, and resample count written in. This page links to that block instead of printing a second copy that could disagree with it.
 
-def median_difference_ci(before, after, draws=2000):
-    differences = []
-    for _ in range(draws):
-        before_median = statistics.median(random.choices(before, k=len(before)))
-        after_median = statistics.median(random.choices(after, k=len(after)))
-        differences.append(after_median - before_median)
-    ordered = sorted(differences)
-    return (
-        statistics.median(differences),
-        ordered[int(0.025 * draws)],
-        ordered[int(0.975 * draws)],
-    )
-```
-
-This is an unpaired bootstrap for the median difference. If the trials are genuinely paired, bootstrap the paired median differences instead. The harness must also compare per-statement deltas, the aggregate workload delta, and the no-regression rule. A lower median for one hero statement cannot erase a regression elsewhere in the STS.
+Record the seed beside the interval: two runs with the same seed and the same samples must print the same numbers, which is the contract this chapter opens with. The harness must also compare the per-statement deltas, the aggregate workload delta, and the no-regression rule. A lower median for one hero statement cannot erase a regression elsewhere in the set.
 
 ## 7. Capture the executed plan
 
 For the top movers, capture the plan that actually ran:
+
+**ILLUSTRATIVE — PLACEHOLDER — SQLcl or SQL\*Plus. Replace `&sql_id` with an identity read from the target system, never from memory. Requires read access to `V$SQL`, `V$SQL_PLAN`, `V$SESSION`, and `V$SQL_PLAN_STATISTICS_ALL`; confirm the view list on your release. Expected output: the plan for the named cursor, with runtime statistics when they were gathered.**
 
 ```sql
 SELECT * FROM TABLE(
@@ -133,23 +152,44 @@ SELECT * FROM TABLE(
 );
 ```
 
-Compare `E-Rows` with `A-Rows`, selectivity, rows examined, cost, predicates, and the measured deltas. If you need a plan comparison API, `DBMS_XPLAN.COMPARE_PLANS` is a 23ai+ release-checked API in this book. Verify the current release reference first. On 19c, save and compare the `DISPLAY_*` outputs.
+That view list is the one [Measure First](/01-proven-techniques/01-measure-first/) records for `DISPLAY_CURSOR`. `A-Rows` appears only where row-source statistics were gathered — through the session's statistics level or the `GATHER_PLAN_STATISTICS` hint, as [the plan-statistics mechanism](/01-proven-techniques/01-measure-first/) explains — so without that mechanism you get a plan shape and no actuals. Compare `E-Rows` with `A-Rows`, selectivity, rows examined, cost, predicates, and the measured deltas. Reading the line itself is the [toolbox runbook](/03-toolbox/01-measure-with-xplan-and-monitor/), which this page does not repeat.
+
+For a written diff of saved plans, the Oracle Database 19c `DBMS_XPLAN` package reference documents two comparison functions, `COMPARE_PLANS` and `DIFF_PLAN`, in the same chapter, [DBMS_XPLAN, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html). Which one you need, what each returns, and the parameters each one takes are [Measure First](/01-proven-techniques/01-measure-first/)'s decision; this page does not repeat them.
+
+Confirm the name, the signature, and the availability of each function on your installed release before you call it, and its available parameters once you have it, because update-level and later-release details differ. When either call is not there, save both `DISPLAY_*` outputs and diff them yourself; that path works on every release. The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why the release label belongs next to the behavior.
 
 ## Decision table
 
-| Evidence                                                                                                 | Verdict                     |
-| -------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Aggregate improves, key statements do not regress, and the confidence interval clears the measured noise | Candidate for the next gate |
-| Aggregate improves but one important statement regresses beyond threshold                                | Reject or split the change  |
-| Only the plan hash changes                                                                               | Keep investigating          |
-| `EXPLAIN PLAN` looks good but `test execute` regresses                                                   | Reject the explanation      |
-| No live test was run                                                                                     | Record NOT-VERIFIED         |
+| Evidence                                                                      | Disposition                                         |
+| ----------------------------------------------------------------------------- | --------------------------------------------------- |
+| Aggregate improves, key statements hold, and the interval clears the noise    | Hand to the gate; load first if it can contend      |
+| Aggregate improves but one important statement regresses beyond the threshold | Hand to the gate — candidate for `REJECT_CANDIDATE` |
+| Only the plan hash changes                                                    | Keep investigating                                  |
+| `EXPLAIN PLAN` looks good but `test execute` regresses                        | Reject the explanation                              |
+| No test execute was run for this candidate                                    | Record `NOT-VERIFIED`                               |
 
-## References
+Voiding a comparison — different set, different binds, different context — is the [STS runbook's row](/03-toolbox/02-freeze-work-with-sts/), and this table only runs on comparisons that survived it. The threshold, the interval, and the gate that turns these rows into a verdict belong to the [accept or rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/). This page reports evidence; that gate decides with it.
 
-- [DBMS_SQLPA, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
-- [DBMS_XPLAN, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)
-- [Managing SQL Tuning Sets, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html)
-- [Hoefler and Belli, SC15 benchmarking methodology](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf)
+**Teardown.** When the reports and the plans are saved, drop the analysis task with `DBMS_SQLPA.DROP_ANALYSIS_TASK` in the task-owner session, confirming the name on your release: keep the evidence and let the task go. The set's fate belongs to [Freeze With STS](/04-recipes/01-freeze-with-sts/).
 
-**Keep this: same STS, named trials, measured deltas, and a rollback.**
+## Artifact
+
+A comparison record another engineer can recompute:
+
+- [ ] Task name, set name, and both trial names recorded once, with the metric
+- [ ] Both trials run on the same set, binds, database state, and host
+- [ ] Candidate read back from the dictionary before the after trial ran
+- [ ] The report saved with section `ALL` whenever a statement-level claim is made
+- [ ] Raw samples kept outside the report, with the harness calculation and its seed beside them
+- [ ] Executed plan captured for the top movers, with the release label on any comparison call
+- [ ] Analysis task dropped after the evidence was saved
+- [ ] Disposition row written, or `NOT-VERIFIED` written because no trial ran
+- [ ] What the next loop inherits from this comparison recorded on [Memory and When to Stop](/05-feedback-loop/04-memory-and-when-to-stop/)
+
+The task blocks are `MUTATING` and `ILLUSTRATIVE`, the plan capture is `ILLUSTRATIVE` with a `PLACEHOLDER` token, and the estimator lives on the [noise floor and repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/). None of them has produced a number in this guide.
+
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+
+**Decision:** same set in, named trials out, measured delta saved. The report is evidence for one trial; the gate decides what the trial means.
+
+**Next required page:** [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/).

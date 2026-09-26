@@ -1,49 +1,100 @@
 ---
 title: Feedback Loop That Proves It
-description: One change, measured noise, clear accept or rollback, and memory.
+description: One change, a measured noise floor, an accept or rollback gate, and memory the next loop can read.
 order: 50
 draft: false
 ---
 
-**Verdict: one change, one frozen workload, one auditable verdict.** A fast run is not a result. A plan diff is not a result. The result is a repeatable comparison with evidence attached.
+A change is accepted by evidence, and the evidence has to survive a measurement you did not manipulate. One fast run is an anecdote. A different plan hash is a fact about a plan, not about performance. What decides is a repeated comparison on a frozen workload, measured against a noise floor taken before the candidate touched anything.
 
-> **Execution boundary:** this reference architecture was not executed against a live Oracle database in the research pass. There is no project benchmark, production result, or measured speedup here. Exact medians, confidence intervals, percentages, and time counts are illustrative unless a source is named.
+This chapter owns the noise floor and its A/A discipline, the repetition policy, the acceptance and rejection rule, and the rollback matrix by change class. It also owns the safety gates, the convergence criteria, and the lesson record.
 
-Research-only references (not published navigation): `.agents/research/05-agentic-feedback-loop-design.md` §9 and `.agents/research/04-programmatic-approaches.md` §4.11. The sequence below is an operating outline, not an execution transcript.
+Everything executable belongs elsewhere. The [recipes chapter](/04-recipes/) owns the block sequences and links here for the numbers those sequences must clear. The [toolbox chapter](/03-toolbox/) owns the claim-to-tool map. [Techniques](/01-proven-techniques/) owns the plan pair, the semantic fixtures, and the statement identity. [Papers](/02-papers-behind-recipes/) owns the verification status of the plan-management sources.
+
+> **Track:** Core (Decision table, Child pages) · Practice (Execution boundary) · Recovery (none) · Advanced / gated (Where the loop is gated)
+>
+> **Prerequisites:** [How to Prove a Win](/00-preface/02-how-to-prove-a-win/) for the block labels and the A/A discipline, plus a frozen set from [Freeze With STS](/04-recipes/01-freeze-with-sts/).
+>
+> **Evidence status:** The mechanics are A1-sourced from the package references they name — `DBMS_SQLPA` [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) for the comparison, `DBMS_XPLAN` [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) for plan evidence, `DBMS_SPM` [S07](https://docs.oracle.com/en/database/oracle/oracle-database/18/arpls/DBMS_SPM.html) (18c reference, 19c companion) for plan control — with B1 methodology behind the repetition rule [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf) and B1 read firsthand behind Real-Time SPM [S11](https://arxiv.org/html/2608.27758v1). The margin rule, the change budget, the evidence-before-claim gate, and the stop counts are engineering choices, declared as such on the child pages. **No live Oracle database was available for this guide**, so nothing in this chapter is a measurement.
+>
+> **Next required page:** [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/).
+
+## How this page is banded
+
+| Band                 | Sections                     |
+| -------------------- | ---------------------------- |
+| **Core**             | Decision table · Child pages |
+| **Practice**         | Execution boundary           |
+| **Recovery**         | none                         |
+| **Advanced / gated** | Where the loop is gated      |
+
+- **Core (Decision table, Child pages):** read once before you run anything. Both sections are navigation, and neither touches a database.
+- **Practice (Execution boundary):** apply it the moment you set a margin, a repetition count, or a budget for your own run, because those values are written before the candidate runs or they are not evidence.
+- **Recovery (none):** this index changes nothing. The class-specific undo and its proof live on [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/).
+- **Advanced / gated (Where the loop is gated):** read before you schedule a loop against a shared target, because three of the stages need a privilege, an entitlement, or a person.
 
 ## Decision table
 
-| Question                 | Required evidence                                                                            | Verdict or next action                                  |
-| ------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Is the change isolated?  | One change record, target, hypothesis, metric, semantic gate, and rollback primitive         | Test in the isolated target or reject before apply      |
-| Is the signal real?      | A/A floor, full-workload SPA pass per side, K>=5 samples, and external median/CI calculation | Accept, reject, or mark inconclusive                    |
-| Can it ship?             | Semantics, effect size, uncertainty, no regression, and recovery                             | `ACCEPT`, `REJECT`, or `NOT-VERIFIED`                   |
-| Can the next loop learn? | Condition-keyed lesson with measured delta, version, and artifact hashes                     | Retrieve, skip, amend, or retest with a new `change_id` |
+| Page                                                                           | The question it decides                                | The rule it owns                                            |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------- |
+| [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/)             | Is the change isolated enough to read at all?          | One candidate, one change record, one re-baselined workload |
+| [Noise Floor and Repetition](/05-feedback-loop/02-noise-floor-and-repetition/) | Is the signal larger than ordinary movement?           | The A/A control, the repetition policy, and the interval    |
+| [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/)       | Can it ship, and what happens if it cannot?            | Five checks, the canonical verdict mapping, and the matrix  |
+| [Memory and When to Stop](/05-feedback-loop/04-memory-and-when-to-stop/)       | What does the next loop inherit, and when does it end? | The lesson record, the convergence criteria, the close-out  |
 
-The K policy is this design's operating rule. SC15 supports repeats, duration, variability, and confidence reporting; it does not prescribe an Oracle-specific K. Use 10–15 samples per side when variance or the cost of a wrong decision is high.
-
-A plan hash explains what changed. It does not prove that the change helped. A missing capability, privilege, license, or test target is a result too.
+Read the row for the question you are stuck on. Each page decides one of the four, and no page decides two of them.
 
 ## Child pages
 
-- [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/) — proposal isolation, semantic gate, and re-baselining.
-- [Noise Floor and Repetition](/05-feedback-loop/02-noise-floor-and-repetition/) — A/A control, repeated full-workload trials, and external statistics.
-- [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/) — five checks, class-specific recovery, and human approval.
-- [Memory and When to Stop](/05-feedback-loop/04-memory-and-when-to-stop/) — searchable lessons, convergence signals, and close-out evidence.
+- [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/) decides **what may be tested**: one candidate, the change record it is tested under, the semantic gate it must clear first, and the re-baseline that follows the verdict.
+- [Noise Floor and Repetition](/05-feedback-loop/02-noise-floor-and-repetition/) decides **what counts as signal**: the unchanged control, how many times the workload repeats, which metric leads, and how the interval is computed outside the report.
+- [Accept or Rollback Gate](/05-feedback-loop/03-accept-or-rollback-gate/) decides **whether the change is kept**: five numbered checks, the map from each failing check to the canonical verdict vocabulary, the rollback primitive for each change class, and the approval a person must give.
+- [Memory and When to Stop](/05-feedback-loop/04-memory-and-when-to-stop/) decides **what the next loop inherits and when the loop ends**: the condition-keyed lesson, the retrieval step, the convergence signals, and the close-out record.
 
-## Checklist / artifact
+## Execution boundary
 
-- [ ] Record the change ID, frozen STS, binds, metric, A/A floor, and K policy.
-- [ ] Keep before/after SPA reports, XPLAN or Monitor/AWR artifacts, and raw samples.
-- [ ] Record the gate result, class-specific rollback, verification proof, and human approval.
-- [ ] Store the condition, version, outcome, and hashes so the next loop can retrieve the lesson.
+Every number printed in this chapter carries its attribution on the page that prints it: a source recommendation with its S-ID, or an engineering choice declared as one. The composed bar, the repetition counts, the margin, the convergence values, and the budget caps are each labeled where they appear.
 
-<details><summary>Noise floor: the movement you see when nothing changes</summary>
+Treat a number without an attribution as a defect in the page, not as an invitation to trust it.
 
-The noise floor is the spread between unchanged A/A runs on the same STS, host, binds, metric, and workload window. It sets the minimum effect worth discussing. `max(2x measured noise, 5%)` is an illustrative engineering starting point, not an Oracle requirement or measured result. The artifact is the A/A report and the recorded floor calculation.
+## Where the loop is gated
 
-</details>
+Three stages do not run on a bare read session, and one more needs a person:
 
-Primary references used by this chapter include [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html), [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html), [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf), [S56](https://github.com/noahshinn/reflexion), [S12](https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf), [S11](https://arxiv.org/html/2608.27758v1), and [S40](https://oracle-base.com/articles/19c/sql-quarantine-19c). Related source IDs: S17, S35, S27, and S15.
+- **Measurement** needs the `ADVISOR` privilege and the Real Application Testing entitlement that SQL Performance Analyzer depends on, both recorded in the [claim-to-tool map](/03-toolbox/).
+- **Apply** runs on the **isolated target** — this chapter's one term for the three shapes that qualify: a writable clone, an activated snapshot standby, or an interim schema with an abort path. A plain physical standby is read-only and is none of them.
+- **Promotion** is class-specific and gated: statistics publish, plan evolution, redefinition finish, and edition switch each have their own path on the [gate page](/05-feedback-loop/03-accept-or-rollback-gate/).
+- **Irreversibility** requires a person. Production parameters, production DDL, and production index drops are approved by a human, not by a loop.
 
-**Artifact:** a hashed verdict that another engineer can recompute.
+This chapter's release gate, stated once: Real-Time SPM is 26ai material carried by a paper read firsthand [S11](https://arxiv.org/html/2608.27758v1), whose verification status the [papers chapter](/02-papers-behind-recipes/) records, while on 19c plan verification runs in the background. Every other page that mentions 26ai links back here instead of repeating the caveat, and a 26ai-only behavior stays gated on the installed release before you design around it.
+
+## Artifact
+
+A verdict another engineer can recompute:
+
+- [ ] One candidate, one change record, and one frozen set named before anything ran
+- [ ] The unchanged control, the raw samples, and the floor calculation kept with the run
+- [ ] The interval computed outside the report, with its estimator and seed beside it
+- [ ] The five checks recorded with the artifact that satisfied each one
+- [ ] The class rollback executed, proven, and logged, or the reason it was never needed
+- [ ] The lesson keyed to the condition that produced it, and the stop signal that ended the loop
+
+**PLACEHOLDER — the verdict line this chapter hands to the next reader. The three fields are the preface's canonical sequence: status, then one preliminary decision, then the final verdict.**
+
+```text
+change_id:              ____________________
+premeasurement_status:  ____________________   -- none (all five pass) | PRELIMINARY_GATE_FAILURE | BLOCKED_PENDING_DECISION
+preliminary_decision:   ____________________   -- ACCEPT_CANDIDATE | REJECT_CANDIDATE | INCONCLUSIVE
+final_verdict:          ____________________   -- ACCEPT | REJECT | INCONCLUSIVE
+noise floor:            ____________________
+margin:                 ____________________
+interval:               ____________________
+rollback proof:         ____________________
+lesson ref:             ____________________
+```
+
+Source IDs and technique IDs resolve in [Appendix Sources](/07-appendix-sources/).
+
+**Decision:** accept nothing you cannot re-measure, roll back nothing you cannot prove, and keep what the next loop can retrieve.
+
+**Next required page:** [One Change at a Time](/05-feedback-loop/01-one-change-at-a-time/).
