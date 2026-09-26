@@ -13,7 +13,7 @@ Most proven Oracle fixes have no verified open-source replacement. That is the f
 >
 > **Prerequisites:** Basic SQL and the [environment and setup hub](/00-preface/).
 >
-> **Evidence status:** The Oracle behaviors named here are A1 versioned documentation for this book's primary release, 19c, except the 18c `DBMS_SPM` package reference marked as such in section 2. The collector and load rows, and the driver named in section 2, are C2 repository records at a dated snapshot. The [preface's class legend](/00-preface/01-why-evidence-grades/) defines what each class may support. **No live Oracle database was available**, so this page names mechanisms and gaps and reports no result.
+> **Evidence status:** The Oracle behaviors named here are A1 versioned documentation for this book's primary release, 19c, with three exceptions marked where they are cited: the 18c `DBMS_SPM` package reference in section 2, the commercial tool documentation behind [S84] and [S85], and [S93], which is a pre-12c Statspack page retained as a flagged mechanism reference and settles nothing about your release. The collector and load rows, and the driver named in section 2, are C2 repository records at a dated snapshot. The [preface's class legend](/00-preface/01-why-evidence-grades/) defines what each class may support. **No live Oracle database was available**, so this page names mechanisms and gaps and reports no result.
 >
 > **Next required page:** This branch ends here. Return to [the route](/) and take the next step from the root page.
 
@@ -55,6 +55,18 @@ Four pairings, each one drawn from an existing page in this book rather than fro
 
 The test is short and it survives review: **if your script could be deleted and the claim would still hold, it was a harness. If deleting it would leave the claim unsupported, you have a dependency and you owe it a licence, a snapshot, and a rollback.**
 
+### There are three worlds, not two
+
+There are three worlds here, not two, and leaving out the third misleads anyone about to spend money.
+
+The third world is commercial instruments, and for several rows in the gap list below it does the same work Oracle does. Quest SQL Optimizer and IDERA DB Optimizer generate rewrite, hint, and index alternatives and then _execute_ them and rank the results by measured statistics [S84]. That is not a harness. That is the T-54-to-T-57 row — advisor-grade recommendation plus before/after testing — delivered by a vendor. Method R's `mrprof` does response-time trace accounting at a resolution the vendor claims TKPROF does not reach — a claim to test on your own traces, not a benchmark [S85]. The observability platforms do the AWR-and-ASH job, continuously, across every instance you connect.
+
+So the honest version of the table has a third column: for each gap, what Oracle does, what a commercial product does, and what open source does. For most rows the third cell is "nothing", and the second is "the same thing Oracle does, for a licence fee". For a few — parsing, linting, behavior tests, load generation, portable collection — open source is genuinely competitive, and those are the rows where this chapter has something to say.
+
+Two boundaries on the commercial world, because a paid tool is still a tool. A vendor document records what a product claims to do, which is a **CANDIDATE** and not a result; the only way it becomes evidence is the [validation run](/05-feedback-loop/03-accept-or-rollback-gate/) on your own workload. And a rewrite engine that executes its generated SQL against your instance is doing exactly what the [static gate](/03-toolbox/04-static-checks-before-db-time/) exists to prevent — load, cache pollution, TEMP consumption, and DML side effects — so the target has to be one you are allowed to change.
+
+**`None found` in this chapter set has one narrow meaning: no actively maintained _open-source_ implementation of that exact intervention was verified in a 2026-09-22 UTC pass.** It is not a claim that nothing exists. It is not a claim about commercial products, private tools, or future releases. Read it as a statement about this ledger, in this pass, on this date.
+
 ## 3. The load boundary is real, not magical
 
 The load lane is the narrowest place an external tool does real work, and the one most often oversold. What decides it is the licence, not the popularity: at the dated snapshot **HammerDB** carried GPL-3.0 and **Swingbench** declared no licence at all, so one of the two load lanes in this ledger is still waiting on a rights answer. The dated numbers behind both are on the [vetting page](/06-oss-guide/01-how-to-vet-oss/). [S65](https://github.com/TPC-Council/HammerDB) [S66](https://github.com/domgiles/swingbench-public)
@@ -67,20 +79,20 @@ What no load tool gives you is a **detection window**, a stop criterion, or a di
 
 The list below is the real one. Each row names the catalog entries with no verified open-source implementation, states the support status, and says what the built-in does instead, so a reader never has to guess whether a gap is a defect or a design. The link in the first column is the **primary page** for the range; the [T-number map](/07-appendix-sources/01-how-citations-work/) is the authority when a range is split.
 
-| T-IDs                                                               | Support status                               | What the built-in does instead                                 |
-| ------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
-| [T-01, T-02](/01-proven-techniques/01-measure-first/)               | None found                                   | AWR retains the snapshots; ASH samples active sessions by wait |
-| [T-03, T-04](/01-proven-techniques/01-measure-first/)               | None found; collectors package it            | SQL Monitor and `DBMS_XPLAN` produce the plan and runtime rows |
-| [T-05](/01-proven-techniques/01-measure-first/)                     | None found                                   | SQL Trace and `tkprof` split parse, execute, and fetch time    |
-| [T-06, T-07](/01-proven-techniques/01-measure-first/)               | None found                                   | Tuning sets and the Test Case Builder freeze and replay a case |
-| [T-08](/01-proven-techniques/01-measure-first/)                     | Collectors only; entry stays **conditional** | The bundle needs an Oracle cross-check [S67]                   |
-| [T-09 to T-23](/01-proven-techniques/02-stats-run-the-show/)        | None found                                   | `DBMS_STATS`, histograms, extended stats, directives, advisor  |
-| [T-24 to T-33](/01-proven-techniques/03-indexes-and-layout/)        | Load validation only                         | Access paths, partitioning, views, caches, auto indexing       |
-| [T-45 to T-53](/01-proven-techniques/05-stabilize-and-ship-safely/) | None found                                   | Hints, profiles, patches, baselines, and cursor sharing        |
-| [T-54 to T-57](/01-proven-techniques/05-stabilize-and-ship-safely/) | None found; a driver orchestrates            | SQL Tuning Advisor, SPA, and ADDM make the decisions           |
-| [T-62 to T-66](/04-recipes/04-safe-ddl-and-ci-gates/)               | None found                                   | Redefinition, EBR, Resource Manager, and quarantine hold state |
-| [T-67](/01-proven-techniques/03-indexes-and-layout/)                | None found                                   | The 19c Administrator's Guide documents the DDL [S76]          |
-| [T-68](/01-proven-techniques/03-indexes-and-layout/)                | Load validation only                         | The VLDB guide owns the when and when-not conditions [S77]     |
+| T-IDs                                                               | Support status                               | What the built-in does instead                                                                                             |
+| ------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [T-01, T-02](/01-proven-techniques/01-measure-first/)               | None found                                   | AWR retains the snapshots; ASH samples active sessions by wait. Snapshot-based: Statspack plus Snapper [S93] [S87]         |
+| [T-03, T-04](/01-proven-techniques/01-measure-first/)               | None found; collectors package it            | SQL Monitor and `DBMS_XPLAN` produce the plan and runtime rows                                                             |
+| [T-05](/01-proven-techniques/01-measure-first/)                     | None found                                   | SQL Trace and `tkprof` split parse, execute, and fetch time. Commercial: Method R at higher resolution [S85]               |
+| [T-06, T-07](/01-proven-techniques/01-measure-first/)               | None found                                   | Tuning sets and the Test Case Builder freeze and replay a case                                                             |
+| [T-08](/01-proven-techniques/01-measure-first/)                     | Collectors only; entry stays **conditional** | The bundle needs an Oracle cross-check [S67]                                                                               |
+| [T-09 to T-23](/01-proven-techniques/02-stats-run-the-show/)        | None found                                   | `DBMS_STATS`, histograms, extended stats, directives, advisor                                                              |
+| [T-24 to T-33](/01-proven-techniques/03-indexes-and-layout/)        | Load validation only                         | Access paths, partitioning, views, caches, auto indexing                                                                   |
+| [T-45 to T-53](/01-proven-techniques/05-stabilize-and-ship-safely/) | None found                                   | Hints, profiles, patches, baselines, and cursor sharing                                                                    |
+| [T-54 to T-57](/01-proven-techniques/05-stabilize-and-ship-safely/) | None found; a driver orchestrates            | SQL Tuning Advisor, SPA, and ADDM make the decisions. Commercial: Quest and IDERA generate and test the alternatives [S84] |
+| [T-62 to T-66](/04-recipes/04-safe-ddl-and-ci-gates/)               | None found                                   | Redefinition, EBR, Resource Manager, and quarantine hold state                                                             |
+| [T-67](/01-proven-techniques/03-indexes-and-layout/)                | None found                                   | The 19c Administrator's Guide documents the DDL [S76]                                                                      |
+| [T-68](/01-proven-techniques/03-indexes-and-layout/)                | Load validation only                         | The VLDB guide owns the when and when-not conditions [S77]                                                                 |
 
 Two ranges are split and the link above is only the first page. **T-54 to T-57** also runs through [Before/After With SPA](/04-recipes/02-before-after-with-spa/) and, for T-57, the ADDM reference on [Measure First](/01-proven-techniques/01-measure-first/). **T-62 to T-66** is shared with the [accept-or-rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/). The map resolves both; this table only names where to start.
 

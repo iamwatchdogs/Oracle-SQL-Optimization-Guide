@@ -13,7 +13,7 @@ Static checks catch some of those before Oracle spends a minute on them. They do
 >
 > **Prerequisites:** Basic SQL, a repository where the candidate SQL text lives, and a controlled test database for the assertion stage.
 >
-> **Evidence status:** The tools below are C1/C2 records from this guide's ledger with their licenses verified at the recorded repository snapshot: sqlglot [S60](https://github.com/tobymao/sqlglot), SQLFluff [S61](https://docs.sqlfluff.com/), Apache Calcite [S62](https://calcite.apache.org/), utPLSQL [S63](https://github.com/utplsql/utplsql), and python-oracledb [S64](https://github.com/oracle/python-oracledb). The provers are B1 research records: WeTune's paper and its reproducibility report [S48](https://ipads.se.sjtu.edu.cn/_media/publications/wetune_final.pdf), SQLSolver's repository [S49](https://github.com/SJTU-IPADS/SQLSolver), VeriEQL's repository [S50](https://github.com/VeriEQL/VeriEQL), and QED's paper [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf). **No live Oracle database was available**, and no tool run is reported here. Local blocks are labeled `ILLUSTRATIVE`.
+> **Evidence status:** The tools below are C1/C2 records from this guide's ledger with their licenses verified at the recorded repository snapshot: sqlglot [S60](https://github.com/tobymao/sqlglot), SQLFluff [S61](https://docs.sqlfluff.com/), Apache Calcite [S62](https://calcite.apache.org/), utPLSQL [S63](https://github.com/utplsql/utplsql), and python-oracledb [S64](https://github.com/oracle/python-oracledb). The provers are B1 research records: WeTune's paper and its reproducibility report [S48](https://ipads.se.sjtu.edu.cn/_media/publications/wetune_final.pdf), SQLSolver's repository [S49](https://github.com/SJTU-IPADS/SQLSolver), VeriEQL's repository [S50](https://github.com/VeriEQL/VeriEQL), and QED's paper [S51](https://www.vldb.org/pvldb/vol17/p3602-wang.pdf). Two commercial instruments are named in the lint and rewrite lanes and are catalogued rather than endorsed: SonarQube [S86] and a rewrite engine [S84], both C1 vendor documentation recording what a product claims to do and not a result on your database. **No live Oracle database was available**, and no tool run is reported here. Local blocks are labeled `ILLUSTRATIVE`.
 >
 > **Next required page:** [Recipes You Can Script](/04-recipes/).
 
@@ -77,13 +77,26 @@ A clean run means the selected rules passed. It does not mean all shape faults a
 
 Use lint to catch mechanical problems such as ambiguous aliases, formatting drift, or configured join conventions. Use behavior tests to catch meaning changes.
 
+SQLFluff is one lane, not the only one. SonarQube analyses PL/SQL for bugs, security issues, maintainability smells, and data-dictionary-aware rules, and it is a separate product with a separate rule set rather than a second SQLFluff configuration [S86]. If your PL/SQL is in version control, running both is cheap and they fail on different things: SQLFluff on shape and style, SonarQube on code smells and PL/SQL-specific correctness. Neither one is a performance gate, and the reason is worth stating once, in the negative, because it is the boundary people push against: **a text linter has no optimizer statistics, no data distribution, no bind values, no cursor environment, and no runtime row sources.** It cannot know whether your predicate is selective on your data, so it cannot tell you that your rewrite is cheaper. Use these tools in CI for correctness and maintainability, and do not go looking for a setting that turns them into a performance gate. There isn't one.
+
 ## 3. Lock behavior with assertions
 
 A row count is a weak oracle. A count can stay the same while values, ordering, duplicates, or null handling change. Assert the rows and the business-relevant aggregates.
 
 utPLSQL runs tests inside Oracle and is the practical behavior gate for SQL and PL/SQL changes. It is Apache-2.0 at the recorded snapshot, and its README requires Oracle Database 19c or newer [S63]. A test should run the old and new query against controlled fixtures and compare the expected result set or checksum, not only elapsed time.
 
-Run both candidates with the same binds, the same fetch shape, and deterministic ordering. A checksum comparison is order-sensitive, so an unordered result set can fail, or pass, for reasons that have nothing to do with the rewrite.
+Run both candidates with the same binds and the same fetch shape. Then decide the ordering question on purpose rather than by habit.
+
+A checksum comparison is order-sensitive, so an unordered result set can fail, or pass, for reasons that have nothing to do with the rewrite. There are two defensible answers and you have to pick one and write it down. If the contract requires a specific order, the candidate must reproduce that order, and the test asserts it. If the contract does not, add an explicit `ORDER BY` to _both_ sides of the test so the comparison is stable, and do not let the candidate inherit an ordering requirement it never had. Asserting a deterministic order as though it were always required quietly turns a SQL implementation detail into a contract, and the next person to touch that query inherits a rule nobody chose.
+
+Four more things belong in that assertion, because they are the ones a rewrite actually breaks:
+
+- **Duplicates.** A rewrite that adds or removes a `DISTINCT` keeps the row count and changes the meaning.
+- **Nulls.** `NULL` handling is where outer-join rewrites live or die, and a count will not show it.
+- **Datatypes.** A rewrite can return the same values under a different type, and a client that formats dates or numbers will render them differently.
+- **Collation and sort order.** The same characters in a different collation sort differently, so an ordered result can change without any value changing.
+
+Exceptions are the fifth. A rewrite that raises where the original returned rows, or returns where the original raised, passes a comparison you never ran because one side aborted.
 
 A `python-oracledb` harness is useful when the test is easier to express in Python. The driver is dual-licensed UPL-1.0 OR Apache-2.0 at the recorded snapshot [S64], and its thin mode removes the client-library requirement. It does not remove the need for a test database, and it is not an optimizer, an advisor, or a before/after judge.
 
@@ -99,6 +112,18 @@ WeTune, SQLSolver, VeriEQL, and QED are research systems with relevant ideas for
 | QED       | Query equivalence decider, PVLDB 17:3602                                               | Paper only; no repository verified [S51]    |
 
 Keep them labeled **CANDIDATE for Oracle**. A formal proof, if it ever becomes available for your dialect and your constraints, would complement tests; it would not replace tests for null semantics, bind behavior, data distribution, or application contracts. Today, a passing behavior suite plus a measured comparison is the honest path.
+
+### Review what a rewrite engine handed you
+
+This page's stages matter most when the candidate was not written by you. A commercial rewrite engine generates a large set of alternatives, executes them, and ranks them by measured statistics [S84]. That is genuinely useful, and it is not a review.
+
+Three things to hold onto, and the first is the one people get wrong.
+
+**A generated rewrite is optimized for a plan, and a plan does not know what your query means.** The places generated rewrites most often change meaning are null handling, duplicate elimination, outer-join semantics, ordering, date and time conversion, and floating-point behavior. The last two are the ones people forget, because each looks like an arithmetic identity and neither is. A rewrite that changes the expression a date is built from can move a boundary, and a rewrite that reassociates floating-point arithmetic changes the low-order digits. Both pass a row count.
+
+**If the engine ran its candidates against production, it created load, polluted the buffer cache, consumed TEMP, and — if any candidate was a DML statement — may have written to your tables.** A benchmark that mutates the system it is measuring is not a benchmark. Every alternative this book tests runs against a target you are allowed to change, with the rollback written before the run starts.
+
+**A winner for one bind value, in one cache state, is a winner for that one case.** A rewrite that is 3× faster at `dept_id = 1` and 2× slower at `dept_id = 99999` has not won. That is why the bind manifest and the [frozen set](/03-toolbox/02-freeze-work-with-sts/) come before the measurement, and why representative bind classes are part of the candidate rather than something you check afterwards if the first number looks good.
 
 ## 5. Use the gate in this order
 
@@ -121,10 +146,12 @@ A clean static pass earns database time. It does not earn a promotion, and a gre
 A gate record with one row per stage:
 
 - [ ] Oracle dialect parser used, before and after structures diffed
-- [ ] SQLFluff configuration and selected rules recorded
+- [ ] SQLFluff configuration and selected rules recorded; SonarQube run separately if PL/SQL is in version control [S86]
 - [ ] Clean lint described as "selected rules passed," not "all faults clear"
-- [ ] Result assertions cover rows, duplicates, nulls, and relevant aggregates
-- [ ] Both candidates compared with the same binds, fetch shape, and deterministic ordering
+- [ ] Result assertions cover rows, duplicates, nulls, datatypes, collation, exceptions, and relevant aggregates
+- [ ] Both candidates compared with the same binds and fetch shape; the ordering decision recorded as a contract requirement or a test-only stabilization
+- [ ] If the candidate came from a rewrite engine, the semantic review covered date/time conversion and floating-point reassociation
+- [ ] No candidate executed against production
 - [ ] Equivalence provers marked CANDIDATE for Oracle, with their license and record status
 - [ ] Controlled comparison and load gate kept as separate stages
 - [ ] Verdict written with the artifacts from every stage that ran

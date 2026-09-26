@@ -85,7 +85,7 @@ Parsing and linting happen before the database. Behavior tests happen inside a d
 
 A fixture that asserts only "the command ran" is a smoke test. Depending on the change, assert the returned row count, a known aggregate or checksum, duplicate and null behavior, the error behavior for invalid input, and the result for a bind value at the edge of the distribution. A row count alone is weak, because a count can stay constant while values, ordering, or nulls change.
 
-Keep fixtures small enough to diagnose. A test asserting a vague business rule with no concrete expected result is documentation, not a gate. Run both candidates with the same binds, the same fetch shape, and a deterministic ordering, because a checksum comparison is order-sensitive and an unordered result can fail for reasons unrelated to the rewrite.
+Keep fixtures small enough to diagnose. A test asserting a vague business rule with no concrete expected result is documentation, not a gate. Run both candidates with the same binds and the same fetch shape, and settle the ordering question on purpose: assert a specific order if the contract requires one, and add an explicit `ORDER BY` to both sides if it does not. A checksum comparison is order-sensitive, and an unstable order makes a result fail for reasons unrelated to the rewrite.
 
 ## 4. Measure with Oracle, then script the edges
 
@@ -161,8 +161,8 @@ A gate record with one row per stage that ran, and an explicit `NOT RUN` for eac
 
 - [ ] Oracle-dialect parser used, before and after structures diffed
 - [ ] SQLFluff configuration and selected rules recorded, described as "selected rules passed"
-- [ ] Result assertions cover rows, duplicates, nulls, and the relevant aggregates
-- [ ] Both candidates compared with the same binds, fetch shape, and deterministic ordering
+- [ ] Result assertions cover rows, duplicates, nulls, datatypes, collation, exceptions, and the relevant aggregates
+- [ ] Both candidates compared with the same binds and fetch shape, and the ordering decision recorded as a contract requirement or a test-only stabilization
 - [ ] Frozen set captured, before and after trials named, and the comparison report saved whole
 - [ ] Task status checked, and the named execution verified before the numbers were read
 - [ ] Lane boundary and snapshot date recorded for every tool in the chain

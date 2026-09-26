@@ -155,7 +155,26 @@ Everything in this section is behind a gate. Read it. Do not paste it. The gate 
 **Real-Time Statistics.** _What it does:_ keeps estimates closer to recent DML for tables that change between maintenance windows. _Boundary:_ the 19c SQL Tuning Guide, _Statistics Concepts_, is the record that documents it from 19c [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/). The 26ai guide's table of contents notes regression models for real-time statistics, and that is the record that carries this detail [S02](https://docs.oracle.com/en/database/oracle/oracle-database/26/tgsql/index.html).
 It is TOC-verified only, so treat the regression-model behavior as **unverified** and do not build a recommendation on it. _Gate:_ compare the estimate, the plan, and the cost on the actual workload before enabling it broadly.
 
-**Optimizer Statistics Advisor.** _What it does:_ reviews statistics practices and can recommend actions. _What it does not do:_ decide for you. The output is a proposal. [S27], _Analyzing Statistics Using Optimizer Statistics Advisor_, a chapter of the 19c SQL Tuning Guide. That bibliography record is TOC-verified and carries no separate chapter URL, so the guide index is linked.
+**Optimizer Statistics Advisor.** _What it does:_ reviews statistics practices and issues findings and recommendations. _What it does not do:_ gather statistics, and it does not decide for you. It reads the statistics management state and reports on it; it does not collect a new statistics set as a side effect of being run, and the output is a proposal. That boundary matters before you point it at a shared object. [S27], _Analyzing Statistics Using Optimizer Statistics Advisor_, a chapter of the SQL Tuning Guide; the record now carries a chapter URL from a later release, so verify the chapter against your own release's guide.
+
+### Ask the database when statistics changed
+
+Two questions come up on almost every statistics ticket, and the book's own worksheet was making you answer both from memory: _which statistics does this object actually have_, and _when did they last change_.
+
+Oracle answers both directly, and you should ask rather than infer [S82]:
+
+- **`DBMS_STATS.REPORT_COL_USAGE`** reports recorded predicate and join-column usage — which columns the optimizer has actually seen in filters, joins, and groupings. This is the input that tells you where a column or column-group statistic would earn its maintenance cost, instead of you guessing which columns are skewed.
+- **`DBMS_STATS.REPORT_STATS_OPERATIONS`** and the `DBA_OPTSTAT_OPERATIONS` view report which statistics operations ran, on what, over which window, and whether they succeeded. This is the answer to "it got slow after the nightly job", and it replaces a guess based on `last_analyzed`.
+- **`DBA_TAB_STATS_HISTORY`** shows the retained statistics history for an object, which is what makes a restore possible and what tells you the retention floor you are working against.
+- **`RESTORE_TABLE_STATS` and the other `RESTORE_*_STATS` procedures** reverse a statistics-induced regression, which is why retention is a rollback capability and not a housekeeping setting.
+
+None of these are a substitute for the V0 comparison. They tell you _what the optimizer was given_ and _when it changed_. Whether the new numbers produce a better plan is still a measured question, and it is the one the [gate](/05-feedback-loop/03-accept-or-rollback-gate/) decides.
+
+### The blast radius is wider than your statement
+
+A gather is not a per-statement change. Publishing new statistics for a table can flip the plan for every statement that reads that table, including statements nobody on your ticket has heard of. The plan you are trying to fix is one of the possible outcomes, not the only one.
+
+This is the argument for pending statistics rather than an argument against gathering. Gather pending, test in a session with `OPTIMIZER_USE_PENDING_STATISTICS`, run the regression workload, and only then publish. The mechanics are in section 6 below; the discipline is on the [pending statistics recipe](/04-recipes/03-stats-pipeline-you-can-script/), and the decision about which objects are worth that ceremony belongs in the object record.
 
 **Sample-size policy.** For large tables the documented choice is often a sample-size policy such as `AUTO_SAMPLE_SIZE` rather than `ESTIMATE_PERCENT => 100`. A full compute is still appropriate for a small, critical object. The choice belongs in the object record and in the V0 comparison, not in a habit. The estimating-versus-computing and sample-size guidance is what the 19c statistics best-practices brief and _Gathering Optimizer Statistics_ carry [S08](https://www.oracle.com/docs/tech/database/technical-brief-bp-for-stats-gather-19c.pdf) [S28].
 The second is a TOC-verified chapter, so its guide link is not printed here, and `S09` is the statistics _concepts_ brief, which carries no sampling policy and is therefore not cited for this claim.

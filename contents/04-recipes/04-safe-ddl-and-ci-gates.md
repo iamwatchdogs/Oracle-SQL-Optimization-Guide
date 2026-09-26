@@ -111,6 +111,10 @@ END;
 
 Inspect `copy_errors` before proceeding, and do not run both strategies blindly: cloned dependents are not cloned again if they are already registered. Skipping the copy carries its own risk, because finish completes the redefinition with the objects and registrations that exist — triggers and grants you neither cloned nor registered are the ones you re-create yourself afterwards. What finish does with any particular dependent depends on the path you took, so verify triggers, grants, constraints, and indexes by name after finish instead of assuming.
 
+**A clean `copy_errors` is not the attestation.** This page is where a DDL reader looks for the dependency check, and until now it handed you `copy_errors` and implied that was the proof. It is not, and the book's own evidence chapter says so: `ALL_DEPENDENCIES` returning zero rows is one signal, and zero rows alone is not proof that nothing depends on your table. A view can depend on a column rather than the object, a trigger can fire without a declared dependency in some cases, and a synonym or an external reference can point at a name you are about to redefine.
+
+The artifact this page owes you is the one the [evidence chapter](/00-preface/01-why-evidence-grades/) already defines: an owner-provided **dependency-attestation** covering constraints and foreign keys, triggers, views and materialized views, grants and synonyms, and external references, each with exact owner and scope fields, against a declared `expected_dependency_set`. Missing or changed dependencies are `INCONCLUSIVE`, not `PASS`. That contract lives in the evidence chapter; this page links it rather than printing a second, weaker version.
+
 The copy call also has a `copy_statistics` flag, and it defaults to `FALSE` [S41]. Section 4 gathers statistics on the interim table instead, which works under either strategy.
 
 ## 4. Synchronize, gather, and test before finish
@@ -264,7 +268,7 @@ A promotion record:
 - [ ] Mode privileges recorded for the account that ran the DDL, confirmed on the installed release
 - [ ] `CAN_REDEF_TABLE` passed, or the failure recorded with the rowid alternative evaluated
 - [ ] Interim table created from saved DDL, empty, with the post-redefinition definition
-- [ ] Dependency strategy chosen, with `copy_errors` checked or manual registrations verified
+- [ ] Dependency strategy chosen, with `copy_errors` checked or manual registrations verified, **and** an owner-provided dependency-attestation covering constraints, triggers, views, grants, synonyms, and external references against a declared `expected_dependency_set` — `ALL_DEPENDENCIES` zero rows alone is not a pass
 - [ ] Interim statistics gathered and read back before the correctness checks ran against it
 - [ ] Sync lag handled before finish; interim correctness checked against `ORDERS_INT` by name, and the workload measured where `ORDERS` resolves to the candidate, with that target recorded
 - [ ] Abort or edition switch executed once in a sandbox, with its evidence kept

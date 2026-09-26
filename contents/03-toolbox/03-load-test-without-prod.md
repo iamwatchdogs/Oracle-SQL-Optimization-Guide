@@ -9,13 +9,13 @@ A statement that wins alone can lose when many sessions compete for the same buf
 
 Production is never a first load target. The run below happens on a disposable test copy or a staging system with representative data and capacity, and it starts only when an approved test plan exists.
 
-An approved test plan names the target environment and its owner, the data volume and where its statistics came from, the script and user count, the warm-up, ramp, hold, and cool-down, the metrics to record, the guardrails and their thresholds, the rollback command for the change class under test, and the person who can stop the run. A blank field means the run does not start.
+An approved test plan names the target environment and its owner, the data volume and where its statistics came from, the script and user count, the warm-up, ramp, hold, and cool-down, whether the run is cold-cache or warm-cache, the metrics to record, the guardrails and their thresholds, the rollback command for the change class under test, and the person who can stop the run. A blank field means the run does not start.
 
-> **Track:** Core (none) · Practice (1) · Recovery (5) · Advanced / gated (2, 3, 4)
+> **Track:** Core (none) · Practice (1) · Recovery (5, 6) · Advanced / gated (2, 3, 4)
 >
 > **Prerequisites:** [Freeze Work With STS](/03-toolbox/02-freeze-work-with-sts/) and [Before and After With SPA](/04-recipes/02-before-after-with-spa/) behind you, plus a non-production target an owner has approved for load.
 >
-> **Evidence status:** The tool rows are C1/C2 records from this guide's ledger: HammerDB [S65](https://www.hammerdb.com/) and Swingbench [S66](https://www.dominicgiles.com/swingbench/) for load generation. Resource Manager is A1 [S39](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-resources-with-oracle-database-resource-manager.html); SQL Quarantine is A1 plus class-D corroboration [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html), whose package reference was not retrieved firsthand. Tracing [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) and test-case packaging [S43](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html) are A1. **No live Oracle database was available for this page**, no load run was executed, and no number here is a measurement.
+> **Evidence status:** The tool rows are C1/C2 records from this guide's ledger: HammerDB [S65](https://www.hammerdb.com/) and Swingbench [S66](https://www.dominicgiles.com/swingbench/) for load generation. Resource Manager is A1 [S39](https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-resources-with-oracle-database-resource-manager.html); SQL Quarantine is A1 plus class-D corroboration [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html), whose package reference was not retrieved firsthand. Tracing [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) and test-case packaging [S43](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLDIAG.html) are A1. Section 6's baseline caveat rests on A1 [S07] [S21]. **No live Oracle database was available for this page**, no load run was executed, and no number here is a measurement.
 >
 > **Next required page:** [Static Checks Before DB Time](/03-toolbox/04-static-checks-before-db-time/).
 
@@ -25,12 +25,12 @@ An approved test plan names the target environment and its owner, the data volum
 | -------------------- | -------- |
 | **Core**             | none     |
 | **Practice**         | 1        |
-| **Recovery**         | 5        |
+| **Recovery**         | 5, 6     |
 | **Advanced / gated** | 2, 3, 4  |
 
 - **Core (none):** nothing here is a solo junior action. Every section assumes an approved environment and an owner who can stop the run.
 - **Practice (1):** build the mix on a real ticket, from the application's actual shape rather than a vendor's demo schema.
-- **Recovery (5):** the rollback loop is how you undo the candidate, not a way to improve a result. Read it before the run, not after the failure.
+- **Recovery (5, 6):** the rollback loop is how you undo the candidate, and section 6 is the order you apply changes in so there is less to undo. Read both before the run, not after the failure.
 - **Advanced / gated (2, 3, 4):** guardrails are configured database features, tracing needs privileges and adds overhead, and test-case packaging needs the diagnosis APIs. Confirm release, edition, and entitlement first.
 
 ## 1. Build a realistic mix
@@ -43,6 +43,10 @@ Keep the script fixed across the before and after runs:
 2. Warm the system the same way on both sides.
 3. Ramp users, hold a defined peak, and cool down.
 4. Record throughput, errors, latency distribution, waits, CPU, I/O, and guardrail events.
+
+Step 2 deserves its own warning, because it is the step people skip. A cold-cache run and a warm-cache run are different experiments, and a comparison that mixes them measures the cache, not the change. Decide which one you are running, write it down, and hold it identical on both sides. The reason a warm run is the usual default is that it is reproducible: a cold run measures whichever blocks happened to be in memory, which on a fresh test target is very few.
+
+And never flush the buffer cache to force a cold run on a shared or production instance. There is a supported way to drop a specific object from the cache, and there is an unsupported way to nuke everything, and the second one makes every other session on that instance slow for reasons that have nothing to do with your ticket. The honest answer when you need cold-cache numbers is a target you are allowed to restart.
 
 How many trials, how long each must run, and how the median and confidence interval are calculated are owned by the [noise floor and repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/), which this page links instead of restating. The controlled SQL comparison on each side comes from the [SPA recipe](/04-recipes/02-before-after-with-spa/).
 
@@ -96,7 +100,13 @@ Do not enable broad tracing as a permanent production observability strategy. Sa
 
 ## 4. Use SQL Test Case Builder for reproduction, not capacity
 
-SQL Test Case Builder packages a SQL problem with its DDL, statistics, plans, data samples, and execution context for an isolated database. The packaging path is documented in chapter 22 of the 19c SQL Tuning Guide [S01] and driven through the `DBMS_SQLDIAG` APIs [S43]. It is useful for reproducing an error or a plan where someone else can see it.
+SQL Test Case Builder packages a SQL problem into a portable bundle you can replay on another database: the SQL text, the table and index definitions, the optimizer statistics, the plan baselines, the parameters, the compilation environment, the binds, and selected transient execution context. The packaging path is documented in chapter 22 of the 19c SQL Tuning Guide [S01] and driven through `DBMS_SQLDIAG.EXPORT_SQL_TESTCASE`, `IMPORT_SQL_TESTCASE`, and `REPLAY_SQL_TESTCASE` [S43].
+
+Read that list again and notice what it does not lead with. The items that make a problem reproducible are the binds, the statistics, the baselines, the parameters, and the compilation environment — not the rows. Copying the SQL text into a ticket reproduces the text and almost nothing else, which is why a bind-sensitivity or environment-mismatch problem survives every attempt to hand it to someone else.
+
+That is also the reason to use this tool for support escalation. A bundle that carries the statistics and the baselines reproduces the problem on the other side. A pasted query does not.
+
+One decision before you export. By default, data is not the central artifact of a test case, and whether sampled rows may leave the database is your call, not the tool's. Apply the same redaction discipline this book uses for captured output, and get the answer recorded rather than assumed.
 
 It does not reproduce the production data-volume boundary. A test case that reproduces the plan does not prove throughput, cache behavior, or concurrency at production scale. Use it to reproduce first, then use the controlled comparison and a realistic load run to measure.
 
@@ -112,12 +122,36 @@ Before the run, record the rollback for the change class:
 
 After a rejected run, restore the prior state, run a small verification query, and repeat the load sample. A rollback command that has never been executed in a sandbox is a note, not a rollback.
 
+## 6. Ship it in a reversible order
+
+A rollback path is not a deployment strategy. The order you apply things in decides how much you have to roll back, and the order costs nothing to get right.
+
+1. **Test the rewrite in the application** rather than in the database, or route it through a controlled plan-management mechanism so the database is not the thing holding the change.
+2. **Create candidate indexes as invisible** where the release supports it. The optimizer will use an invisible index if you hint it, and will ignore it completely otherwise, which lets you measure the plan it produces without letting the rest of the estate find out.
+3. **Gather statistics as pending** before publishing anything. The pending statistics recipe in the [stats pipeline](/04-recipes/03-stats-pipeline-you-can-script/) owns the mechanics.
+4. **Capture the known-good plan in SQL Plan Management** once the candidate has passed, so the next statistics job, patch, or upgrade has something to fall back to.
+5. **Canary by module, service, or pluggable database** where the architecture allows it. You already set `MODULE` and `ACTION` in section 1 for measurement; the same tags are the lever that lets you route a slice of traffic to the new path while the rest stays on the old one.
+6. **Watch the exact SQL ID, its plan, its waits, and the workload** after release, not a dashboard aggregate. The statement you changed is the unit you care about.
+7. **Keep the rollback scripts** for indexes, statistics, profiles, patches, and baselines, in the same place as the change record.
+
+### The order matters more than it looks
+
+Step 4 has a trap, and the usual procedure builds it. SPM captures a _plan_, and a plan is only reproducible while the objects it depends on exist. Drop the index the baseline was captured against and the baseline is still there, still enabled, and no longer able to produce the plan it was captured for [S07] [S21].
+
+That collides head-on with the index rollback in section 5. If your procedure is "capture the plan, then drop the index if the run fails," the rollback leaves a baseline pointing at a missing object. Two ways out, and pick one deliberately:
+
+- Drop the baseline in the same transaction of script that drops the index, so the two never disagree.
+- Or drop the index, run the verification query, and re-establish the plan from the restored state rather than assuming the old baseline is still valid.
+
+Either way, verify after the rollback that the plan the statement is actually running is the plan you meant it to run. A baseline that exists and cannot be used is worse than no baseline, because it looks like protection.
+
 ## Artifact
 
 A guarded load record:
 
 - [ ] Test environment has representative volume and workload shape
 - [ ] Script, users, binds, duration, and warm-up are identical on both sides
+- [ ] Cache state recorded — cold or warm — and identical on both sides, with no cache flush against a shared or production instance
 - [ ] Trial counts **and** the per-repetition duration follow the [noise floor and repetition policy](/05-feedback-loop/02-noise-floor-and-repetition/)
 - [ ] Controlled SQL comparison completed for both sides
 - [ ] Throughput, errors, latency, waits, and resource use recorded
@@ -126,8 +160,10 @@ A guarded load record:
 - [ ] Both read-backs recorded in the test plan; the run gated on them
 - [ ] Resource Manager kills separated from quarantine blocks
 - [ ] Trace privileges and trace overhead recorded
-- [ ] Test Case Builder output treated as reproduction evidence, not capacity evidence
+- [ ] Test Case Builder output treated as reproduction evidence, not capacity evidence, and the data-export decision recorded
 - [ ] Rollback executed and verified before promotion
+- [ ] If a plan baseline was captured, the objects it depends on still exist after the rollback, and the running plan verified
+- [ ] Deployment order followed: invisible index, pending statistics, baseline capture, canary, monitored release
 
 No load run was executed for this page, and no number in it is a measurement.
 

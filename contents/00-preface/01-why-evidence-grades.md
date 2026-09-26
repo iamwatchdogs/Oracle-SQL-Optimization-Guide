@@ -158,6 +158,16 @@ Now that the claim has a scope and a test, use the A1–D labels to sort the sou
 
 A D source can point you toward an A1 source. It cannot carry an Oracle behavior claim by itself. A paper about another database can support its own mechanism without proving Oracle's behavior. A tool can produce a readable report without proving that the recommendation is correct or fast.
 
+### The two claims the table does not cover
+
+This book's toolbox is full of statements about _features_ and about _tools_, and the table above sorts neither cleanly. Two rules close the gap.
+
+**A licensing claim is not a behavior claim, and the label that carries it is not the label that carries a feature.** Whether a feature needs a licensed pack depends on your release, your edition, and whether you are on-premises or on a cloud service, and it changes between releases. Oracle's feature documentation tells you what a feature does. It does not tell you what you are required to pay for, and neither does a datasheet written a decade ago for a product line that has been repackaged since. So: **this book asserts no pack requirement as fact.** Where a page needs one, it tells you to confirm it against the licensing guide for your exact release and deployment, and it points you at the pack-free substitute so the method still works if the answer is no [S90]. An entitlement is a fact about your contract, and only your contract settles it.
+
+**A vendor document records what a product claims, not what the product does.** Class C1 covers a deterministic tool with documented output, and that is the right class for a tool manual. A product page, a datasheet, or a case study is a different thing: it is written to make you buy something, and it settles exactly one question — _does this product exist and what is it for_. It cannot settle a version claim, a licensing claim, or a performance claim about your database. The [version drift page](/07-appendix-sources/02-version-drift-survival/) states the general rule; this is the case that needs it most, because the commercial section of the [toolbox map](/03-toolbox/) is where a reader is most likely to accept a vendor sentence as a measurement.
+
+Both rules point the same way. A claim is only as good as the class that can carry it, and when you cannot name the class, the sentence is a lead.
+
 ## `PROVEN` is a catalog label
 
 The research uses this narrow definition:
