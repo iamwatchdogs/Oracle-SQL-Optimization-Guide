@@ -9,7 +9,7 @@ Basic SQL is enough to start reading this book. It is not enough to operate Orac
 
 A fast query is a claim until you can reproduce it. This book turns an Oracle SQL performance guess into a decision another engineer can inspect: name the target, freeze the input, change one thing, measure the noise, check that the result still means the same thing, and keep the rollback.
 
-> **Track:** Core (Before you start, Two workload terms, The route, Read the evidence labels, The catalog is not a prerequisite) · Practice (The main measurement spine) · Recovery (none) · Advanced / gated (Advanced and reference branches, The core path in one table)
+> **Track:** Core (Before you start, Two workload terms, The route, Read the evidence labels, The catalog is not a prerequisite) · Practice (The main measurement spine, What this book does not claim) · Recovery (none) · Advanced / gated (Advanced and reference branches, The core path in one table)
 >
 > **Prerequisites:** Basic SQL: `SELECT`, `JOIN`, `WHERE`, and reading a small result set.
 >
@@ -22,12 +22,12 @@ A fast query is a claim until you can reproduce it. This book turns an Oracle SQ
 | Band                 | Sections                                                                                                         |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **Core**             | Before you start · Two workload terms · The route · Read the evidence labels · The catalog is not a prerequisite |
-| **Practice**         | The main measurement spine                                                                                       |
+| **Practice**         | The main measurement spine · What this book does not claim                                                       |
 | **Recovery**         | none                                                                                                             |
 | **Advanced / gated** | Advanced and reference branches · The core path in one table                                                     |
 
-- **Core:** the prerequisites, the two terms, the reading order, and the evidence labels. Read these before any lab page; nothing here touches a database.
-- **Practice (The main measurement spine):** the comparison, owner boundaries, evidence handling, identity, write and recovery, and decision spine. This is the part a reader carries into a real ticket.
+- **Core:** the prerequisites, the terms, the reading order, and the evidence labels. Read these before any lab page; nothing here touches a database.
+- **Practice (The main measurement spine, What this book does not claim):** the comparison, owner boundaries, evidence handling, identity, write and recovery, and decision spine. This is the part a reader carries into a real ticket. The second section is the short list of things this book declines to claim.
 - **Recovery (none):** the root page changes nothing, so it undoes nothing. The rollback and cleanup rules live on the [V0 lab](/00-preface/02-how-to-prove-a-win/).
 - **Advanced / gated (Advanced and reference branches, The core path in one table):** read these when you need to choose a branch or see the whole handoff sequence at once.
 
@@ -54,6 +54,15 @@ A database change often arrives as a ticket: reproduce it safely, request access
 ## Two workload terms
 
 A **SQL Tuning Set (STS)** is a named, repeatable set that may include SQL, binds, context, execution statistics, and plans. **SQL Performance Analyzer (SPA)** is the Oracle workflow that runs named before and after trials and reports comparison metrics. The [setup page](/00-preface/) explains the access and entitlement boundaries before the [V0 lab](/00-preface/02-how-to-prove-a-win/) uses them.
+
+Those two are the only terms the core lab needs. Six more names appear in the measurement spine, and a reader who meets them cold will not know what class of tool they are holding:
+
+- **SQL Plan Management (SPM)** keeps a verified plan as a baseline and restricts the optimizer to accepted plans. It is a deployment control rather than a report or a monitor, which is why it stays reachable when the licensed diagnostics do not.
+- **AWR, ASH, and ADDM** are the licensed history lane. AWR aggregates snapshots, ASH samples active sessions, ADDM turns those samples into findings.
+- **The advisors** — SQL Tuning Advisor, SQL Access Advisor, Optimizer Statistics Advisor — return proposals. None of them decides anything.
+- **`GATHER_PLAN_STATISTICS` and `ALLSTATS`** are how a plan acquires actual row counts instead of estimates.
+
+And for anyone without a pack licence, the pack-free substitutes matter more than the licensed names: **Snapper** for live session deltas, **Statspack** for interval history, and the core dynamic views for current state. The [setup page](/00-preface/) defines all of these, and [Measure First](/01-proven-techniques/01-measure-first/) says which one answers which question.
 
 ## The route
 
@@ -116,13 +125,23 @@ You do not need to memorize 68 entries, count a catalog, or learn a feature befo
 
 ## The main measurement spine
 
-- **Comparison:** The canonical comparison is a frozen representative application workload plus the complete V0 regression workload and [SQL Performance Analyzer](/04-recipes/02-before-after-with-spa/). The [DBMS_SQLPA reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) describes the package, but a named SPA `test execute` report is not automatically a raw per-execution sample.
+- **Comparison:** The canonical comparison is a frozen representative application workload plus the complete V0 regression workload and [SQL Performance Analyzer](/04-recipes/02-before-after-with-spa/). The [DBMS_SQLPA reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html) describes the package, but a named SPA `test execute` report is not automatically a raw per-execution sample. SPA answers _did this set of statements get better or worse_; Database Replay answers _what happens when the real application runs concurrently_, and the [SPA recipe](/04-recipes/02-before-after-with-spa/) states which one a given change needs.
 - **Owner boundaries:** Run STS operations in the `sts_owner` session or with the documented `sqlset_owner` argument. Run `CREATE_ANALYSIS_TASK`, `SET_ANALYSIS_TASK_PARAMETER`, `EXECUTE_ANALYSIS_TASK`, and `DROP_ANALYSIS_TASK` in the `task_owner_schema` session; `REPORT_ANALYSIS_TASK` may use the documented `task_owner` argument when the installed release supports it. Do not pass that argument to lifecycle operations.
-- **Evidence handling:** Map representative binds with an external per-bind runner, keep the target and regression workloads separate, include the `REG-03` `:dept_id` bind family, write complete report CLOBs with an approved writer, check `USER_ADVISOR_TASKS` `STATUS`/`STATUS_MESSAGE` and verify the named execution separately, extract raw samples separately when a report is aggregated, and use the canonical [K>=5 and bootstrap policy](/05-feedback-loop/02-noise-floor-and-repetition/) for a formal claim.
-- **Identity:** Every bind-manifest, raw-sample, regression-gate, and evidence-pack row carries `sql_id`, `child_number`, `parsing_schema_name`, `con_id`, `con_id_reason`, `instance_id`, `instance_scope_reason`, and `session_instance_id`; exact plan artifacts also carry `plan_hash_value`. `DBMS_XPLAN.DISPLAY_CURSOR` requires the exact manifest instance; an unknown or mismatched instance is a stop. The 19c `V$SQL` view does not expose `INSTANCE_NUMBER`: single-instance capture records `instance_id = N/A` with a reason, while RAC/multi-instance capture uses `GV$SQL.INST_ID AS instance_id`. Record `con_id = N/A` with a reason and a scoped container identity when the release/session cannot supply it; never call an unscoped tuple global.
+- **Evidence handling:** Map representative binds with an external per-bind runner, keep the target and regression workloads separate, include the `REG-03` `:dept_id` bind family, write complete report CLOBs with an approved writer, check `USER_ADVISOR_TASKS` `STATUS`/`STATUS_MESSAGE` and verify the named execution separately, extract raw samples separately when a report is aggregated, and use the canonical [K>=5 and bootstrap policy](/05-feedback-loop/02-noise-floor-and-repetition/) for a formal claim. Record cache state, first-execution warm-up, and adaptive-plan behavior as declared conditions: they change within a trial, and no number of repetitions averages them away.
+- **Identity:** Every bind-manifest, raw-sample, regression-gate, and evidence-pack row carries `sql_id`, `child_number`, `parsing_schema_name`, `con_id`, `con_id_reason`, `instance_id`, `instance_scope_reason`, and `session_instance_id`; exact plan artifacts also carry `plan_hash_value`. `DBMS_XPLAN.DISPLAY_CURSOR` requires the exact manifest instance; an unknown or mismatched instance is a stop. The 19c `V$SQL` view does not expose `INSTANCE_NUMBER`: single-instance capture records `instance_id = N/A` with a reason, while RAC/multi-instance capture uses `GV$SQL.INST_ID AS instance_id`. Record `con_id = N/A` with a reason and a scoped container identity when the release/session cannot supply it; never call an unscoped tuple global. The [target worksheet](/01-proven-techniques/01-measure-first/) also carries release and patch level, session parameters, service and client identifier, fetch shape, bind names and types, statistics timestamps, and concurrency level — because without those, two executions are not comparable.
 - **Write and recovery:** The write A/A floor and both write thresholds are locked from incumbent evidence before any candidate write probe. The accepted clone rehearsal copies the predeclared write floors/thresholds, completes candidate-side validation before recovery, and proves the same candidate-side write A/A validation used them.
 - **Accepted-state destruction:** It uses the same `object_owner_schema` boundary, `expected_dependency_set = []`, and a `PASS` owner-provided `dependency-attestation` artifact covering constraints/foreign keys, triggers, views/materialized views, grants/synonyms, and external references with exact owner/scope fields. `ALL_DEPENDENCIES` is one signal; zero rows alone is not proof. Missing or changed dependencies are `INCONCLUSIVE`.
 - **Decision:** The V0 order is 11A regression incumbent baseline before section 6, then 11B regression candidate comparison after sections 7 and 10. The [Feedback Loop](/05-feedback-loop/) page holds the branch-level decision rules, and the [benchmarking methodology](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf) supports the repetition context. The V0 decision model records `premeasurement_status` (`PRELIMINARY_GATE_FAILURE` or `BLOCKED_PENDING_DECISION`), then one `preliminary_decision` (`ACCEPT_CANDIDATE`, `REJECT_CANDIDATE`, or `INCONCLUSIVE`) at the single gate, and records final `ACCEPT`, `REJECT`, or `INCONCLUSIVE` only after recovery and cleanup; write acceptance uses separate `write_elapsed_threshold` and `write_buffer_gets_threshold` checks.
+
+## What this book does not claim
+
+Three refusals, stated up front because each one is a question a reader will otherwise assume has an answer.
+
+**No pack table.** Oracle's feature documentation tells you what a feature does; it does not tell you what you must license, and neither does a datasheet written a decade ago for a product line that has been repackaged since. Every entitlement here resolves to "confirm against the licensing guide for your exact release and deployment" [S90]. If the answer is no, [Measure First](/01-proven-techniques/01-measure-first/) names the ungated tools that run the same method: Snapper, Statspack, the core dynamic views, session trace, and SPM.
+
+**No plan-comparison API on 19c.** `DBMS_XPLAN.COMPARE_PLANS` is documented from 23ai onward. It is not on the 19c primary path, and the error you get on 19c will not tell you that. The [plan comparison section](/01-proven-techniques/01-measure-first/) says which function you would want and what to do instead when it is not there.
+
+**No vendor claim as a result.** A commercial tool's documentation records what the product claims to do. The [toolbox map](/03-toolbox/) catalogues those tools and the gap each one fills; none of them is a measurement on your database until the [gate](/05-feedback-loop/03-accept-or-rollback-gate/) says so.
 
 For plan terms, use the [Oracle SQL Tuning Guide](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/generating-and-displaying-execution-plans.html) and the [DBMS_XPLAN reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html). The broader [Database Performance Tuning Guide](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgdba/) groups the surrounding Oracle material.
 

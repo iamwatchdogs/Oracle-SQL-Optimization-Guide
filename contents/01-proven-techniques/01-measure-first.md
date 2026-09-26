@@ -13,7 +13,7 @@ Those are different questions, and mixing them is how teams end up optimizing th
 >
 > **Prerequisites:** Basic SQL and the [environment and setup hub](/00-preface/).
 >
-> **Evidence status:** Definitions and tool boundaries are documented. Its blocks are labeled `ILLUSTRATIVE`, `SYNTHETIC`, `SKETCH`, or `PLACEHOLDER`; every plan excerpt, row count, and timing is `SYNTHETIC`. **No live Oracle database was available**, so no output here is a measurement.
+> **Evidence status:** Definitions and tool boundaries are documented against A1 package references [S05] [S81] [S82] and the A1 tuning guides [S01] [S03]. Four claims on this page rest on a weaker class and are marked where they appear: the documented `EXPLAIN PLAN` divergence on an A2 technical brief [S83], the parallel-execution `ALLSTATS LAST` caution on class-D practitioner reports [S92], the reviewed third-party script [S87], whose Apache-2.0 licence was read from the file after the repository's API field returned `NOASSERTION`, and the Statspack mechanism [S93], which is a pre-12c page retained as a flagged reference that settles nothing about your release. Its blocks are labeled `ILLUSTRATIVE`, `SYNTHETIC`, `SKETCH`, or `PLACEHOLDER`; every plan excerpt, row count, and timing is `SYNTHETIC`. **No live Oracle database was available**, so no output here is a measurement.
 >
 > **Next required page:** [Stats Run the Show](/01-proven-techniques/02-stats-run-the-show/).
 
@@ -43,27 +43,32 @@ The recipe analogy has one hard limit: the plan is a plan until it runs. A plan 
 
 One gate comes before all of that: section 7 is the required preflight for naming the target. Fill it in before you act on any plan, and before you read the plan pair in the next section.
 
-## 2. Nine things to read
+## 2. Ten things to read
 
-You do not need the dozens of columns of `V$SQL_PLAN`. Nine things answer almost every first question. The last column matters: runtime fields do **not** live in `V$SQL_PLAN`, and reading them from there is a common mistake.
+You do not need the dozens of columns of `V$SQL_PLAN`. Ten fields answer almost every first question. The last column matters: runtime fields do **not** live in `V$SQL_PLAN`, and reading them from there is a common mistake.
 
-| What to read                 | What it is                                                     | The question it answers                                    | Where it comes from                                        |
-| ---------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
-| Operation and options        | The step, such as `TABLE ACCESS FULL` or `INDEX RANGE SCAN`    | How does Oracle read the rows here?                        | `V$SQL_PLAN`                                               |
-| `E-Rows`                     | Estimated rows the optimizer expected at this step             | What did the optimizer think would happen?                 | `V$SQL_PLAN`                                               |
-| `A-Rows`                     | Actual rows this step processed, when runtime statistics exist | What really happened?                                      | `V$SQL_PLAN_STATISTICS_ALL`, surfaced by `DBMS_XPLAN`      |
-| Access and filter predicates | The conditions applied as an index lookup or as a row filter   | Where did Oracle look, and what did it discard afterwards? | `V$SQL_PLAN` (predicate section)                           |
-| Cost                         | The optimizer's unitless price for the whole plan              | How did the optimizer rank its options?                    | `V$SQL_PLAN`                                               |
-| `buffer_gets`                | Logical block requests served through the buffer cache         | How much work did the run request?                         | `V$SQL` / `V$SQL_PLAN_STATISTICS_ALL`                      |
-| `Starts` / `A-Time`          | When the step ran, and how long it took when captured          | Where did the elapsed time go?                             | `V$SQL_MONITOR`, surfaced by SQL Monitor or `DBMS_XPLAN`   |
-| `plan_hash_value`            | A fingerprint of the plan shape                                | Is this the same plan as the one I saved?                  | `V$SQL` / `V$SQL_PLAN`                                     |
-| Wait events                  | What the session was doing when it was not on CPU              | Was the time spent working, or waiting?                    | `V$SESSION` / `V$SQL_PLAN` with `V$ACTIVE_SESSION_HISTORY` |
+| What to read                 | What it is                                                         | The question it answers                                    | Where it comes from                                        |
+| ---------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| Operation and options        | The step, such as `TABLE ACCESS FULL` or `INDEX RANGE SCAN`        | How does Oracle read the rows here?                        | `V$SQL_PLAN`                                               |
+| `E-Rows`                     | Estimated rows the optimizer expected at this step                 | What did the optimizer think would happen?                 | `V$SQL_PLAN`                                               |
+| `A-Rows`                     | Actual rows this step processed, when runtime statistics exist     | What really happened?                                      | `V$SQL_PLAN_STATISTICS_ALL`, surfaced by `DBMS_XPLAN`      |
+| Access and filter predicates | The conditions applied as an index lookup or as a row filter       | Where did Oracle look, and what did it discard afterwards? | `V$SQL_PLAN` (predicate section)                           |
+| Cost                         | The optimizer's unitless price for the whole plan                  | How did the optimizer rank its options?                    | `V$SQL_PLAN`                                               |
+| `buffer_gets`                | Logical block requests served through the buffer cache             | How much work did the run request?                         | `V$SQL` / `V$SQL_PLAN_STATISTICS_ALL`                      |
+| `Starts`                     | How many times this step started                                   | Is the step being repeated?                                | `V$SQL_PLAN_STATISTICS_ALL` with `ALLSTATS`                |
+| `A-Time`                     | Accumulated time attributed to this step, including its children's | Where should I look for the time?                          | `V$SQL_PLAN_STATISTICS_ALL` with `ALLSTATS`                |
+| `plan_hash_value`            | A fingerprint of the plan shape                                    | Is this the same plan as the one I saved?                  | `V$SQL` / `V$SQL_PLAN`                                     |
+| Wait events                  | What the session was doing when it was not on CPU                  | Was the time spent working, or waiting?                    | `V$SESSION` / `V$SQL_PLAN` with `V$ACTIVE_SESSION_HISTORY` |
 
-Two of those deserve their own plain-language rule.
+Four of those deserve their own plain-language rule.
 
-**Cost is not time.** Cost is a unitless number the optimizer uses to compare options against each other. A cost of 5 is not 5 milliseconds. A plan with a lower cost is usually the plan Oracle expects to be cheaper, which is not the same as the plan that will be fastest on your data.
+**Cost is not time.** Cost is a unitless number the optimizer uses to compare options against each other. A cost of 5 is not 5 milliseconds. A plan with a lower cost is usually the plan Oracle expects to be cheaper, which is not the same as the plan that will be fastest on your data. It is also not a ranking key for choosing between candidate rewrites: that is how you end up shipping the plan the optimizer liked most instead of the one that measured fastest.
 
 **`buffer_gets` is not disk I/O.** It counts logical block requests. A high `buffer_gets` with low physical reads usually means the buffer cache is serving repeated work. That is still work; it is just cheap work. Use it as a work counter and elapsed time as a latency counter, and never substitute one for the other.
+
+**`Starts` and `A-Time` are two different questions.** `Starts` is a count of operation starts, and a high count multiplied by the inner row source is the signature of a nested loop amplifying work or a scalar subquery re-running. It is one of the most useful numbers in the plan and it is a count, not a duration. `A-Time` is accumulated time, and it is **not exclusive**: a parent operation's `A-Time` includes the time its children spent. A line showing 90% of the statement's time may simply be the one that called the other 90%. Use `A-Time` to decide where to look, never to attribute cost to a line.
+
+There is one more pair worth separating while you are here, because the runbook uses both and the plan prints them in the same block. `Buffers` is logical reads and is close to cache-independent, which makes it the most stable number to compare between two trials on the same data. `Reads` is physical reads and swings with cache state. A `Reads` improvement between two runs may be a warm cache rather than a better plan.
 
 ## 3. The canonical plan pair, estimated versus actual
 
@@ -160,6 +165,8 @@ Six tools, six different questions. Reach for the cheapest one that answers your
 | ASH                                               | Where were active sessions sampled, and under which wait?                       |
 | SQL Trace and `tkprof`                            | Where did parse, execute, fetch, and wait time go?                              |
 
+This table is tool-first, so read it as a ladder rather than a menu. It is also incomplete on purpose: it stops at diagnosis. Two more questions come after it — _is the proposed change better_, which is [SPA](/04-recipes/02-before-after-with-spa/) or Database Replay, and _how is the improvement kept stable_, which is [SQL Plan Management](/01-proven-techniques/05-stabilize-and-ship-safely/). If you find yourself reaching for a diagnostic tool to answer either of those, you have picked the wrong rung.
+
 What each one costs, and when to skip it:
 
 - **`EXPLAIN PLAN`** writes to a plan table or a global temporary table, shows no runtime statistics, and never executes the query. Skip it for evidence; keep it for orientation.
@@ -169,29 +176,47 @@ What each one costs, and when to skip it:
 - **ASH** is sampled and can miss short statements. Skip it when you need an exact row count or an exact elapsed time.
 - **SQL Trace and `tkprof`** add real overhead and need `ALTER SESSION`, `DBMS_MONITOR`, or an equivalent privilege. Last resort, not first.
 
-Three of them carry a trap worth naming.
+Four of them carry a trap worth naming.
 
-**`EXPLAIN PLAN` is a compile-time opinion.** It does not run your statement. It cannot show you what the runtime did with your bind values, and it cannot show actual rows. Use it to orient yourself in ten seconds, then move to the executed cursor.
+**`EXPLAIN PLAN` is a compile-time opinion, and the divergence is documented.** It does not run your statement, so it cannot show you what the runtime did with your bind values, and it cannot show actual rows. Oracle's own position is that an explained plan can differ from the actual plan because of schema, statistics, bind values and types, initialization parameters, and the execution environment — and with binds in particular the explained plan may not represent the real cursor plan at all [S83]. Use it to orient yourself in ten seconds, then move to the executed cursor.
 
-**The executed cursor needs runtime statistics to be useful.** `A-Rows` and per-step I/O appear when plan statistics were gathered, which depends on how the statement ran, including the session's statistics level or the `GATHER_PLAN_STATISTICS` hint. Without them you get a plan shape and nothing about the run. If your display has no actual rows, that is the first thing to fix, not the plan.
+**The executed cursor needs runtime statistics to be useful.** `A-Rows` and per-step I/O appear when plan statistics were gathered. Put the `GATHER_PLAN_STATISTICS` hint on the statement rather than setting `STATISTICS_LEVEL = ALL` on the instance, because the hint is scoped to the one statement you are asking about and the instance setting is scoped to everything. Without either you get a plan shape and nothing about the run. If your display has no actual rows, that is the first thing to fix, not the plan.
 
-**ASH is sampled.** It can tell you a line was active under a wait. It cannot tell you how many rows that line produced. If the question is “how many?”, use plan statistics or SQL Monitor.
+**`ALLSTATS LAST` is unreliable for a parallel statement.** "Last" can resolve to the coordinator, and coordinator row counts are not slave row counts. For parallel execution use SQL Monitor; if you cannot, write the limitation next to the numbers. This one rests on practitioner reports rather than a package reference, so treat it as a rule to verify on your own release, not a documented guarantee [S92].
+
+**ASH is sampled.** It can tell you a line was active under a wait. It cannot tell you how many rows that line produced. If the question is "how many?", use plan statistics or SQL Monitor.
+
+### When nothing is licensed
+
+The ladder above has licensed rungs on it, and a reader without a Diagnostics Pack is left holding two tools. That is a gap in this chapter, and here is the answer.
+
+**Snapper** is a single SQL\*Plus script that takes deltas from the core dynamic views — `GV$SESSTAT`, `GV$SESS_TIME_MODEL`, `GV$SESSION_EVENT`, and its own ASH-like samples from `GV$SESSION` — and reports what a session is doing and which waits dominate [S87]. It installs nothing and reads only core views, which is what makes it usable on a deployment with no diagnostic entitlement. The repository is Apache-2.0, read from the file; the [OSS guide](/06-oss-guide/01-how-to-vet-oss/) owns the review procedure and the reason you still do not vendor it. It is not historical unless you save the output, and its sampling is not Oracle ASH, so the two sample counts do not belong in the same column.
+
+**Statspack** is the historical lane most often reached for when AWR is not available. `SPREPORT.SQL` compares two snapshots and `SPREPSQL.SQL` reports on a single SQL hash value [S93]. Whether it is licensed on your deployment is a question for the licensing guide, not this page. It is coarser than AWR and needs a schema maintained, and it gives you interval history where AWR would.
+
+**`V$SQLSTATS` and `V$SQL`** are core views, not pack features, and they are the low-overhead current-state evidence: `V$SQLSTATS` for polling top SQL without churning the instance, `V$SQL` when you need the optimizer environment, module, action, and bind sensitivity that `V$SQLSTATS` drops. Normalize before you compare — `elapsed_time / executions`, `buffer_gets / executions` — because lifetime totals rank statements by uptime rather than by damage.
+
+**SQLd360** is the collector in this family, catalogued as **T-08** and the one `CONDITIONAL` entry in the whole catalog. It is an install-nothing SQL\*Plus script that gathers plans, metadata, optimizer context, and whatever history is available for one SQL ID into an offline bundle, and it asks whether Tuning, Diagnostics, or neither is licensed so it can skip repositories it is not entitled to read [S67]. It is conditional because it is not a peer of an Oracle versioned package reference — it is a community tool whose licence this book's ledger has not confirmed, and the [OSS guide](/06-oss-guide/01-how-to-vet-oss/) treats that as a stop condition, not a footnote. Use it to package a dossier; do not treat its output as the measurement.
+
+This is not a consolation prize. `DISPLAY_CURSOR` with the hint, the core views, a session trace, and SPM are enough to run every procedure in this book. The licensed tools shorten the diagnosis; they do not change the method.
 
 ### Comparing two plans
 
-The Oracle Database 19c `DBMS_XPLAN` reference documents **two** comparison functions, in the same chapter of the [DBMS_XPLAN, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) package reference, [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html). They are not interchangeable, and knowing which one you need saves you from picking the wrong one.
+`DBMS_XPLAN` ships two comparison functions, and only one of them is anywhere near this book's primary path. **`COMPARE_PLANS` is documented from 23ai onward; the 19c package reference does not carry it.** The release you are running is the release you have, and a function you read about in a 26ai manual does not exist in your 19c instance — the error you get will not explain that. **A later release extending an API is not the same as a later release introducing it**, and a feature that arrived after your release cannot be copied out of a newer manual. Check the package reference for _your_ release before you plan a call around any of this.
 
-**`DBMS_XPLAN.COMPARE_PLANS`** (["COMPARE_PLANS Function"](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)) takes a reference plan and a list of plans, and returns a report as a CLOB. It compares **stored plan objects**, and the list can mix sources: cursor cache, AWR, SQL tuning set, SQL plan baseline, plan table, SQL profile, and advisor. Its parameters are `type` (`TEXT`, `HTML`, `XML`), `level` (`BASIC`, `TYPICAL`, `ALL`), and `section` (`SUMMARY`, `FINDINGS`, `PLANS`, `INFORMATION`, `ERRORS`). The plan objects come from the `plan_object_list` type and its subclasses, described in the same chapter.
+What each one does, so you know which you would want once you have confirmed availability:
 
-**`DBMS_XPLAN.DIFF_PLAN`** (["DIFF_PLAN Function"](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html)) has a different shape entirely. It takes `sql_text` and an `outline`, generates a target plan from the outline, compares it against the plan for that text, and returns a **task ID** you use to retrieve a report of findings. There is no CLOB return and no plan-source list.
+**`DBMS_XPLAN.COMPARE_PLANS`** takes a reference plan and a list of plans and returns a report as a CLOB. It compares **stored plan objects**, and the list can mix sources: cursor cache, AWR, SQL tuning set, SQL plan baseline, plan table, SQL profile, and advisor. Its parameters are `type` (`TEXT`, `HTML`, `XML`), `level` (`BASIC`, `TYPICAL`, `ALL`), and `section` (`SUMMARY`, `FINDINGS`, `PLANS`, `INFORMATION`, `ERRORS`). The plan objects come from the `plan_object_list` type and its subclasses, described in the same chapter.
 
-Both are documented on the 19c primary path in the same reference chapter. Confirm the exact signature and the available parameters on your installed release, because update-level and later-release details differ. Later releases extend the report options and parameter sets; they did not introduce the functions.
+**`DBMS_XPLAN.DIFF_PLAN`** has a different shape entirely. It takes `sql_text` and an `outline`, generates a target plan from the outline, compares it against the plan for that text, and returns a **task ID** you use to retrieve a report of findings. There is no CLOB return and no plan-source list.
 
-Which one you want:
+Which one you want, once availability is settled:
 
 - You already have two or more saved plan artifacts and want a written diff of the plan shapes. **→ `COMPARE_PLANS`.**
 - You have SQL text plus an outline and want a findings report against the outline's plan. **→ `DIFF_PLAN`.**
-- You have neither and just want to know whether anything changed. **→ Save both `DISPLAY_CURSOR` outputs and diff them yourself.** That path still works on every release.
+- You are on 19c, or you have neither, or you just want to know whether anything changed. **→ Save both `DISPLAY_CURSOR` outputs and diff them yourself.** That path works on every release and needs nothing you have not already used.
+
+And one boundary on what a diff settles, because it is routinely over-read: comparing plans and comparing row sources are two checks, not one. A candidate can keep the same plan shape and move `A-Rows` two orders of magnitude on one step, which is a cardinality fix that went the wrong way. Diff the plan _and_ the row-source statistics.
 
 The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why the release label belongs next to the behavior.
 
@@ -215,23 +240,32 @@ The [V0 lab](/00-preface/02-how-to-prove-a-win/) is explicit about this: a named
 
 Fill this worksheet before you read any plan. Every field is required; an unexplained `N/A` is a stop, not a convenience.
 
-| Field                                     | What to record                                                                                          | Why it matters                                                                                          |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Statement tag                             | A `MODULE` and `ACTION` pair you set with `DBMS_APPLICATION_INFO`, such as `V0_LAB` / `EMPLOYEE_REPORT` | Without an action, every run collapses into the same attribution bucket.                                |
-| `sql_id`                                  | The identifier for the normalized SQL text, read from the target system                                 | It locates the statement family. It does not identify a cursor, container, or instance.                 |
-| `child_number`                            | The cursor variant under that `sql_id`                                                                  | A statement can have several plans. The child number picks the one you ran.                             |
-| `parsing_schema_name`                     | The schema that parsed it, not necessarily the schema you connect as                                    | Privileges, statistics, and objects resolve against the parsing schema.                                 |
-| Binds                                     | The manifest of representative values, kept in a protected artifact                                     | The plan can change per bind value. A plan captured for `:dept_id = 42` may not be the plan for `9999`. |
-| `plan_hash_value`                         | The plan fingerprint, when monitoring provides one                                                      | It tells you whether the shape changed. It is not a score.                                              |
-| `con_id` and `con_id_reason`              | The container identity, or `N/A` with a documented reason                                               | An unqualified tuple is not a global result.                                                            |
-| `instance_id` and `instance_scope_reason` | The RAC instance, or `N/A` with `single_instance_vsql`                                                  | A single-instance lookup records `N/A`; a RAC capture uses `INST_ID`.                                   |
-| `session_instance_id`                     | The instance your session is actually connected to, read from `V$INSTANCE`                              | `DISPLAY_CURSOR` is instance-local. A mismatched instance is a stop.                                    |
-| Timestamp or window                       | UTC start and end for the observation                                                                   | Half of every “it was fast yesterday” story is a missing window.                                        |
-| Owner                                     | The person who can approve and recover the change                                                       | If you cannot name them, you cannot ship anything.                                                      |
+| Field                                      | What to record                                                                                          | Why it matters                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Statement tag                              | A `MODULE` and `ACTION` pair you set with `DBMS_APPLICATION_INFO`, such as `V0_LAB` / `EMPLOYEE_REPORT` | Without an action, every run collapses into the same attribution bucket.                                                           |
+| `sql_id`                                   | The identifier for the normalized SQL text, read from the target system                                 | It locates the statement family. It does not identify a cursor, container, or instance.                                            |
+| `child_number`                             | The cursor variant under that `sql_id`                                                                  | A statement can have several plans. The child number picks the one you ran.                                                        |
+| `parsing_schema_name`                      | The schema that parsed it, not necessarily the schema you connect as                                    | Privileges, statistics, and objects resolve against the parsing schema.                                                            |
+| Binds                                      | The manifest of representative values, kept in a protected artifact                                     | The plan can change per bind value. A plan captured for `:dept_id = 42` may not be the plan for `9999`.                            |
+| `plan_hash_value`                          | The plan fingerprint, when monitoring provides one                                                      | It tells you whether the shape changed. It is not a score.                                                                         |
+| `con_id` and `con_id_reason`               | The container identity, or `N/A` with a documented reason                                               | An unqualified tuple is not a global result.                                                                                       |
+| `instance_id` and `instance_scope_reason`  | The RAC instance, or `N/A` with `single_instance_vsql`                                                  | A single-instance lookup records `N/A`; a RAC capture uses `INST_ID`.                                                              |
+| `session_instance_id`                      | The instance your session is actually connected to, read from `V$INSTANCE`                              | `DISPLAY_CURSOR` is instance-local. A mismatched instance is a stop.                                                               |
+| Release and patch level                    | The exact database release and update level, and the optimizer feature setting in effect                | The same SQL text behaves differently across releases, and an optimizer switch changes plans under you.                            |
+| Session parameters                         | The session parameters that shaped the parse, especially optimizer and `statistics_level`               | A parameter difference is a plan difference, and it is invisible in the plan itself.                                               |
+| Service, client, consumer group            | The connect service, the client identifier, and the consumer group the session ran under                | Three sessions running the same SQL under three services are three different problems.                                             |
+| Fetch shape                                | Whether all rows were fetched, the fetch array size, the result count, and where the client ran         | This is part of the measurement. A client that fetches 10 rows and a client that drains the result do not run the same experiment. |
+| Bind names, types, and selectivity classes | Not just the values: the bind names, their types, and which class of selectivity each represents        | Type changes cause new child cursors, and a skewed class needs its own trial, not an average.                                      |
+| Data and statistics timestamps             | When the data last changed materially, and when statistics were last gathered on the objects involved   | Half of "it got slow" is a statistics job you did not know ran.                                                                    |
+| Concurrency level                          | The number of concurrent sessions competing during the observation                                      | A statement that wins alone can lose at 200 users, and the plan will not tell you that.                                            |
+| Timestamp or window                        | UTC start and end for the observation                                                                   | Half of every "it was fast yesterday" story is a missing window.                                                                   |
+| Owner                                      | The person who can approve and recover the change                                                       | If you cannot name them, you cannot ship anything.                                                                                 |
 
 Two rows carry more than the table can hold. For `con_id`, an unqualified tuple is not a global result: in a multitenant database the same `sql_id` can exist in several containers.
 
 For `instance_id`, a single-instance `V$SQL` lookup records `N/A`, while a multi-instance capture uses `GV$SQL.INST_ID AS instance_id`. The 19c `V$SQL` view does not expose `INSTANCE_NUMBER`.
+
+Seven rows in the middle of this worksheet are the ones that explain a measurement nobody can repeat, and they are the rows most often skipped. The framing is simple: **without this context, two executions of the same statement are not comparable, and a comparison between them is arithmetic rather than evidence.** A different release, a different set of session parameters, a different service, a different fetch shape, a different bind type, different statistics timestamps, or a different number of concurrent sessions will each produce a different number, and none of those differences shows up in the plan.
 
 **ILLUSTRATIVE — SQLcl or SQL\*Plus.** Requires the scoped `SELECT` or release-approved read access to `V$INSTANCE` described in the [setup page](/00-preface/). Expected output: one row containing the current instance number. This is an identity check, not a measurement.
 

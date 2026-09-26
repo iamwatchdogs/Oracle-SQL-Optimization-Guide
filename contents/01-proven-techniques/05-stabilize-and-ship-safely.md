@@ -105,6 +105,16 @@ A SQL profile attaches auxiliary optimizer information to a SQL ID without chang
 
 For a profile, keep the incident ID, the owner, the expiry, the test result, and the drop command. For a patch, keep the same plus the exact `DBMS_SQLDIAG` workflow you used, because the names and signatures are release-dependent and you should not copy a call shape from another release. If the root cause can be fixed, fix it. If it cannot, make the control visible so somebody remembers it exists.
 
+### F-2 and F-4 are not the same control
+
+The table puts a profile at F-2 and a baseline at F-4, and the difference between them decides which one you pick, so it is worth one sentence of semantics rather than one sentence of syntax. Oracle's own optimizer team has written up the same distinction, and it is the shortest available statement of it [S88].
+
+**A SQL profile adds information to the optimizer. It does not force a plan.** A profile carries auxiliary statistics, bind information, and sometimes hints, and the optimizer is free to accept or ignore all of it. That is exactly why it is the right control for F-2: your estimate is wrong, you cannot change the data or the SQL text, and you want to hand the optimizer better numbers rather than a decision.
+
+**A SQL plan baseline restricts selection to accepted plans.** The optimizer may use an accepted plan and may not use an unaccepted one without going through evolution. That restriction is the whole point, and it is why a baseline is the right control for F-4: you do not trust the optimizer to keep choosing the good plan on its own after every data change.
+
+So the failure modes differ too, and this is the part that gets people. A profile that the optimizer half-ignores still runs; the statement keeps working, possibly no better. A baseline that cannot be satisfied does not silently degrade — the plan you need stops being available, and you find out at the worst time. **The profile is a soft control that may not take. The baseline is a hard control that can break the statement if its conditions stop holding.** [S34](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-profiles.html) [S07] [S21]
+
 ## 5. SQL Plan Management: the plan as a governed artifact
 
 SQL Plan Management gives a critical statement a plan history. You capture the known plan, use the baseline as the stability boundary, and let candidates be evaluated through the plan-management workflow rather than run silently in production.
@@ -133,6 +143,28 @@ FROM TABLE(DBMS_XPLAN.DISPLAY_SQL_PLAN_BASELINE(sql_handle => :sql_handle));
 
 **Do not turn baseline protection into an absolute rule.** With a governed baseline, Oracle normally protects the known plan while candidates go through the evolution or verification workflow. Plan evolution and, on releases that have it, Real-Time SPM, have their own candidate-evaluation behavior. The [plan-management overview](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html) describes the workflow; a plan hash is an identifier, not a performance verdict. [S12](https://www.oracle.com/technetwork/database/bi-datawarehousing/twp-sql-plan-mgmt-19c-5324207.pdf) [S21](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html)
 
+### The dependency that breaks a baseline quietly
+
+A baseline stores a _plan_, and a plan is only reproducible while the objects it depends on exist. Drop the index the plan used, alter the column it reads, or remove the materialized view it joins, and the baseline is still there, still enabled, still listed in `DBA_SQL_PLAN_BASELINES` — and it can no longer produce the plan it was captured for [S07] [S21].
+
+This is the failure mode that looks like protection working. Someone checks the baseline exists after a schema change, sees a row, and concludes the statement is covered. It is not. The baseline is a promise about a plan that no longer has the objects to run.
+
+Two habits prevent it. Before you drop or alter an object, list what depends on it _and_ check the baselines captured against it, not just the database dependencies. And after any change to a table an SPM-governed statement reads, re-verify that the statement is actually running the plan you think it is — by reading the executed plan, not by reading the baseline row.
+
+This is also why the deployment order on the [load-test page](/03-toolbox/03-load-test-without-prod/) puts baseline capture _after_ the object is proven and the canary is scoped. Capture the plan for a candidate you are about to roll back and you have built a trap for the next person.
+
+### Licensing, and why this one is different
+
+SPM is not one of the features this book refuses to price, and the reason is worth a sentence. A plan baseline is a database object created and read with `DBMS_SPM`. It is not a report, not a sampled history, not a monitor — and every licensed diagnostic in this chapter is one of those three. So the deployment-control layer is reachable without a diagnostic entitlement, which is why a team that cannot justify AWR can still ship a governed plan [S07] [S21].
+
+That is a statement about what the feature _is_, not a licensing claim, and the difference matters because this book prints no pack tables. Whether your release, edition, and deployment model require an option for SPM is settled by the Oracle licensing guide for your exact configuration — not by a package reference, and not by this page. Check it before you rely on the paragraph above, because that paragraph is about mechanism and the licensing guide is about contract.
+
+The boundary that survives either answer: the _diagnostics_ you use to prove the plan — AWR, ASH, ADDM, the monitor reports — are separate features with their own entitlement, and the release and edition restrictions are real.
+
+### Use it after you have proven something
+
+SPM is the last step, not the first. The order is: prove a plan across representative bind values _and_ under load, then capture it. Capturing a baseline for a plan you measured once, on one bind, on a warm cache, converts a guess into a policy that will fight every future change to that statement. [S07] [S21]
+
 ### Real-Time SPM: the execution boundary matters
 
 Automatic SPM is documented from 19c. Real-Time SPM is a 26ai feature. In Real-Time SPM, a candidate is evaluated during a user execution. If that execution regresses, the candidate is rejected at the end of the execution and a previously accepted plan is used for subsequent executions. It does **not** retroactively rewrite the statement that was already running.
@@ -151,7 +183,11 @@ Adaptive plans defer or adjust runtime decisions when the workload and statistic
 
 ## 6. Advisors propose; the gate decides
 
-SQL Tuning Advisor can analyze a SQL ID, an AWR range, or a Tuning Set. Optimizer Statistics Advisor reviews statistics practices. SQL Access Advisor proposes access structures. Automatic Indexing can create and test candidates. The output is a proposal, not a deployment. [S17](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-tuning-advisor.html) [S27] (Optimizer Statistics Advisor) and [S35] (SQL Access Advisor), both chapters of the 19c SQL Tuning Guide; both bibliography records are TOC-verified, and the SQL Access Advisor chapter is [verified here](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-access-advisor.html).
+SQL Tuning Advisor can analyze SQL text you paste in, a SQL ID from the shared pool, or a Tuning Set. It runs five analyses — statistics, SQL profiling, access paths, SQL structure, and alternative plans — and returns recommendations for statistics, indexes, rewrites, profiles, or plan baselines, each with a rationale and an expected benefit [S17](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-tuning-advisor.html). Optimizer Statistics Advisor reviews statistics practices. SQL Access Advisor proposes access structures at the _workload_ level — indexes, materialized views and their logs, and partitioning — which makes it the better tool than single-statement index advice when writes and many queries share the same tables. Automatic Indexing can create and test candidates. The output is a proposal, not a deployment. [S27] (Optimizer Statistics Advisor) and [S35] (SQL Access Advisor), both chapters of the 19c SQL Tuning Guide; both bibliography records are TOC-verified, and the SQL Access Advisor chapter is [verified here](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/sql-access-advisor.html).
+
+One boundary on Optimizer Statistics Advisor that is easy to miss and expensive to get wrong: it issues findings and recommendations **without gathering a new statistics set**. Reading its output does not change the statistics on your tables. That is the opposite of what a tool named "statistics advisor" sounds like, and it is worth knowing before you run it against a shared object.
+
+Confirm the entitlement for the advisor you intend to use against the licensing guide for your release. Advisor features are licensed separately from the diagnostic ones, and this book deliberately prints no pack table — the sources that state one are feature documentation and a decade-old datasheet, and neither is license text [S90].
 
 Apply one recommendation at a time. A single advisor run that recommends an index, a materialized view, a profile, and a statistics change is four candidates, and applying them together tells you nothing about which one worked. Run [SPA](/04-recipes/02-before-after-with-spa/) before and after each, keep the result only if the workload beats its noise floor and no relevant statement regresses, and keep the plan pair and the rollback command beside the report. [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html)
 

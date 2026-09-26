@@ -9,24 +9,24 @@ One fast run is a sample. A controlled before and after pair on one frozen set i
 
 The [STS runbook](/03-toolbox/02-freeze-work-with-sts/) freezes the input. This page owns the analysis-task sequence it defers to: create the task, run the first trial, apply one change, run the after trial, compare the named trials, and capture the plan that actually executed.
 
-> **Track:** Core (1, 7) · Practice (3, 4, 5, 6, Decision table) · Recovery (none) · Advanced / gated (2)
+> **Track:** Core (1, 7, When SPA is the wrong instrument) · Practice (3, 4, 5, 6, Decision table) · Recovery (none) · Advanced / gated (2)
 >
 > **Prerequisites:** [Freeze With STS](/04-recipes/01-freeze-with-sts/) behind you, so the set exists, plus a test target where you may apply one candidate change.
 >
-> **Evidence status:** The task sequence is A1-sourced and read firsthand from the 19c `DBMS_SQLPA` package reference [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html); plan display and plan comparison come from the 19c `DBMS_XPLAN` reference [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html); the frozen set comes from [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html). The repetition principle is B1 methodology [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf). Blocks are `ILLUSTRATIVE`, `PLACEHOLDER`, or `MUTATING`. **No live Oracle database was available**, so no trial on this page has been run.
+> **Evidence status:** The task sequence is A1-sourced and read firsthand from the 19c `DBMS_SQLPA` package reference [S06](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLPA.html); plan display comes from the 19c `DBMS_XPLAN` reference [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) — note that its plan-_comparison_ functions are not on the 19c path; Database Replay comes from the Real Application Testing guide [S13]; the frozen set comes from [S18](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/managing-sql-tuning-sets.html). The repetition principle is B1 methodology [S58](https://spcl.inf.ethz.ch/Publications/.pdf/hoefler-scientific-benchmarking_slides.pdf). Blocks are `ILLUSTRATIVE`, `PLACEHOLDER`, or `MUTATING`. **No live Oracle database was available**, so no trial on this page has been run.
 >
 > **Next required page:** [Stats Pipeline You Can Script](/04-recipes/03-stats-pipeline-you-can-script/).
 
 ## How this page is banded
 
-| Band                 | Sections                   |
-| -------------------- | -------------------------- |
-| **Core**             | 1, 7                       |
-| **Practice**         | 3, 4, 5, 6, Decision table |
-| **Recovery**         | none                       |
-| **Advanced / gated** | 2                          |
+| Band                 | Sections                               |
+| -------------------- | -------------------------------------- |
+| **Core**             | 1, 7, When SPA is the wrong instrument |
+| **Practice**         | 3, 4, 5, 6, Decision table             |
+| **Recovery**         | none                                   |
+| **Advanced / gated** | 2                                      |
 
-- **Core (1, 7):** the cheap screen and the capture of the plan that ran. Both are read actions against a target you already have, and neither needs the analysis task.
+- **Core (1, 7, When SPA is the wrong instrument):** the cheap screen, the capture of the plan that ran, and the rule for when SPA is the wrong instrument entirely. All three are read actions against a target you already have, and none needs the analysis task.
 - **Practice (3, 4, 5, 6, Decision table):** on a real ticket, once the gated task exists: apply exactly one change, compare the named trials, repeat under the policy, summarize outside SQLPA, and read the verdict rows.
 - **Recovery (none):** this page measures and reports; it does not undo. The revert that follows a failed verdict belongs to the change class and to the [accept or rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/).
 - **Advanced / gated (2):** creating and running an analysis task needs the `ADVISOR` privilege plus the Real Application Testing entitlement that SQL Performance Analyzer depends on. Confirm both before the first trial.
@@ -77,6 +77,14 @@ EXEC DBMS_SQLPA.EXECUTE_ANALYSIS_TASK(
 ```
 
 The comparison metric defaults to elapsed time [S06]. This guide records `buffer_gets` as the logical-work measure and elapsed time as the user-visible outcome. Set the metric once, record it in the manifest, and do not call either one the truth before you have read the report and the workload context.
+
+SPA compares seven metrics, and the one you pick decides what the report can prove: elapsed time, CPU, buffer gets, disk reads, direct writes, optimizer cost, and interconnect bytes [S06]. Three of them carry a trap.
+
+- **`optimizer_cost`** is an estimate, not a measurement. You can set `comparison_metric` to it — the interface will accept it — and the report will confidently rank your candidates by the optimizer's opinion of them. That is how you ship the plan Oracle liked most instead of the one that measured fastest. **Do not use optimizer cost as a comparison metric or as a ranking key.** If the report shows it, read it as explanation, never as the verdict.
+- **`disk_reads` and `direct_writes`** are cache-sensitive. A `disk_reads` improvement between two trials may be a warm cache rather than a better plan. That is why the guide's primary metric is `buffer_gets`, which is close to cache-independent.
+- **`interconnect_bytes`** only means something on RAC, where it measures traffic between instances. On a single instance it is a column of zeros that looks like a result.
+
+The report also tells you about _set_ membership, not just per-statement deltas: statements that improved, statements that regressed, statements that are **new**, and statements that are **missing** from the set. New and missing matter more than they sound. A statement missing from the after set did not get faster, it stopped being collected, and a shrinking workload can flatter a regression. Count the statements on both sides and record the difference before you read the improvement percentage.
 
 ## 4. Compare the named trials
 
@@ -154,19 +162,40 @@ SELECT * FROM TABLE(
 
 That view list is the one [Measure First](/01-proven-techniques/01-measure-first/) records for `DISPLAY_CURSOR`. `A-Rows` appears only where row-source statistics were gathered — through the session's statistics level or the `GATHER_PLAN_STATISTICS` hint, as [the plan-statistics mechanism](/01-proven-techniques/01-measure-first/) explains — so without that mechanism you get a plan shape and no actuals. Compare `E-Rows` with `A-Rows`, selectivity, rows examined, cost, predicates, and the measured deltas. Reading the line itself is the [toolbox runbook](/03-toolbox/01-measure-with-xplan-and-monitor/), which this page does not repeat.
 
-For a written diff of saved plans, the Oracle Database 19c `DBMS_XPLAN` package reference documents two comparison functions, `COMPARE_PLANS` and `DIFF_PLAN`, in the same chapter, [DBMS_XPLAN, 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html). Which one you need, what each returns, and the parameters each one takes are [Measure First](/01-proven-techniques/01-measure-first/)'s decision; this page does not repeat them.
+For a written diff of saved plans, `DBMS_XPLAN` ships two comparison functions [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html), and **neither is on the 19c primary path** — `COMPARE_PLANS` arrived in 23ai, so on 19c the function you would have planned around does not exist. Which one you would need, what each returns, and the parameters each takes are [Measure First](/01-proven-techniques/01-measure-first/)'s decision; this page does not repeat them.
 
-Confirm the name, the signature, and the availability of each function on your installed release before you call it, and its available parameters once you have it, because update-level and later-release details differ. When either call is not there, save both `DISPLAY_*` outputs and diff them yourself; that path works on every release. The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why the release label belongs next to the behavior.
+Confirm the name, the signature, and the availability of each function against the package reference for your installed release before you call it. When either call is not there, save both `DISPLAY_*` outputs and diff them yourself; that path works on every release and needs nothing you have not already used. The [version drift page](/07-appendix-sources/02-version-drift-survival/) explains why the release label belongs next to the behavior.
+
+## When SPA is the wrong instrument
+
+SPA runs a SQL Tuning Set. It is the strongest tool available for one question — _did this change make this set of statements better or worse_ — and it is the wrong tool for a different question: _what happens to the system when 200 sessions arrive at once_.
+
+The distinction is scope, and it decides the instrument:
+
+| The change under test can affect                               | Use                                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| One statement's plan, cost, or logical work                    | SPA on the frozen set — this is its home                                        |
+| Index or statistics choice across many statements              | SPA, because the regression is the point                                        |
+| Parameter, patch, or schema change across a set                | SPA, which reports per-statement and workload deltas                            |
+| Concurrency, lock contention, or connection behavior           | Database Replay, which replays captured production calls with production timing |
+| Commit rates, transactional dependencies, whole-system effects | Database Replay                                                                 |
+
+Database Replay captures the external calls your application made and replays them on a test system with production timing, concurrency, and transaction dependencies intact [S13]. It is a different evidence class from both SPA and a synthetic load generator: the workload is _yours_, recorded, rather than a script that resembles yours. Where a load generator asks "does this survive 200 users", Database Replay asks "did this change what happened when your real application ran".
+
+If you have no Real Application Testing entitlement, the honest fallback is the [load gate](/03-toolbox/03-load-test-without-prod/) with a representative mix, and the artifact should say which of the two you ran. "Load tested" without naming the workload's origin is not a claim anyone can check.
 
 ## Decision table
 
-| Evidence                                                                      | Disposition                                         |
-| ----------------------------------------------------------------------------- | --------------------------------------------------- |
-| Aggregate improves, key statements hold, and the interval clears the noise    | Hand to the gate; load first if it can contend      |
-| Aggregate improves but one important statement regresses beyond the threshold | Hand to the gate — candidate for `REJECT_CANDIDATE` |
-| Only the plan hash changes                                                    | Keep investigating                                  |
-| `EXPLAIN PLAN` looks good but `test execute` regresses                        | Reject the explanation                              |
-| No test execute was run for this candidate                                    | Record `NOT-VERIFIED`                               |
+| Evidence                                                                           | Disposition                                                   |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Aggregate improves, key statements hold, and the interval clears the noise         | Hand to the gate; load first if it can contend                |
+| Aggregate improves but one important statement regresses beyond the threshold      | Hand to the gate — candidate for `REJECT_CANDIDATE`           |
+| The plan and the row sources were not compared, only the plan hash                 | Keep investigating                                            |
+| The report shows new or missing statements, and the count difference is unrecorded | Keep investigating — a shrinking set can flatter a regression |
+| Only the plan hash changes                                                         | Keep investigating                                            |
+| `EXPLAIN PLAN` looks good but `test execute` regresses                             | Reject the explanation                                        |
+| The comparison metric was optimizer cost                                           | Discard the ranking and re-run on a measured metric           |
+| No test execute was run for this candidate                                         | Record `NOT-VERIFIED`                                         |
 
 Voiding a comparison — different set, different binds, different context — is the [STS runbook's row](/03-toolbox/02-freeze-work-with-sts/), and this table only runs on comparisons that survived it. The threshold, the interval, and the gate that turns these rows into a verdict belong to the [accept or rollback gate](/05-feedback-loop/03-accept-or-rollback-gate/). This page reports evidence; that gate decides with it.
 

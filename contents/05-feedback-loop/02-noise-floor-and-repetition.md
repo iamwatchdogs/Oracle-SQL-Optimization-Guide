@@ -33,7 +33,9 @@ Other pages say "repeat enough to separate signal from noise" and point here. Th
 
 ## 1. Measure the unchanged workload first
 
-Run the unchanged workload before the candidate exists. Freeze the set, the binds, the host, the workload window, the metric, and the duration; run the full workload with nothing changed; record the spread. That spread is the noise floor: the movement you see when nothing moves.
+Run the unchanged workload before the candidate exists. Freeze the set, the binds, the host, the workload window, the metric, the duration, **and the cache state**; run the full workload with nothing changed; record the spread. That spread is the noise floor: the movement you see when nothing moves.
+
+Cache state is on that list because leaving it off is the most common way a careful experiment produces a meaningless number. A cold-cache trial and a warm-cache trial are different experiments, and if the before side ran warm and the after side ran cold, you have measured the buffer cache. Decide which one you are running, write it into the run record, and hold it identical on both sides. Warm is the usual default because it is reproducible. The [load gate](/03-toolbox/03-load-test-without-prod/) owns the mechanics, including why you never manufacture a cold run by flushing a shared instance.
 
 The [preface](/00-preface/02-how-to-prove-a-win/) defines the A/A control and states this guide's K>=5 and bootstrap discipline. This page adds the operating order: floor first, repetitions second, margin third. A floor taken on one host is not automatically the floor for another host.
 
@@ -79,6 +81,18 @@ Lead with logical work. `buffer_gets` is this guide's primary metric because it 
 Treat the lower variance of logical work as an expectation to test on your workload, not as a fact to quote. CPU time and rows processed from the same report are supporting evidence, and they are read beside the primary metric rather than instead of it.
 
 A plan-hash change alone is never evidence: a hash identifies a plan shape, not an outcome, and only measured samples decide [S58]. The plan artifact explains a result; the samples decide it. Read the plan line through the [toolbox runbook](/03-toolbox/01-measure-with-xplan-and-monitor/), which this page does not repeat.
+
+And the plan is not optional evidence either. There is a version of this rule that over-corrects and says "the plan is explanation, the samples are the verdict", which is wrong in the other direction — a hash is an insufficient proxy, not a sufficient alternative to reading the plan. The obligation is two checks, not one: **compare the exact plans, and compare the row-source statistics on both sides.** A candidate can hold the same plan shape and move `A-Rows` two orders of magnitude on one step, which is a cardinality change that went the wrong way and which no aggregate metric will show you. The plan pair belongs in the artifact, and the gate's checks require it.
+
+### The two effects that make a single run lie
+
+Repetition handles ordinary variance. Two effects need handling by design, because they change _within_ a trial rather than between trials, and no number of repetitions will average them away.
+
+**First-execution effects.** The first execution of a statement on a cold cursor does work the tenth does not: parsing, buffer-cache misses, and physical reads that later runs get from memory. This is why the warm-up exists, and why "run it five times and take the median" is not a substitute for a declared warm-up. A run whose first repetition is also its first execution is measuring two different things in one row.
+
+**Adaptive reoptimization.** The optimizer can change a plan _during_ a run, after it has watched the data it is actually touching. That means two executions of an identical statement on identical data can legitimately use different plans, and the second one is not more correct — it is the plan the optimizer decided on once it had evidence. The measurement has to state which behavior it is capturing. Either exclude adaptive behavior so every repetition plans the same way, or keep it and record that the plan can move between repetitions, which widens the variance you have to clear. Silently mixing the two produces a floor that means nothing.
+
+Both belong in the run record as declared conditions, next to the cache state, not as a footnote discovered while arguing about a result.
 
 ## 4. State the repetition policy
 

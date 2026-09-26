@@ -37,17 +37,18 @@ This page owns that rule for the whole book. Every other page links here rather 
 
 This book's primary release is **19c**. Everything else is either a later release you may cite with a version note, or a mention whose introduction release was not verified.
 
-| Feature                                        | Release boundary used here          | Evidence boundary                                                |
-| ---------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------- |
-| Real-Time Statistics                           | **19c**                             | Documented in the 19c tuning guide [S01]                         |
-| Plan comparison (`COMPARE_PLANS`, `DIFF_PLAN`) | **19c**                             | The 19c package reference documents both [S05]                   |
-| Automatic SQL Plan Management                  | **19c**                             | Paper and 19c guidance: background verification [S11]            |
-| SQL Quarantine                                 | **19c**                             | Documented; names and signatures confirmed locally [S40]         |
-| Real-Time SPM                                  | **26ai**                            | Foreground verification, and it does not undo a regression [S21] |
-| Automatic SQL Transpiler                       | **23ai and later**                  | Eligibility and configuration are release-specific [S46]         |
-| Automatic SQL error mitigation                 | **26ai**                            | Confirm the parameter and its eligibility scope [S46]            |
-| Regression models for Real-Time Statistics     | **Later guide, release unverified** | In the 26ai contents; introducing release unverified [S02]       |
-| PL/SQL dynamic statistics                      | **Later guide, release unverified** | Mentioned in the 26ai guide; do not backport [S02]               |
+| Feature                                    | Release boundary used here          | Evidence boundary                                                             |
+| ------------------------------------------ | ----------------------------------- | ----------------------------------------------------------------------------- |
+| Real-Time Statistics                       | **19c**                             | Documented in the 19c tuning guide [S01]                                      |
+| Plan comparison (`DIFF_PLAN`)              | **release-checked**                 | Verify against your own `DBMS_XPLAN` reference; do not copy a signature [S05] |
+| Plan comparison (`COMPARE_PLANS`)          | **23ai+**                           | Not on the 19c primary path, whatever a newer manual says [S05]               |
+| Automatic SQL Plan Management              | **19c**                             | Paper and 19c guidance: background verification [S11]                         |
+| SQL Quarantine                             | **19c**                             | Documented; names and signatures confirmed locally [S40]                      |
+| Real-Time SPM                              | **26ai**                            | Foreground verification, and it does not undo a regression [S21]              |
+| Automatic SQL Transpiler                   | **23ai and later**                  | Eligibility and configuration are release-specific [S46]                      |
+| Automatic SQL error mitigation             | **26ai**                            | Confirm the parameter and its eligibility scope [S46]                         |
+| Regression models for Real-Time Statistics | **Later guide, release unverified** | In the 26ai contents; introducing release unverified [S02]                    |
+| PL/SQL dynamic statistics                  | **Later guide, release unverified** | Mentioned in the 26ai guide; do not backport [S02]                            |
 
 The records are [S01](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/) the 19c tuning guide, [S05](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_XPLAN.html) the 19c `DBMS_XPLAN` reference, [S40](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQLQ.html) the 19c `DBMS_SQLQ` reference, and [S02](https://docs.oracle.com/en/database/oracle/oracle-database/26/tgsql/index.html) the 26ai guide. The plan-management rows are [S11](https://arxiv.org/html/2608.27758v1) and the 19c and 26ai chapters of [S21](https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html), and the two later-release feature rows are both [S46](https://docs.oracle.com/en/database/oracle/oracle-database/26/nfcoa/oracle-ai-database-26ai-new-features-guide.pdf).
 
@@ -100,6 +101,14 @@ One independent database blog describes the SQL-level diagnostic tool as a tool 
 Those two sentences are useful and they are both class D. What they settle is **what the tools are for**: collecting a diagnostic bundle, per statement and per database, that a human reads later. What they do not settle is the licence, the maintenance state, or whether the output agrees with what Oracle reports, and the dated inventory on the [gate page](/06-oss-guide/01-how-to-vet-oss/) is the only place in this book that speaks to the second of those.
 
 The general lesson is worth more than the two rows. A corroborating source is the right tool for **existence and purpose**, and the wrong tool for **rights, versions, and behavior**. When a secondary description and a versioned reference disagree, the reference wins and the disagreement gets recorded rather than smoothed over.
+
+### The vendor product page is the purest case
+
+A vendor product page is the extreme version of this problem, because it is a marketing surface with no version, no release note, and no support matrix on it, and it changes the moment marketing changes.
+
+So let it settle exactly one thing: **this product exists, and this is what its authors say it is for.** [S84] is Quest's own tool documentation, which is a stronger record than a product page and is filed as C1 for that reason. A product page cannot settle a version claim, a licensing claim, or a performance claim about your database, and the temptation to let it is highest exactly where the copy is most confident — a datasheet saying a feature "requires the Tuning Pack" is a statement about a product line that may have been repackaged nine times since the document was written.
+
+This is why the toolbox map catalogues commercial instruments without endorsing them and why the [evidence chapter](/00-preface/01-why-evidence-grades/) refuses to print a pack table. A vendor sentence is a **CANDIDATE**. It becomes a result when the validation run on your own workload says so, and not before.
 
 ## 6. The survival checklist
 

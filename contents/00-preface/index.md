@@ -46,9 +46,16 @@ Learn these words before running a command. The Oracle term comes first in the l
 - **Package:** A named collection of database procedures or functions, such as `DBMS_XPLAN` or `DBMS_SQLPA`. Availability and use can depend on release, privileges, and licensing.
 - **SQL Tuning Set (STS):** A named database object that may include SQL, binds, execution context, execution statistics, and plans for repeatable comparison.
 - **SQL Performance Analyzer (SPA):** An Oracle package workflow that runs named before and after trials and reports comparison metrics. Availability, privilege, and entitlement still need checking.
+- **SQL Plan Management (SPM):** The feature that captures a known-good plan as a _baseline_ and restricts the optimizer to accepted plans. New plans sit unaccepted until verified. It is a deployment control, not a diagnostic.
+- **AWR / ASH / ADDM:** The licensed history lane. AWR aggregates across snapshots, ASH samples active sessions about once a second, ADDM reads those aggregates and returns findings for an interval. All three need an entitlement; the pack-free substitutes are Statspack and Snapper.
+- **Optimizer statistics:** The numbers the optimizer plans against — row counts, distinct value counts, histograms, and the rest. A wrong estimate is usually a statistics problem, not a bad SQL syntax problem.
+- **Row source (`E-Rows` / `A-Rows`):** The optimizer's estimated rows for a plan step, and the rows that step actually produced. The gap between them is the highest-value number in a plan.
+- **`GATHER_PLAN_STATISTICS` / `ALLSTATS`:** A statement-level hint that makes Oracle record row-source statistics, and the `DBMS_XPLAN` format that prints them. Without one you have a plan shape and no measurement.
 - **Release/edition:** The release is the database version, such as Oracle Database 19c. The edition is the licensed product level. Updates, patches, and options can still change what is available.
 - **Privilege:** A technical permission, such as `SELECT` on an owned table or permission to execute a package. A role can bundle privileges.
 - **Entitlement:** A licensing or contractual right to use a feature or option. An entitlement is not the same as a database privilege, and a privilege is not a license.
+
+Those last five were missing, and a reader who met `ALLSTATS LAST`, `E-Rows`, an advisor, or a pack name in a lab page had nowhere to look them up. The measurement spine runs through all of them.
 
 A grade can help you sort a source. It cannot replace these definitions.
 

@@ -52,7 +52,7 @@ If you only need to know whether one citation is sound, take [How Citations Work
 
 ## 3. The ledger and its boundary
 
-The corpus behind this book is **S01 to S80**, one row per identifier, each row carrying a class, a release where one applies, a link where one applies, and the access date.
+The corpus behind this book is **S01 to S93**, one row per identifier, each row carrying a class, a release where one applies, a link where one applies, and the access date.
 
 The ledger is maintained alongside the book as a working record. It is not published as a page here, and this chapter set does not pretend to reproduce it. What a page does instead is carry the S-ID **next to a direct link to the source** whenever the claim needs the evidence in front of the reader.
 
@@ -70,13 +70,17 @@ The composition is approximate, and it is approximate on purpose. A record can c
 
 ### The records that carry no URL
 
-Thirteen rows in the ledger have no link, so an ID from that group is cited bare. This table is what makes a bare ID resolvable.
+Ten rows in the ledger have no link, so an ID from that group is cited bare. This table is what makes a bare ID resolvable.
 
-| Records           | What the record is                                            | Why there is no link                                                      |
-| ----------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| S20, S24, S27–S35 | 19c SQL Tuning Guide chapters, named from a verified contents | The chapter anchor was not recorded, so the row names the chapter instead |
-| S23               | Oracle Optimizer blog post on automatic SQL plan management   | Corroboration only, and no permalink was recorded                         |
-| S80               | QueryBooster, _PVLDB_ 16:2911 (2023)                          | Identified by DOI `10.14778/3611479.3611497`, not by a URL                |
+| Records                         | What the record is                                          | Why there is no link                                                      |
+| ------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| S20, S24, S28, S30–S32, S34–S35 | SQL Tuning Guide chapters, named from a verified contents   | The chapter anchor was not recorded, so the row names the chapter instead |
+| S23                             | Oracle Optimizer blog post on automatic SQL plan management | Corroboration only, and no permalink was recorded                         |
+| S80                             | QueryBooster, _PVLDB_ 16:2911 (2023)                        | Identified by DOI `10.14778/3611479.3611497`, not by a URL                |
+
+The range is not contiguous. Three records that would otherwise sit in it are cited with a link instead: S27 (Optimizer Statistics Advisor), S29 (managing historical statistics), and S33 (performing application tracing) each carry a chapter URL, so they resolve without this table. That is also why the range above is not contiguous. Note the release that supplied each anchor is not always the release you run, which is why the pages citing them still tell you to check the chapter against your own release's guide.
+
+S93 is the other kind of exception. It carries a URL, and the URL is to pre-12c documentation that this book's own rules refuse, because Statspack is the pack-free historical lane and no versioned public reference was located. The staleness is stated inside the record rather than left for a reader to discover.
 
 ## 4. Source classes keep weight honest
 
