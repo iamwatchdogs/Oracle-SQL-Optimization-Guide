@@ -15,11 +15,13 @@ colors:
   accent-ink: '#0c0c0e'
   zone-a: '#e0dbd2'
   zone-b: '#b8b3a9'
-  zone-c: '#9a958c'
-  zone-d: '#8a857c'
+  zone-c: '#aaa59c'
+  zone-d: '#9e998f'
   light-paper: '#f7f5f0'
+  light-paper-raised: '#fffefb'
   light-ink: '#1a1815'
   light-accent: '#2d4a9a'
+  light-accent-hover: '#1e3a7a'
 typography:
   display:
     fontFamily: 'Source Serif 4, Georgia, serif'
@@ -161,8 +163,10 @@ Stepped neutrals encoding evidence grade — not rainbow chips:
 
 - **Zone A** (`#e0dbd2`): A1/A2 chips (Oracle docs/briefs)
 - **Zone B** (`#b8b3a9`): B1/B2 chips (papers)
-- **Zone C** (`#9a958c`): C1/C2 chips (tools)
-- **Zone D** (`#8a857c`): D chip (blogs — never proof alone)
+- **Zone C** (`#aaa59c`): C1/C2 chips (tools) — 7.98:1 on dark paper
+- **Zone D** (`#9e998f`): D chip (blogs — never proof alone) — 6.89:1 on dark paper
+
+Zones C and D were raised from `#9a958c` / `#8a857c` to clear 7:1 and 6.5:1 on dark paper. The shipped token values are the accessible ones; light mode re-steps them to `#6b665e` / `#6d685f`.
 
 **The One Accent Rule.** The accent appears on at most one solid control per viewport and on the active wayfinding state. Its rarity marks the path.
 
@@ -191,7 +195,9 @@ Full swap under `[data-theme='light']`: paper `#f7f5f0`, ink `#1a1815`, accent `
 
 ## Layout
 
-Desktop interior: `280px` sticky TOC rail + centered reading column (`max-w-46rem`) inside `shell-wide` (80rem max). Home: full-bleed title block (hairline top/bottom) over a `52rem` contributions list, then centered `measure` prose.
+Desktop interior: `280px` sticky TOC rail + centered reading column (`max-w-reading`, 46rem) inside `w-shell-wide` (80rem max). Home: full-bleed title block (hairline top/bottom) over a `max-w-contributions` (52rem) list, then centered `max-w-measure` (68ch) prose.
+
+Container widths are Tailwind utilities generated from `--width-shell` / `--width-shell-wide` and `--container-reading` / `--container-contributions` / `--container-measure`: `w-shell`, `w-shell-wide`, `max-w-reading`, `max-w-contributions`, `max-w-measure`.
 
 Mobile: single column; TOC collapses to a disclosure above content; contributions stack full-width; title block stacks metadata below CTAs.
 
@@ -201,14 +207,42 @@ Breakpoints: TOC rail appears at `lg` (1024px). Header nav links hide below `md`
 
 ## Elevation & Depth
 
-**Flat by default.** Depth is tonal: paper → raised → sunken. No card shadows on content surfaces. Expressive Code frames get a subtle shadow only in light mode (`0 1px 3px rgba(0,0,0,0.12)`).
+**Flat by contract.** Depth is tonal: paper → raised → sunken. **No authored box-shadows exist in any theme** — dark, light, or code frames. Separation comes from 1px hairlines (`--rule` / `--rule-strong`) and tonal paper steps, never from blur or offset shadows.
 
-Elevation is declared once — either a 1px border or a soft shadow, never both stacked as a ghost card.
+Elevation is declared once: a 1px hairline or a tonal fill, never both stacked as a ghost card.
 
 ### Shadow Vocabulary
 
-- **Light-mode code frame** (`box-shadow: 0 1px 3px rgba(0,0,0,0.12)`): Expressive Code only, light theme.
-- **Title-block entrance**: transform-only `translateY(10px→0)` 500ms ease-out — no opacity hold.
+The vocabulary is deliberately empty.
+
+- **No `--shadow-*` token** is declared in the theme, so no `shadow-*` utility is generated or available.
+- **No Tailwind shadow utility** is used anywhere — not the stock shadow scale, not `drop-shadow-*` filters, and no transition on the shadow property. A transition that targets `box-shadow` is banned even when inert.
+- **Expressive Code frames are flat.** The frames plugin ships a default `.frame` drop shadow; it is suppressed at the source with `styleOverrides.frames.frameBoxShadowCssValue: 'none'` in `astro.config.mjs`, so no CSS override is needed and light mode gets no special case.
+- **Typography kbd is flat.** `--tw-prose-kbd-shadows` resolves to `transparent`, so the plugin's `0 0 0 1px …, 0 3px 0 …` composition paints nothing.
+
+## Motion
+
+Motion is enhancement, never meaning. Four mechanisms, no animation library.
+
+**Exactly two sanctioned opacity transitions, both 180ms.** Opacity is allowed in exactly two places, and both are feedback about _where you are_ — never about content arriving:
+
+1. **Whole-page cross-fade** — the Astro `ClientRouter` route swap, `fade` at **180ms**.
+2. **Loader state reveal** — the persistent route loader fading in/out, `transition-opacity` at **180ms**.
+
+Both are **navigation or state feedback**: one reports that the document is being replaced, the other reports that a route is still preparing. Neither reveals content that is already on the page. **No prose, disclosure, or reading element may fade in** — that is content entrance, and it is forbidden.
+
+- **Title-block entrance**: transform-only `translateY(10px→0)`, 500ms `cubic-bezier(0.22, 1, 0.36, 1)`, staggered by `rise-1` … `rise-4`. The resting state is the first painted state.
+- **Page transitions — sanctioned opacity #1, whole-page cross-fade.** Route swaps use the built-in `fade` animation at **180ms**: a pure opacity cross-fade between the outgoing document and the incoming one. It is permitted because a route swap replaces the whole page rather than revealing content inside it. It is not a template for in-page motion — no element on a page may fade in from `opacity: 0`, and no separate opacity-0 entrance animation may be added alongside it.
+- **Loader state reveal — sanctioned opacity #2, state feedback.** The persistent route loader toggles `opacity-0` ↔ `opacity-100` on `transition-opacity duration-[180ms]`, matching the 180ms reveal threshold. It is feedback about an in-flight navigation, not content entrance: it renders no prose and reveals nothing that is already readable.
+- **Research Notes — native `<details>`/`<summary>`.** The disclosure icon rotates 0° → 45° (plus → ×) on a 280ms `transition-transform` with `cubic-bezier(0.22, 1, 0.36, 1)`. The panel opens and closes **symmetrically** through the `disclosure-flow` `grid-template-rows: 0fr → 1fr` transition — never a one-way reveal — and `details::details-content` uses `allow-discrete` so content stays rendered through the close transition.
+- **Reduced motion overrides everything.** One `@media (prefers-reduced-motion: reduce)` block sets `animation: none !important` and `transition: none !important` on `*`, `*::before`, `*::after`, and `details::details-content`, and forces `scroll-behavior: auto`. Components additionally carry `motion-reduce:transition-none` / `motion-reduce:animate-none`. Both sanctioned opacity transitions are covered by the same block.
+
+## Loading & Focus
+
+- **Persistent skeleton.** A `transition:persist`-carried route loader lives outside the swapped page. It is invisible at rest (`opacity-0`, `pointer-events-none`) and reveals **only after 180ms of route preparation**, so fast navigations never flash it. Its `transition-opacity` is `duration-[180ms]`, matching the reveal threshold. It is `role="status" aria-live="polite"` with an `sr-only` "Loading requested page" message, and its three bars pulse on `bg-paper-raised` with `motion-reduce:animate-none`.
+- **Cancellation.** Each navigation arms a 180ms timer on `astro:before-preparation`; an abort, an error, or a prevented default clears the timer, hides the loader, and drops `aria-busy`.
+- **Busy marking.** `main` carries `aria-busy="true"` for the duration of the pending navigation and it is always removed on settle.
+- **Focus handoff.** After a successful navigation `main#main` receives focus with `preventScroll: true`, so keyboard and screen-reader users land at the top of the new page without a scroll jump. The focus ring stays 2px accent at 2px offset.
 
 ## Shapes
 
@@ -240,7 +274,7 @@ No form fields in current surfaces. Focus ring: 2px accent, 2px offset, 2px radi
 
 ### Navigation
 
-- **Header:** Sticky, paper/90 + blur, 1px rule bottom. Running-head wordmark left, Inter nav center (md+), theme toggle right.
+- **Header:** Sticky, opaque paper (`bg-paper`, no blur and no alpha), 1px rule bottom. Running-head wordmark left, Inter nav center (md+), theme toggle right.
 - **Breadcrumb:** Mono uppercase meta above h1.
 - **TOC:** Inter 14px; idle ink-muted; active accent text + accent-soft fill + 1px accent left border (≤1px per floor).
 - **Prev/next:** Bordered pager cells, mono labels, serif titles; hover accent border + soft fill.
@@ -269,5 +303,7 @@ No form fields in current surfaces. Focus ring: 2px accent, 2px offset, 2px radi
 - **Don't** use side accent stripes >1px on list items, callouts, or TOC rows.
 - **Don't** put Unicode glyph icons where an authored SVG belongs (theme toggle, TOC caret).
 - **Don't** introduce a second solid accent button or a hero-metric card grid.
-- **Don't** animate content from opacity 0 — first paint is the resting state; motion is transform-only enhancement.
+- **Don't** add a box-shadow, a `--shadow-*` token, or a Tailwind `shadow-*` utility in any theme — depth is tonal.
+- **Don't** reach for an animation library; page transitions, the disclosure, and the skeleton are native Astro plus Tailwind core.
+- **Don't** animate prose, a disclosure, or any other reading element in from opacity 0 — first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned, both 180ms: the whole-page `ClientRouter` cross-fade and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.
 - **Don't** rewrite, reorder, or reword the frozen notebook content.

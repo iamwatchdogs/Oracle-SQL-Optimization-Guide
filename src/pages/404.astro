@@ -1,23 +1,32 @@
 ---
+import { fade } from 'astro:transitions';
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout title="Not found" description="This page is not in the notebook.">
-  <main id="main" class="shell py-24">
-    <div class="measure">
-      <div class="title-block">
-        <h1 class="m-0 mb-4" style="font-size: var(--text-display); letter-spacing: -0.03em;">
+  <main
+    id="main"
+    tabindex="-1"
+    transition:animate={fade({ duration: '0.18s' })}
+    class="mx-auto w-shell py-24 focus:outline-none"
+  >
+    <div class="mx-auto max-w-measure">
+      <div class="border-y border-rule-strong py-title-block">
+        <h1 class="m-0 mb-4 font-serif text-display font-semibold leading-tight tracking-[-0.03em]">
           Page not found
         </h1>
-        <p class="font-[family-name:var(--font-sans)] text-[color:var(--ink-muted)] leading-relaxed max-w-[42ch] mb-8">
+        <p class="mb-8 max-w-[42ch] font-sans text-ink-muted leading-relaxed">
           This citation does not map to a record. Return to the notebook and look up the section
           again.
         </p>
         <div class="flex flex-wrap gap-4">
-          <a href="/" class="btn-primary">
+          <a href="/" class="primary-control leading-none">
             Back to home <span aria-hidden="true">→</span>
           </a>
-          <a href="/07-appendix-sources/" class="btn-ghost">
+          <a
+            href="/07-appendix-sources/"
+            class="inline-flex items-center gap-2 rounded-ui border border-rule-strong bg-transparent px-5 py-3 font-sans text-ui font-medium leading-none text-ink no-underline transition-colors hover:border-accent hover:text-accent"
+          >
             Source appendix
           </a>
         </div>

@@ -45,29 +45,28 @@ const gradeItems: GradeItem[] = (gradeLabels ?? []).flatMap((label, index) => {
   return zone && meaning ? [{ label, zone, meaning }] : [];
 });
 const showGrades = gradeItems.length > 0;
+const gradeChipClass =
+  'inline-flex items-center rounded-ui border border-current bg-zone-chip-bg px-[0.4rem] py-1 font-mono text-chip font-semibold tracking-[0.06em] uppercase leading-none tabular-nums whitespace-nowrap align-middle data-[zone=a]:text-zone-a data-[zone=b]:text-zone-b data-[zone=c]:text-zone-c data-[zone=d]:text-zone-d';
 ---
 
-<section class="title-block" aria-labelledby="book-title">
-  <div class="shell">
+<section class="border-y border-rule-strong py-title-block" aria-labelledby="book-title">
+  <div class="mx-auto w-shell">
     <div class="grid lg:grid-cols-[1fr_auto] gap-8 lg:gap-16 items-start">
       <div class="min-w-0">
         <h1
           id="book-title"
-          class="rise rise-1 font-[family-name:var(--font-serif)] font-bold leading-[1.05] tracking-[-0.03em] mb-5"
-          style="font-size: var(--text-display);"
+          transition:name="page-title"
+          class="rise rise-1 mb-5 font-serif text-display font-bold leading-[1.05] tracking-[-0.03em]"
         >
           {title}
         </h1>
 
-        <p
-          class="rise rise-2 font-[family-name:var(--font-sans)] text-[color:var(--ink-muted)] leading-relaxed max-w-[42ch] mb-8"
-          style="font-size: clamp(1.05rem, 1.5vw, 1.25rem);"
-        >
+        <p class="rise rise-2 mb-8 max-w-[42ch] font-sans text-abstract leading-relaxed text-ink-muted">
           {description}
         </p>
 
         <div class="rise rise-3">
-          <a href="/00-preface/" class="btn-primary">
+          <a href="/00-preface/" class="primary-control leading-none">
             Begin at Preface
             <span aria-hidden="true">→</span>
           </a>
@@ -75,7 +74,7 @@ const showGrades = gradeItems.length > 0;
       </div>
 
       <aside
-        class="rise rise-4 lg:text-right lg:border-l lg:border-[color:var(--rule)] lg:pl-8 pt-2 lg:pt-0"
+        class="rise rise-4 pt-2 lg:border-l lg:border-rule lg:pl-8 lg:pt-0 lg:text-right"
         aria-label="Metadata"
       >
         <dl class="meta space-y-2">
@@ -89,7 +88,7 @@ const showGrades = gradeItems.length > 0;
                     aria-label="Evidence grades"
                   >
                     {gradeItems.map((grade) => (
-                      <span class="grade-chip" data-zone={grade.zone}>
+                      <span class={gradeChipClass} data-zone={grade.zone}>
                         {grade.label}
                       </span>
                     ))}
@@ -103,14 +102,16 @@ const showGrades = gradeItems.length > 0;
         </dl>
 
         {showGrades && (
-          <details id="evidence-key" class="evidence-key">
-            <summary>
-              <span class="evidence-key-title">Evidence key</span>
-              <span class="evidence-key-note">Source strength, not a benchmark</span>
+          <details id="evidence-key" class="group mt-5 border-y border-rule text-left">
+            <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 text-ui font-medium text-ink-muted transition-colors hover:text-ink group-open:text-ink [&::-webkit-details-marker]:hidden marker:content-none">
+              <span class="text-ink">Evidence key</span>
+              <span class="ml-auto font-mono text-mono text-ink-faint">
+                Source strength, not a benchmark
+              </span>
               <svg
-                class="evidence-key-caret"
-                width="12"
-                height="12"
+                class="disclosure-icon shrink-0 text-ink-faint transition-transform duration-[280ms] ease-[cubic-bezier(.22,1,.36,1)] group-open:rotate-45 motion-reduce:transition-none"
+                width="14"
+                height="14"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -119,30 +120,34 @@ const showGrades = gradeItems.length > 0;
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <path d="M9 18l6-6-6-6"></path>
+                <path d="M12 5v14M5 12h14"></path>
               </svg>
             </summary>
-            <dl class="evidence-key-list">
-              {gradeItems.map((grade) => (
-                <div class="evidence-key-row">
-                  <dt>
-                    <span class="grade-chip" data-zone={grade.zone}>
-                      {grade.label}
-                    </span>
-                  </dt>
-                  <dd>{grade.meaning}</dd>
-                </div>
-              ))}
-            </dl>
-            <p class="evidence-key-rule">
-              <strong>PROVEN</strong> = 2 agreeing sources, or 1 A1/A2/B1 source + a repeatable
-              rerun.
-            </p>
-            <p class="evidence-key-links">
-              <a href="/00-preface/">How grades work</a>
-              <span aria-hidden="true">·</span>
-              <a href="/07-appendix-sources/">Source lookup</a>
-            </p>
+            <div class="disclosure-flow">
+              <div class="disclosure-content-inner disclosure-flow-inner">
+                <dl class="mt-0 grid gap-[0.55rem]">
+                  {gradeItems.map((grade) => (
+                    <div class="grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-[0.65rem]">
+                      <dt class="m-0">
+                        <span class={gradeChipClass} data-zone={grade.zone}>
+                          {grade.label}
+                        </span>
+                      </dt>
+                      <dd class="m-0 text-mono leading-[1.4] text-ink-muted">{grade.meaning}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p class="mt-[0.85rem] font-mono text-mono leading-[1.45] text-ink-faint">
+                  <strong class="text-ink">PROVEN</strong> = 2 agreeing sources, or 1 A1/A2/B1
+                  source + a repeatable rerun.
+                </p>
+                <p class="mt-[0.85rem] flex gap-[0.45rem] font-mono text-mono leading-[1.45] text-ink-faint">
+                  <a href="/00-preface/">How grades work</a>
+                  <span aria-hidden="true">·</span>
+                  <a href="/07-appendix-sources/">Source lookup</a>
+                </p>
+              </div>
+            </div>
           </details>
         )}
       </aside>
@@ -151,16 +156,21 @@ const showGrades = gradeItems.length > 0;
 </section>
 
 <script>
-  const evidenceKey = document.querySelector<HTMLDetailsElement>('#evidence-key');
-  if (window.location.hash === '#evidence-key' && evidenceKey) {
-    evidenceKey.open = true;
+  if (!Object.prototype.hasOwnProperty.call(document, 'evidenceKeyInitialized')) {
+    document.addEventListener('astro:page-load', () => {
+      const evidenceKey = document.querySelector<HTMLDetailsElement>('#evidence-key');
+      if (window.location.hash === '#evidence-key' && evidenceKey) {
+        evidenceKey.open = true;
+      }
+    });
+    Object.defineProperty(document, 'evidenceKeyInitialized', { value: true });
   }
 </script>
 
-<section class="shell mt-0 pb-16" aria-labelledby="contributions-heading">
-  <div class="max-w-[52rem]">
-    <div class="pt-10 pb-4 border-b border-[color:var(--rule-strong)]">
-      <h2 id="contributions-heading" class="running-head !text-[color:var(--ink-muted)] !text-xs">
+<section class="mx-auto mt-0 w-shell pb-16" aria-labelledby="contributions-heading">
+  <div class="max-w-contributions">
+    <div class="border-b border-rule-strong pt-10 pb-4">
+      <h2 id="contributions-heading" class="running-head text-ink-muted text-xs">
         Contents · nine sections
       </h2>
     </div>
@@ -168,11 +178,22 @@ const showGrades = gradeItems.length > 0;
     <ol class="list-none p-0 m-0" aria-label="Book sections">
       {contributions.map((c, i) => (
         <li>
-          <a href={c.href} class="contribution">
-            <span class="contribution-num">{String(i + 1).padStart(2, '0')}</span>
+          <a
+            href={c.href}
+            class="group grid grid-cols-[2.5rem_1fr] items-baseline gap-4 border-b border-rule px-0 py-4 text-ink no-underline transition-colors hover:bg-accent-soft hover:text-ink"
+          >
+            <span class="font-mono text-mono tabular-nums text-ink-faint">
+              {String(i + 1).padStart(2, '0')}
+            </span>
             <span class="min-w-0">
-              <span class="contribution-title block">{c.title}</span>
-              {c.description && <span class="contribution-desc block">{c.description}</span>}
+              <span class="block font-serif text-contribution font-semibold tracking-[-0.01em] transition-colors group-hover:text-accent">
+                {c.title}
+              </span>
+              {c.description && (
+                <span class="mt-1 block font-sans text-ui leading-[1.45] text-ink-muted">
+                  {c.description}
+                </span>
+              )}
             </span>
           </a>
         </li>

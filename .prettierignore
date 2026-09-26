@@ -4,3 +4,7 @@ node_modules
 coverage
 bun.lock
 .agents
+test-results
+playwright-report
+blob-report
+.playwright
