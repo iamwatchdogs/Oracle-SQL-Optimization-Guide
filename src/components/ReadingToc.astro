@@ -37,7 +37,14 @@ const tocNumClass =
   aria-label={label}
 >
   <p class="running-head mb-3 pl-3">{label}</p>
-  <nav id="toc-desktop" class="flex flex-col gap-0.5">
+  {/* `aria-label` on the inner `<nav>` as well as on the `<aside>`. A `<nav>` is
+      a landmark, and a landmark with no name is a destination a screen-reader
+      user cannot pick from — the browser's landmark menu listed "navigation"
+      three times on an interior page. The mobile disclosure already names its
+      own `<nav>`; this closes the desktop half. The names differ on purpose so
+      the two never collide when the disclosure is open above the `lg` breakpoint
+      in a resized window. */}
+  <nav id="toc-desktop" class="flex flex-col gap-0.5" aria-label={`${label} — in-page outline`}>
     {headings.map((h, i) => (
       <a
         href={`#${h.id}`}
@@ -75,8 +82,25 @@ const tocNumClass =
     >
       <path d="M12 5v14M5 12h14"></path>
     </svg>
-    <span class="font-sans text-ui font-medium">{label}</span>
-    <span class="meta ml-auto" data-toc-mobile-current aria-hidden="true"></span>
+    {/*
+      `shrink-0 whitespace-nowrap` on the label, `min-w-0 truncate` on the
+      position readout, and neither may be allowed to win the free space.
+
+      A flex item's automatic minimum size is its min-content width, so the
+      readout — which carries a running section title, up to 240px of it — was
+      pushing the label out of the row. Measured at 390px: the label collapsed to
+      52px, broke after "Section", and dropped a lone "s" onto a third line, while
+      the band grew by 18px and pushed everything below it down. On other pages
+      the same row truncated, on others it wrapped, on others it fit, so the
+      position of the breadcrumb varied page to page. The label is two words and
+      must never wrap; the readout is the part that yields.
+    */}
+    <span class="shrink-0 whitespace-nowrap font-sans text-ui font-medium">{label}</span>
+    <span
+      class="meta ml-auto min-w-0 truncate text-right"
+      data-toc-mobile-current
+      aria-hidden="true"
+    ></span>
   </summary>
   <div class="disclosure-flow">
     <div class="disclosure-content-inner disclosure-flow-inner">

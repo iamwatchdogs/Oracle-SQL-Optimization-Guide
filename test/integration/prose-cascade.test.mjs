@@ -240,24 +240,6 @@ test('cell padding is set through thead th and tbody td, not bare subjects', asy
   expect(headerInline).toMatch(/^(?:\.9|0\.9)rem$/u);
 });
 
-test('the table box scrolls, and its header keeps a 1px hairline', async () => {
-  const sheet = parseCompiledStylesheet(await compiled);
-  const table = ruleFor(sheet, '.prose table');
-  const thead = ruleFor(sheet, '.prose thead th');
-
-  /* `overscroll-behavior-x: contain` stops a horizontal swipe chaining to the
-   * document, which is what let a wide table widen the whole page on a phone.
-   * DESIGN.md requires 1px hairlines; the old header rule was the only 2px
-   * edge in the system. */
-  expect(table.declarations.get('overscroll-behavior-x')).toBe('contain');
-  expect(table.declarations.get('overflow-x')).toBe('auto');
-  expect(table.declarations.get('display')).toBe('block');
-  expect(thead.declarations.get('border-bottom')).toBe('1px solid var(--rule-strong)');
-  for (const property of ['border-top', 'border-left', 'border-right', 'border']) {
-    expect(thead.declarations.has(property)).toBe(false);
-  }
-});
-
 test('the table zebra token is declared in both theme scopes', async () => {
   const css = await compiled;
   const sheet = parseCompiledStylesheet(css);
@@ -293,7 +275,7 @@ test('the prose container breaks slash-joined identifier chains', async () => {
    * token that fits on a line by itself.
    */
   expect(containers).toHaveLength(1);
-  expect(containers[0].declarations.get('overflow-wrap')).toBe('break-word');
+  expect(containers.at(0).declarations.get('overflow-wrap')).toBe('break-word');
   const chip = ruleFor(sheet, '.prose :not(pre) > code');
   expect(chip?.declarations.get('overflow-wrap')).toBe('break-word');
   expect(chip?.declarations.get('word-break')).toBe('normal');

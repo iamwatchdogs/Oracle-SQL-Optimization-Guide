@@ -67,6 +67,13 @@ const currentSection = isHome
       return entry.id === sectionId || entry.id.startsWith(`${sectionId}/`);
     });
 const sectionPosition = currentSection ? contributions.indexOf(currentSection) + 1 : undefined;
+/*
+ * What the running head says on the right. The chapter title, EXCEPT where the
+ * chapter IS this page — the eight section indexes — where it would be a third
+ * copy of the h1 and the breadcrumb's last crumb.
+ */
+const runningHeadChapter =
+  currentSection && currentSection.title !== entry.data.title ? currentSection.title : undefined;
 const breadcrumbItems = isHome
   ? []
   : currentSection &&
@@ -191,9 +198,24 @@ const proseClass = [
   ) : (
     <>
       <div class="mx-auto w-shell pt-4">
+        {/*
+          A running head is margin apparatus, so it names the BOOK on the left
+          and the CHAPTER on the right. It used to carry the page title here,
+          which put the same string on the page three times inside 130px — once
+          here, once in the breadcrumb directly below, and once as the h1 — and
+          the full title of the longest pages ran most of the width of the shell
+          on the line immediately above the breadcrumb that repeats it.
+
+          On a section INDEX the chapter title and the page title are the same
+          string, so the right-hand half is suppressed rather than repeated. The
+          left half still carries the book; there is simply nothing else to say
+          that the breadcrumb is not already saying.
+        */}
         <div class="running-head flex items-center justify-between gap-4" aria-hidden="true">
-          <span>Oracle SQL Optimization</span>
-          <span class="truncate max-w-[50%] text-right">{entry.data.title}</span>
+          <span class="shrink-0">Oracle SQL Optimization</span>
+          {runningHeadChapter && (
+            <span class="min-w-0 truncate text-right">{runningHeadChapter}</span>
+          )}
         </div>
       </div>
 
@@ -216,13 +238,31 @@ const proseClass = [
             class="order-2 flex min-w-0 justify-center pb-16 focus:outline-none"
           >
             <div class="w-full min-w-0 max-w-reading">
-              {/* Breadcrumb */}
+              {/*
+                The separator lives in its own `shrink-0` span INSIDE each item, and
+                the label is free to wrap.
+
+                The first attempt at this put `whitespace-nowrap` on every crumb to
+                stop a break falling between the separator and its label. That fixed
+                the break and introduced a worse defect: a section title is not short
+                — "Papers Behind the Recipes - Read the Claims Carefully" is 467px
+                of unbreakable run in a 346px box at 390px, which widened the whole
+                document by 122px. No width, min-width or truncation setting on the
+                flex item can absorb that.
+
+                The rule that actually holds is narrower: a separator must never be
+                separated from the label it belongs to. Keeping them in the same
+                flex item guarantees it by construction, and `shrink-0` keeps the
+                separator whole, so the only legal breaks are the spaces INSIDE the
+                label. The last crumb truncates instead of wrapping, because a
+                current-page title is the one segment a reader does not need in full.
+              */}
               <nav aria-label="Breadcrumb" class="mb-6">
-                <ol class="meta m-0 flex list-none flex-wrap items-center gap-x-1 gap-y-1 p-0">
-                  <li>
+                <ol class="meta m-0 flex list-none flex-wrap items-baseline gap-x-1 gap-y-1 p-0">
+                  <li class="min-w-0">
                     <a
                       href="/"
-                      class="inline-flex min-h-6 min-w-6 items-center no-underline transition-colors hover:text-accent"
+                      class="inline-block min-h-6 min-w-6 no-underline transition-colors hover:text-accent"
                     >
                       Home
                     </a>
@@ -230,16 +270,18 @@ const proseClass = [
                   {breadcrumbItems.map((item, i) => {
                     const isLast = i === breadcrumbItems.length - 1;
                     return (
-                      <li class="flex items-center gap-1">
-                        <span aria-hidden="true">/</span>
+                      <li class="min-w-0">
+                        <span aria-hidden="true" class="mr-1 select-none">
+                          /
+                        </span>
                         {isLast ? (
-                          <span class="font-serif text-sm tracking-normal text-ink-muted normal-case">
+                          <span class="block min-w-0 truncate font-serif text-sm tracking-normal text-ink-muted normal-case">
                             {item.title}
                           </span>
                         ) : (
                           <a
                             href={item.href}
-                            class="inline-flex min-h-6 min-w-6 items-center no-underline transition-colors hover:text-accent"
+                            class="inline-block min-h-6 min-w-6 no-underline transition-colors hover:text-accent"
                           >
                             {item.title}
                           </a>
@@ -285,19 +327,44 @@ const proseClass = [
                 <Content />
               </article>
 
-              <PrevNext
-                prev={
-                  prevEntry ? { href: toUrl(prevEntry.id), title: prevEntry.data.title } : undefined
-                }
-                next={
-                  nextEntry ? { href: toUrl(nextEntry.id), title: nextEntry.data.title } : undefined
-                }
-              />
+              {/*
+                The pager and the return link sit on the SAME measure as the prose.
+
+                The article's `68ch` measure is 89px narrower than the 46rem reading
+                track it sits in, so anything sized to the track broke the page's
+                single right edge in two: prose, h2 rules, the takeaway and the
+                title block all ended at one x while the pager ran 89px past it.
+                Two right edges on one page reads as a mistake even when both are
+                individually correct.
+
+                The measure is applied by a WRAPPER, not by the components, and that
+                is load-bearing rather than incidental: `ch` resolves against the
+                element's OWN font. The article is 18px Source Serif; `<nav>` is
+                Inter by the base layer's `nav { font-family: var(--font-sans) }`.
+                Putting `max-w-measure` on the pager itself gave it a 68ch of
+                Inter — 14% narrower than the prose it was supposed to align with —
+                and it overhung by exactly that much. A plain wrapper inherits the
+                body font, so its `ch` is the same `ch` the article's is.
+              */}
+              <div class="max-w-measure">
+                <PrevNext
+                  prev={
+                    prevEntry
+                      ? { href: toUrl(prevEntry.id), title: prevEntry.data.title }
+                      : undefined
+                  }
+                  next={
+                    nextEntry
+                      ? { href: toUrl(nextEntry.id), title: nextEntry.data.title }
+                      : undefined
+                  }
+                />
+              </div>
 
               <p class="meta mt-8">
                 <a
                   href="/"
-                  class="inline-flex min-h-6 min-w-6 items-center no-underline transition-colors hover:text-accent"
+                  class="inline-flex min-h-6 min-w-6 items-center whitespace-nowrap no-underline transition-colors hover:text-accent"
                 >
                   <span aria-hidden="true">←</span> Book home
                 </a>

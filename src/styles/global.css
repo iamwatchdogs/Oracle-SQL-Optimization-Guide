@@ -53,7 +53,21 @@
   --focus: #8aa4ff;
   --selection-bg: rgb(138 164 255 / 0.28);
   --selection-fg: var(--ink);
-  --scrollbar-thumb: #3a3a40;
+  /* 3.14:1 on the dark track. `--rule-strong` was the previous value and read
+     1.73:1 — invisible at rest, then past 3:1 the instant the pointer landed on
+     it, which is an inverted affordance for the one control that tells a reader
+     how much of the book is left. A scrollbar thumb is a component boundary
+     under WCAG 1.4.11, unlike the decorative hairlines it sits beside, and the
+     hover step (`--ink-faint`, 6.56:1) still reads as a clear jump upward. */
+  --scrollbar-thumb: #606068;
+  /* 3.23:1 on the page. The base layer sets `border-color: var(--rule)` on every
+     element, so a control that did not override it inherited the decorative
+     hairline value at 1.73:1 — and for a control the border IS the boundary that
+     identifies it, so WCAG 1.4.11 applies where it does not to the table rules
+     and code frames sitting beside it. Same reasoning as `--scrollbar-thumb`
+     above: the same value is right for both, so both get their own token rather
+     than borrowing a decorative one. */
+  --control-edge: #62626a;
   --scrollbar-track: var(--paper);
 
   --type-display: clamp(2.75rem, 6vw, 6rem);
@@ -89,6 +103,10 @@
   --ink-faint: #6b665e;
   --rule: #d9d4cb;
   --rule-strong: #b8b3a9;
+  /* 3.36:1 on the paper. See the dark `--control-edge` note: the same base-layer
+     default put every control's boundary at 1.92:1, where a decorative hairline
+     sits at 1.37:1. */
+  --control-edge: #8b857c;
 
   --accent: #2d4a9a;
   --accent-hover: #1e3a7a;
@@ -105,7 +123,8 @@
   --focus: #2d4a9a;
   --selection-bg: rgb(45 74 154 / 0.18);
   --selection-fg: var(--ink);
-  --scrollbar-thumb: #b8b3a9;
+  /* 3.23:1 on the light track; see the dark note on `--scrollbar-thumb`. */
+  --scrollbar-thumb: #8e887e;
   --scrollbar-track: var(--paper);
 }
 
@@ -122,6 +141,10 @@
   --color-ink-faint: var(--ink-faint);
   --color-rule: var(--rule);
   --color-rule-strong: var(--rule-strong);
+  /* Exposed so a control can opt in from markup: Tailwind's `border-rule` and the
+     base-layer default are both outranked by an unlayered utility, so a control
+     whose border is its boundary has to ask for this one by name. */
+  --color-control-edge: var(--control-edge);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
@@ -131,9 +154,14 @@
   --color-zone-d: var(--zone-d);
   --color-zone-chip-bg: var(--zone-chip-bg);
 
-  --font-serif: var(--face-serif);
-  --font-sans: var(--face-sans);
-  --font-mono: var(--face-mono);
+  /* Astro's `<Font>` declares `--face-serif/-sans/-mono` from the font
+     pipeline. Without a fallback, a blocked or deferred font pipeline leaves
+     these empty, `font-family` becomes invalid at computed-value time, and the
+     page silently drops to the UA's initial serif instead of the designed
+     fallback in DESIGN.md. */
+  --font-serif: var(--face-serif, 'Source Serif 4', Georgia, serif);
+  --font-sans: var(--face-sans, Inter, system-ui, sans-serif);
+  --font-mono: var(--face-mono, 'JetBrains Mono', ui-monospace, monospace);
 
   --radius-ui: 2px;
 
@@ -304,6 +332,24 @@
     border-color: var(--rule);
   }
 
+  /*
+   * Controls get their own boundary colour.
+   *
+   * Scoped to controls and not to `a`, because an inline link is identified by its
+   * text — a border on one is a separator, not the control's edge, and restyling
+   * every bordered link in the prose would put a 1px box around running text. A
+   * button, a `summary` or a form field has no such fallback: remove its border
+   * and the control is gone, which is exactly the case 1.4.11 covers.
+   */
+  button,
+  summary,
+  input,
+  select,
+  textarea,
+  [role='button'] {
+    border-color: var(--control-edge);
+  }
+
   html {
     font-family: var(--font-serif);
     background: var(--paper);
@@ -341,6 +387,17 @@
     border-radius: var(--radius-ui);
   }
 
+  /* Standard properties alongside the WebKit pseudo-elements below.
+     `::-webkit-scrollbar*` is Chromium-only, so Firefox was shipping a light
+     system scrollbar against a near-black ground in dark mode — a browser
+     surface that belonged to no design system. `auto` (not `thin`) keeps the
+     standard track the same 10px as the pseudo-elements so the two engines
+     agree on the reading column's usable width. */
+  html {
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: auto;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -360,9 +417,11 @@
     background: var(--ink-faint);
   }
 
-  input,
-  textarea,
-  select {
+  /* On the root, not on `input, textarea, select`. Every editable surface
+     inherits a caret, so a `contenteditable` region or a future control the
+     form-control selector does not name still gets the themed caret instead
+     of the UA default. */
+  :where(html) {
     caret-color: var(--accent);
   }
 
@@ -598,6 +657,25 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   overflow-wrap: break-word;
 }
 
+/*
+ * Measure, not hyphenation, carries a narrow column.
+ *
+ * `hyphens: auto` is right at desktop measure, where a 68ch line has room to
+ * absorb the extra characters. At 390px the shell is 358px — about 40ch — and
+ * the long technical words in this corpus are short enough to fit unbroken, so
+ * the hyphenator fires on nearly every line break and the page reads as broken
+ * typesetting rather than as a rag: four breaks in five consecutive lines
+ * ("ex-/otic", "ac-/cidental", "col-/umn", "fetch shape"). Turning the
+ * hyphenator off below `sm` loses nothing — no word in the corpus exceeds the
+ * measure — and hands the rag back to the line-breaker.
+ */
+@media (max-width: 39.999rem) {
+  .prose,
+  .prose p {
+    hyphens: none;
+  }
+}
+
 .prose ul:has(> .task-list-item) {
   list-style-type: none;
   padding-inline-start: 0;
@@ -635,8 +713,9 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
   color: var(--ink-muted);
+  /* `nowrap` is load-bearing: a citation is an evidence marker, and `[S29]`
+     split across a line break reads as two different references. */
   white-space: nowrap;
-  overflow-wrap: anywhere;
 }
 
 .prose a.citation::before {
@@ -657,14 +736,26 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   color: var(--ink);
-  white-space: normal;
-  overflow-wrap: anywhere;
+  /*
+   * `nowrap`, not `normal`. These are the force annotations — `E-Rows`,
+   * `100,000`, `5ms` — and the longest one in the corpus is seven characters,
+   * so nothing can overflow. What it does overflow is the LINE: at 390px the
+   * browser happily broke `E-Rows 1,000` at the hyphen into "E-" / "Rows 1,000",
+   * separating the label from the value it annotates. A measured value is only
+   * evidence if it stays one token.
+   */
+  white-space: nowrap;
 }
 
 .prose > p:has(> strong:only-child) {
   padding: 1rem 1.25rem;
   background: var(--accent-soft);
-  border-block: 1px solid var(--rule);
+  /* `--rule-strong`, not `--rule`. The tint is composited onto paper in both
+     themes, and `--rule` sat 1.09:1 against its own background in dark and
+     1.02:1 in light — the hairline this block is specified to carry was
+     arithmetically present and visually absent, which left a borderless
+     full-measure slab: the card the flat-elevation contract bans. */
+  border-block: 1px solid var(--rule-strong);
   font-style: italic;
   margin-block: 2rem;
 }
@@ -672,22 +763,30 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
 /*
  * Tables.
  *
- * The scroll container is the `<table>` box itself (`display: block` +
- * `overflow-x: auto`) because markdown tables arrive with no wrapper element.
- * `overscroll-behavior-x: contain` stops a horizontal swipe from chaining to
- * the document, which is what previously let a wide table widen the whole page
- * on a phone.
+ * The scroll container is the WRAPPER (`rehypeTableScroll` builds it), not the
+ * table. See `src/lib/rehype-table-scroll.mjs`: making the table itself
+ * `display: block` bought the overflow but cost the measure, because the row
+ * groups fell into an anonymous fit-content table box and the header rule and
+ * every row rule stopped at the content width instead of the column edge. The
+ * table keeps its real `display: table` box, so header, rows and cells are laid
+ * out as a table, and the wrapper owns `overflow`.
  *
  * Cell padding is uniform. The Typography plugin zeroes the inline padding of
  * the first and last cell in a row; these rules are unlayered so they win, and
  * nothing is left glued to the column edge.
  */
-.prose table {
+.prose .prose-table-scroll {
   display: block;
-  width: 100%;
   max-width: 100%;
+  margin-block: 1.5em;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+}
+
+.prose table {
+  display: table;
+  width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
   font-family: var(--font-sans);
@@ -695,7 +794,7 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
-  margin-block: 1.5em;
+  margin-block: 0;
 }
 
 .prose caption {
@@ -776,7 +875,11 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   border-radius: var(--radius-ui);
-  padding: 0.1em 0.35em;
+  /* Narrow horizontal padding on purpose. At 0.35em the chip's own gutter sat
+     between an identifier and the punctuation that follows it, so
+     `SELECT` , `JOIN` , `WHERE` , read as five detached commas rather than four
+     keywords in a list. */
+  padding: 0.1em 0.25em;
   color: var(--ink);
   hyphens: none;
   /*
@@ -802,6 +905,23 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   font-size: var(--type-ui);
   line-height: 1.45;
   color: var(--ink-muted);
+}
+
+/*
+ * A hairline frame around every code block.
+ *
+ * The frames plugin's default drop shadow is already suppressed at the source
+ * in `astro.config.mjs`, which left the frame with no edge of its own: a
+ * full-measure `#24292e` slab, and — measured — within ten luminance points of
+ * the takeaway tint, so the two read as the same box when they stacked. The
+ * hairline is what makes a plan or SQL sample read as a figure on the page
+ * rather than as a gap in it. It sits outside the frame's own padding, so the
+ * code's measure is unchanged.
+ */
+.prose .expressive-code,
+.prose figure.frame {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-ui);
 }
 
 .prose .expressive-code {
@@ -889,6 +1009,13 @@ details[data-disclosure-closing] .disclosure-icon {
   *,
   *::before,
   *::after,
+  /* The list markers this stylesheet styles (`prose-li:marker:font-mono` and
+     `text-annotation`) and the scrollbar-adjacent `::backdrop` are the two
+     pseudo-elements `*` alone does not reach. Neither animates today; the
+     selector list is here so adding motion to either is neutralised by
+     construction rather than by remembering. */
+  ::marker,
+  ::backdrop,
   details::details-content {
     animation: none !important;
     transition: none !important;

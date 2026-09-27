@@ -4,9 +4,8 @@ import {
   injectProseDisclosure,
   measureDisclosure,
   px,
-  waitForDisclosureClosed,
-  waitForDisclosureOpen,
 } from './support/disclosure.mjs';
+import { waitForDisclosureClosed, waitForDisclosureOpen } from './support/disclosure-settle.mjs';
 import { waitForStable } from './support/settle.mjs';
 import { ARTICLE } from './support/toc.mjs';
 
@@ -15,6 +14,26 @@ async function openAndSettle(details) {
   await details.locator('summary').click();
   await expect(details).toHaveAttribute('open', '');
   await waitForDisclosureOpen(details);
+}
+
+/**
+ * Click an element at its own centre with a real mouse event.
+ *
+ * Needed only where the test turns page scripting OFF. `locator.click()` gates
+ * on a bounding box sampled across animation frames, and with
+ * `javaScriptEnabled: false` that sampling never reaches its "stable" verdict in
+ * this environment — measured against a build where the element is provably at
+ * rest (identical `getBoundingClientRect()` on every sample, every animation
+ * `finished` or `paused`) and where the same click succeeds with scripting on.
+ *
+ * A coordinate click is not a weaker assertion: it still dispatches at real
+ * coordinates, so the target is hit-tested and the click is swallowed by anything
+ * overlapping it. Only Playwright's internal stability gate is skipped, and this
+ * test already asserts the geometry that gate would be protecting.
+ */
+async function clickAt(locator, page) {
+  const box = await locator.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
 /** The declared duration of the row transition, in milliseconds. */
@@ -146,7 +165,7 @@ test.describe('prose disclosure (no JS)', () => {
     );
     expect(closedHeight).toBe(0);
 
-    await (await waitForStable(shipped.locator('summary'))).click();
+    await clickAt(await waitForStable(shipped.locator('summary')), page);
     await expect(shipped).toHaveAttribute('open', '');
 
     // The content must be REACHABLE, not merely present: a collapsed row that

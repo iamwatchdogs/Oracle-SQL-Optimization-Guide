@@ -39,7 +39,15 @@ const runViteCssBuild = async (root, cssPath) => {
 let projectStylesheetCache;
 
 export const compileProjectStylesheet = () => {
-  projectStylesheetCache ??= runViteCssBuild(projectRoot, projectStylesheet);
+  projectStylesheetCache ??= runViteCssBuild(projectRoot, projectStylesheet).catch((error) => {
+    /* `??=` caches the PROMISE, so a single transient Vite failure — a temp-dir
+       collision, a lockfile race under the parallel integration suite — would
+       poison the module for the rest of the process and every later assertion
+       would see the same rejection with no chance of a retry. Drop the cache on
+       the way out so the next caller builds again. */
+    projectStylesheetCache = undefined;
+    throw error;
+  });
   return projectStylesheetCache;
 };
 

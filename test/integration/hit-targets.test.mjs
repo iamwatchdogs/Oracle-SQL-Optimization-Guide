@@ -51,10 +51,17 @@ test('breadcrumb home, the full key, and book home each carry a 24x24 hit target
   for (const text of ['Home', 'Full key', 'Book home']) {
     const anchor = elementWith(page, 'a', text);
 
-    expect(anchor).toContain('inline-flex');
+    /*
+     * `inline-block`, not `inline-flex`. The breadcrumb anchors sit in a block
+     * item beside their separator with no whitespace between them, which is what
+     * keeps the two glued — but a flex container would make the label an atomic
+     * inline that cannot share a line with the separator at all, and the whole
+     * point of the current markup is that the label wraps INSIDE the crumb while
+     * the separator stays on the first line. The floor is unchanged.
+     */
+    expect(anchor).toContain('inline-block');
     expect(anchor).toContain('min-h-6');
     expect(anchor).toContain('min-w-6');
-    expect(anchor).toContain('items-center');
   }
 });
 
@@ -78,8 +85,11 @@ test('breadcrumb intermediate anchors carry the same 24x24 hit target as Home', 
   const page = await readSource('../../src/pages/[...slug].astro');
   const [intermediate = ''] = matchesOf(page, /<a\s+href=\{item\.href\}[\s\S]*?<\/a>/u);
 
-  expect(intermediate).toContain('inline-flex min-h-6 min-w-6 items-center');
+  expect(intermediate).toContain('inline-block min-h-6 min-w-6');
   expect(intermediate).toContain('no-underline transition-colors hover:text-accent');
+  /* The regression this replaced: a nowrap crumb title was a 467px unbreakable
+   * run in a 346px column, which widened the document by 122px at 390px. */
+  expect(intermediate).not.toContain('whitespace-nowrap');
 });
 
 test('match counts stay ordinary assertion failures when nothing matches', () => {

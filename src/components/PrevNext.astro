@@ -14,7 +14,14 @@ const pagerLinkClass =
   'group flex min-w-0 flex-col gap-[0.35rem] rounded-ui border border-rule p-5 text-ink no-underline transition-colors hover:border-accent hover:bg-accent-soft hover:text-ink';
 
 const pagerTitleClass =
-  'font-serif text-pager font-semibold leading-[1.35] tracking-[-0.01em] transition-colors group-hover:text-accent';
+  'font-serif text-pager font-semibold leading-[1.35] tracking-[-0.01em] text-wrap-balance transition-colors group-hover:text-accent';
+
+/*
+ * A running head is not a card grid, and a two-line pager title that orphans its
+ * last word ("Version Drift Survival for Oracle Docs and / OSS") reads as a
+ * mistake rather than as a tight rag. `balance` only ever acts on the lines the
+ * title actually takes, so a one-line title is unaffected.
+ */
 
 /*
  * A separator between the running head and the chapter title, for the
@@ -40,11 +47,23 @@ const NameSeparator = 'sr-only';
 ---
 
 {/* The whole nav is omitted when there is nowhere to go, rather than shipping
-    an empty bordered landmark plus two anonymous spacers. */}
+    an empty bordered landmark plus two anonymous spacers.
+
+    The width is NOT set here. `ch` resolves against this element's own font, and
+    `nav` is Inter by the base layer, so a `max-w-*` on it would measure against
+    a different `ch` than the serif prose it has to align with. The caller wraps
+    it in the measure — see the note in `src/pages/[...slug].astro`.
+
+    The rule above the cells only appears when there are two of them: a
+    full-width rule over a single half-width cell left a 373px stub with nothing
+    under it at the end of the book. */}
 {prev || next ? (
   <nav
     aria-label="Book navigation"
-    class="mt-10 grid gap-3 border-t border-rule pt-8 sm:grid-cols-2"
+    class:list={[
+      'mt-10 grid gap-3 pt-8 sm:grid-cols-2',
+      prev && next ? 'border-t border-rule' : '',
+    ]}
   >
     {prev ? (
       <a href={prev.href} rel="prev" class={pagerLinkClass}>

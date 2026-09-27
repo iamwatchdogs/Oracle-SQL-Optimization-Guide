@@ -88,7 +88,14 @@ const createDisclosureContent = (children) => ({
 const countMatches = (value, pattern) => (value.match(pattern) ?? []).length;
 
 const detailsOpenTagGlobal = /<details(?=[\s/>])/giu;
-const detailsCloseTag = /<\/details\s*>/iu;
+/* Anchored to the END of the raw node, not merely present somewhere in it. The
+ * absorb loop below consumes a whole raw node once this matches, so a node that
+ * carried a stray closing tag followed by more markup — `</details>\n<p>After
+ * it</p>` — had that trailing `<p>` re-homed INSIDE the disclosure panel. No text
+ * was lost or duplicated (the range is replaced with the same node references
+ * plus the parsed fragment), but content an author wrote after the panel ended up
+ * before its end. */
+const detailsCloseTag = /<\/details\s*>$/iu;
 const detailsCloseTagGlobal = /<\/details\s*>/giu;
 
 const isBalanced = (value) =>

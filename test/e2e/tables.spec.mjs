@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { findEscapingOverflow, px } from './support/disclosure.mjs';
-import { tableMetrics } from './support/tables.mjs';
+import { computedStyles, tableMetrics } from './support/tables.mjs';
 
 /**
  * Rendered markdown tables.
@@ -40,17 +40,27 @@ test.describe('rendered tables — cascade contract', () => {
     await page.goto(TABLE_ROUTE);
   });
 
-  test('is its own horizontal scroll container', async ({ page }) => {
-    const metrics = await tableMetrics(page.locator('.prose table').first());
-    expect(metrics.display).toBe('block');
-    expect(metrics.overflowX).toBe('auto');
+  /*
+   * The scroll container is the WRAPPER `rehypeTableScroll` builds, not the table.
+   * `overflow` is not honoured on a table box, so making the table itself
+   * `display: block` bought the overflow and cost the measure: the row groups
+   * fell into an anonymous fit-content box and a two-column table rendered 239px
+   * wide inside a 647px measure. See `src/lib/rehype-table-scroll.mjs`.
+   */
+  test('the wrapper is the horizontal scroll container, and the table is not', async ({ page }) => {
+    const table = await tableMetrics(page.locator('.prose table').first());
+    expect(table.display).toBe('table');
+
+    const wrapper = await computedStyles(page, '.prose-table-scroll', ['display', 'overflow-x']);
+    expect(wrapper['display']).toBe('block');
+    expect(wrapper['overflow-x']).toBe('auto');
   });
 
   test('contains horizontal overscroll so a swipe cannot chain to the document', async ({
     page,
   }) => {
-    const metrics = await tableMetrics(page.locator('.prose table').first());
-    expect(metrics.overscrollBehaviorX).toBe('contain');
+    const wrapper = await computedStyles(page, '.prose-table-scroll', ['overscroll-behavior-x']);
+    expect(wrapper['overscroll-behavior-x']).toBe('contain');
   });
 
   test('uses the design-system UI size and face, not the plugin default', async ({ page }) => {
@@ -214,16 +224,18 @@ test.describe('rendered tables — do not widen the document', () => {
       ).toEqual([]);
     });
   }
+});
 
+test.describe('rendered tables — the scroll box at 390px', () => {
   test('keeps a wide table inside its own scroll box at 390px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/00-preface/02-how-to-prove-a-win/');
-    const tables = await page.locator('.prose table').evaluateAll((nodes) =>
-      nodes.map((table) => ({
-        boxWidth: Math.round(table.getBoundingClientRect().width),
-        clientWidth: table.clientWidth,
-        scrollWidth: table.scrollWidth,
-        overflowX: getComputedStyle(table).overflowX,
+    const tables = await page.locator('.prose-table-scroll').evaluateAll((nodes) =>
+      nodes.map((wrapper) => ({
+        boxWidth: Math.round(wrapper.getBoundingClientRect().width),
+        clientWidth: wrapper.clientWidth,
+        overflowX: getComputedStyle(wrapper).overflowX,
+        childOverflow: getComputedStyle(wrapper.firstElementChild).overflowX,
       })),
     );
     expect(tables.length).toBeGreaterThan(0);
@@ -231,6 +243,9 @@ test.describe('rendered tables — do not widen the document', () => {
       expect(table.overflowX).toBe('auto');
       // The box never exceeds its column, even when the content does.
       expect(table.boxWidth).toBeLessThanOrEqual(table.clientWidth + 1);
+      /* The child must NOT also be a scroll container: two nested axes is how a
+       * horizontal swipe on a phone stops behaving predictably. */
+      expect(table.childOverflow).toBe('visible');
     }
   });
 
@@ -240,9 +255,9 @@ test.describe('rendered tables — do not widen the document', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/00-preface/02-how-to-prove-a-win/');
     const scrollable = await page
-      .locator('.prose table')
+      .locator('.prose-table-scroll')
       .evaluateAll(
-        (nodes) => nodes.filter((table) => table.scrollWidth > table.clientWidth + 1).length,
+        (nodes) => nodes.filter((node) => node.scrollWidth > node.clientWidth + 1).length,
       );
     // If this ever hits 0 the "no overflow" assertions above have stopped
     // testing the thing they were written for.

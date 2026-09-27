@@ -8,3 +8,6 @@ test-results
 playwright-report
 blob-report
 .playwright
+
+test/probe/__shots__
+test/probe/__audit-sweep.json

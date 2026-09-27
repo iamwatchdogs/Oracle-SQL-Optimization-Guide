@@ -45,6 +45,15 @@ const dontList = listItems(designMarkdown, "Do's and Don'ts").filter((line) =>
 );
 const baseLayout = await readRepoFile('src/layouts/BaseLayout.astro');
 
+/*
+ * Template source with its comments stripped.
+ *
+ * The comment explaining the header's ABSENCE of a transition animation would
+ * otherwise satisfy the very pattern that is meant to prove it.
+ */
+const markup = (source) =>
+  source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/^\s*\/\/.*$/gmu, '');
+
 const routeLoaderMarkup = () => {
   const start = baseLayout.indexOf('data-route-loader');
 
@@ -95,26 +104,50 @@ test('the shipped reveal duration matches the shipped loader delay', () => {
   expect(LOADER_MAX_VISIBLE_MS).toBeGreaterThan(LOADER_DELAY * 10);
 });
 
-test('the loader is the only shipped opacity transition', () => {
+test('the loader is the only shipped opacity transition in the layout', () => {
   const others = baseLayout.replace(routeLoaderMarkup(), '');
 
   expect(others).not.toMatch(/transition-opacity/u);
   expect(baseLayout.match(/transition-opacity/gu)).toHaveLength(1);
 });
 
-test('both sanctioned opacity transitions ship at the same 180ms duration', () => {
+test('both sanctioned opacity transitions ship at the same 180ms duration', async () => {
   const layoutDuration = Number(
     /transition-opacity duration-\[(\d+)ms\]/u.exec(routeLoaderMarkup())?.[1],
   );
-  const routeFades = [...baseLayout.matchAll(/fade\(\{ duration: '([\d.]+)s' \}\)/gu)].map(
-    ([, seconds]) => Math.round(Number(seconds) * 1000),
+  /*
+   * The cross-fade is read from the ROUTE TEMPLATES, not the layout.
+   *
+   * DESIGN.md sanctions exactly two opacity transitions, and the cross-fade is
+   * the whole-document one the `<ClientRouter>` swap performs on the swapped
+   * content. It used to be declared on four sibling elements — two `<main>`
+   * branches and the `<header>` — which meant the persistent header chrome
+   * dissolved and re-materialised on every navigation (content entrance on
+   * furniture, and the exact thing the design world's rationale excludes) and
+   * four elements cross-faded independently instead of one page. The header
+   * declaration is now gone, and this test pins that: the count is asserted
+   * against BOTH templates, so a fourth one coming back fails here rather than
+   * shipping.
+   */
+  const templates = await Promise.all(
+    ['src/pages/[...slug].astro', 'src/pages/404.astro'].map((path) => readRepoFile(path)),
   );
+  const routeFades = templates
+    .flatMap((source) => [...source.matchAll(/fade\(\{ duration: '([\d.]+)s' \}\)/gu)])
+    .map(([, seconds]) => Math.round(Number(seconds) * 1000));
 
   expect(layoutDuration).toBe(180);
-  expect(routeFades.length).toBeGreaterThan(0);
+  expect(routeFades).toHaveLength(3);
   for (const duration of routeFades) {
     expect(duration).toBe(180);
   }
+  /* Exactly one cross-fade per page: the two mutually exclusive `<main>`
+   * branches of the catch-all plus the 404 page's own `<main>`. */
+  expect(markup(baseLayout)).not.toMatch(/transition:animate/u);
+  /* The catch-all carries two — its `<main>` is written twice for the home and
+   * interior branches, which are mutually exclusive — and 404 carries one. */
+  expect(markup(templates[0]).match(/transition:animate/gu)).toHaveLength(2);
+  expect(markup(templates[1]).match(/transition:animate/gu)).toHaveLength(1);
 });
 
 test('in-page entrance motion stays transform-only', () => {

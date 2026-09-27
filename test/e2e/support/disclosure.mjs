@@ -54,6 +54,9 @@ export function measureDisclosure(locator) {
       open: el.open,
       closing: Object.hasOwn(el.dataset, 'disclosureClosing'),
       flowHeight: flow ? +flow.getBoundingClientRect().height.toFixed(2) : null,
+      /* The height the row settles at once fully open: an open row is
+       * `grid-template-rows: 1fr`, so it ends at its content's natural height. */
+      flowNaturalHeight: flow ? flow.scrollHeight : null,
       rows: flow ? getComputedStyle(flow).gridTemplateRows : null,
       padding: inner ? getComputedStyle(inner).paddingBlock : null,
     };
@@ -97,30 +100,6 @@ export function summaryStyle(locator) {
 // returning the distinct heights seen so a caller can assert a smooth collapse
 // rather than an open->closed jump.
 /** Wait for a disclosure to finish opening, rather than sleeping a fixed time. */
-export async function waitForDisclosureOpen(locator, timeout = 3000) {
-  await expect
-    .poll(
-      async () => {
-        const state = await measureDisclosure(locator);
-        return state.open === true && state.flowHeight !== null && state.flowHeight > 1;
-      },
-      { timeout, message: 'disclosure did not settle open' },
-    )
-    .toBe(true);
-}
-
-export async function waitForDisclosureClosed(locator, timeout = 2000) {
-  await expect
-    .poll(
-      async () => {
-        const state = await measureDisclosure(locator);
-        return state.open === false && state.closing === false && (state.flowHeight ?? 0) < 1;
-      },
-      { timeout, message: 'disclosure did not settle closed' },
-    )
-    .toBe(true);
-}
-
 export function hasHorizontalOverflow(page) {
   return page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,

@@ -117,6 +117,36 @@ function createVisualSettler(state, timer, loader, busy) {
 }
 
 /*
+ * The signal-scoped exit.
+ *
+ * `wrapRouteLoader` is the one exit path Astro actually takes when a navigation
+ * is superseded, and it was wired to the UNSCOPED `cancel`. The router's
+ * `defaultLoader` swallows the abort and calls `preparationEvent.preventDefault()`
+ * when the fetch returns null, so for a superseded navigation the awaited loader
+ * RESOLVES with `defaultPrevented` true, and the superseded navigation's `cancel()`
+ * ran — against whatever navigation happened to be live by then.
+ *
+ * The ordering makes that deterministic. `transition()` aborts navigation A and
+ * dispatches navigation B's `astro:before-preparation` in the same task, so B is
+ * armed before A's aborted fetch rejects on a later microtask. A's cancel
+ * therefore always landed after B was live, and it settled B's visuals, cleared
+ * B's reveal timers, and cleared `prepared` — the flag `pageLoad` needs for the
+ * focus handoff. Measured: with a 300ms gap between two clicks, the second
+ * navigation showed no loader at all and left `document.activeElement` on
+ * `BODY` instead of `main#main`.
+ *
+ * Every other exit already gated on `isCurrentNavigation`; this one does too.
+ * Guarded by `test/unit/route-loader-superseded.test.mjs`.
+ */
+function createScopedCancel(state, cancel) {
+  return (signal) => {
+    if (state.activeSignal === signal) {
+      cancel();
+    }
+  };
+}
+
+/*
  * `pending` and `prepared` are deliberately separate.
  *
  * `pending` gates the reveal, the busy mark and the safety cap, so it is
@@ -169,6 +199,7 @@ function createNavigationState(documentRef, timer, loader, busy) {
        handoff in `pageLoad` still fires. */
     beforeSwap: settleVisuals,
     cancel,
+    cancelIfCurrent: createScopedCancel(state, cancel),
     pageLoad,
   };
 }
