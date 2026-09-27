@@ -58,7 +58,7 @@ test('returns a document-persistent controller before adding listeners', () => {
   expect(document.listenerCount('astro:after-swap')).toBe(0);
 });
 
-test('keeps the persistent guard and a single desktop landmark label', async () => {
+test('keeps the persistent guard and a uniquely labelled TOC landmark per viewport', async () => {
   const [theme, toc] = await Promise.all([
     readSource('../../src/lib/theme-controller.mjs'),
     readSource('../../src/components/ReadingToc.astro'),
@@ -69,8 +69,12 @@ test('keeps the persistent guard and a single desktop landmark label', async () 
 
   expect(theme).toContain("Symbol.for('guidebook.theme-controller')");
   expect(theme).toMatch(/documentRef\[THEME_CONTROLLER_KEY\]/u);
-  expect(desktopNav).not.toContain('aria-label');
   expect(desktopAside).toContain('aria-label={label}');
+  /* A `<nav>` is a landmark, and an unnamed one is a destination a screen-reader
+   * user cannot pick from: the landmark menu listed "navigation" three times on
+   * an interior page. The name is deliberately DIFFERENT from the mobile
+   * disclosure's so the two cannot collide. */
+  expect(desktopNav).toContain('aria-label={`${label} — in-page outline`}');
   expect(mobileNav).toContain('aria-label={mobileLandmarkLabel}');
   expect(toc).toContain('const mobileLandmarkLabel = `${label} list`;');
   expect(mobileNav).not.toContain('aria-label={label}');

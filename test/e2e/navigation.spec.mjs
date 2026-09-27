@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { SITE_NAV_SUMMARY, waitForDisclosureClosed } from './support/disclosure.mjs';
+import { SITE_NAV_SUMMARY } from './support/disclosure.mjs';
+import { waitForDisclosureClosed } from './support/disclosure-settle.mjs';
 
 test.describe('mobile navigation disclosure', () => {
   test.use({ viewport: { width: 390, height: 844 } });

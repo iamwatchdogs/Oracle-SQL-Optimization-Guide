@@ -134,25 +134,41 @@ function observeSections(entries, onActive, ObserverRef, windowRef, documentRef)
   };
 }
 
+/*
+ * Returns a disposer.
+ *
+ * `AbortController` is the tidiest way to unregister 84 listeners at once on the
+ * flagship page, but it is a dependency, not a guarantee: when it is unavailable
+ * `options` is `undefined` and the listeners had nothing to remove them. The
+ * disposers are collected explicitly so `teardown` works either way — otherwise
+ * every Astro navigation stacked another 84 handlers on a persistent panel, each
+ * closing the mobile disclosure and re-anchoring against a stale document.
+ */
 function closeMobileOnJump(entries, mobile, signal, windowRef, documentRef) {
+  const handlers = [];
+
   for (const entry of entries) {
-    const options = signal ? { signal } : undefined;
-    entry.link.addEventListener?.(
-      'click',
-      () => {
-        if (mobile?.open && windowRef.matchMedia?.('(max-width: 1023px)')?.matches) {
-          const id = entry.id;
-          mobile.open = false;
-          reanchorAfterSettle({
-            container: mobile,
-            resolveTarget: () => findById(documentRef, id),
-            windowRef,
-          });
-        }
-      },
-      options,
-    );
+    const handler = () => {
+      if (mobile?.open && windowRef.matchMedia?.('(max-width: 1023px)')?.matches) {
+        const id = entry.id;
+        mobile.open = false;
+        reanchorAfterSettle({
+          container: mobile,
+          resolveTarget: () => findById(documentRef, id),
+          windowRef,
+        });
+      }
+    };
+    entry.link.addEventListener?.('click', handler, signal ? { signal } : undefined);
+    handlers.push([entry.link, handler]);
   }
+
+  return () => {
+    for (const [link, handler] of handlers) {
+      link.removeEventListener?.('click', handler);
+    }
+    handlers.length = 0;
+  };
 }
 
 /*
@@ -203,7 +219,13 @@ function createPageLoad({
     );
     state.linkController =
       typeof AbortControllerRef === 'function' ? new AbortControllerRef() : null;
-    closeMobileOnJump(entries, mobile, state.linkController?.signal, windowRef, documentRef);
+    state.removeJumpHandlers = closeMobileOnJump(
+      entries,
+      mobile,
+      state.linkController?.signal,
+      windowRef,
+      documentRef,
+    );
   };
 }
 
@@ -226,10 +248,12 @@ export function createReadingTocController(
     return existing;
   }
 
-  const state = { observer: null, linkController: null };
+  const state = { observer: null, linkController: null, removeJumpHandlers: null };
   const teardown = () => {
     state.observer?.disconnect();
     state.observer = null;
+    state.removeJumpHandlers?.();
+    state.removeJumpHandlers = null;
     state.linkController?.abort();
     state.linkController = null;
   };

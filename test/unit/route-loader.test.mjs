@@ -8,13 +8,15 @@ import {
   visibleAttribute,
 } from '../fixtures/route-loader.fixtures.mjs';
 
-test('exposes the native hooks and cancel', () => {
+test('exposes the native hooks and the two cancellation scopes', () => {
   const { controller } = createHarness();
 
+  /* `cancelIfCurrent` is the signal-scoped exit; see `test/unit/route-loader-superseded.test.mjs`. */
   expect(Object.keys(controller).toSorted()).toEqual([
     'beforePreparation',
     'beforeSwap',
     'cancel',
+    'cancelIfCurrent',
     'pageLoad',
   ]);
 });

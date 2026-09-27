@@ -8,7 +8,26 @@
  */
 
 /**
- * Computed metrics for one table: the box, its scroll box, and six cells.
+ * Computed styles for the first match of `selector`, keyed by kebab-case name.
+ *
+ * Used for the scroll WRAPPER, which is not the element `tableMetrics` describes.
+ * Reading the values the layout engine resolved is the whole point — see the file
+ * note on cascade layers.
+ */
+export function computedStyles(page, selector, properties) {
+  return page
+    .locator(selector)
+    .first()
+    .evaluate(
+      (node, names) =>
+        Object.fromEntries(
+          names.map((name) => [name, getComputedStyle(node).getPropertyValue(name)]),
+        ),
+      properties,
+    );
+}
+
+/** Computed metrics for one table: the box, its scroll box, and six cells.
  *
  * `box` is declared *inside* the callback on purpose. A `locator.evaluate`
  * callback is serialised and re-parsed in the browser, so it closes over

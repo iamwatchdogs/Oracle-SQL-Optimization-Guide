@@ -7,6 +7,7 @@ import {
   summaryMarker,
   summaryStyle,
 } from './support/disclosure.mjs';
+import { waitForDisclosureSettled } from './support/disclosure-settle.mjs';
 
 /**
  * Disclosure / accordion.
@@ -126,15 +127,43 @@ async function evidenceKeyOpensOnDeepLink({ page }) {
   await page.goto('/#evidence-key');
   const details = page.locator(EVIDENCE_KEY);
   await expect(details).toHaveAttribute('open', '');
-  // `:target, [id] { scroll-margin-top: 5.5rem }` plus a re-anchor after the
-  // panel grows, so the key is not left above the fold or under the header.
-  const box = await details.boundingBox();
+
+  /*
+   * Poll the ANCHOR itself, not the row's height.
+   *
+   * `:target, [id] { scroll-margin-top: 5.5rem }` plus a re-anchor after the panel
+   * grows, so the key must come to rest clear of the header and below the fold.
+   * The row reaching its natural height is not that condition: the re-anchor runs
+   * on the frame after, so a `boundingBox()` read gated on the height is still a
+   * read from before the jump — which is where a reader is never left, and why this
+   * flaked on Chromium and WebKit while always passing in a quiet browser.
+   *
+   * Polling the asserted property is not a weaker assertion. A missing, late or
+   * wrongly aimed re-anchor never satisfies it, so the poll still fails — the
+   * message below shows the worst position seen while it waited.
+   */
   const headerHeight = await page
     .locator('header')
     .first()
     .evaluate((el) => el.getBoundingClientRect().height);
-  expect(box).not.toBeNull();
-  expect(box.y).toBeGreaterThanOrEqual(headerHeight - 1);
+
+  let worstSeen = Number.NEGATIVE_INFINITY;
+  await expect
+    .poll(
+      async () => {
+        const box = await details.boundingBox();
+        worstSeen = Math.max(worstSeen, box?.y ?? Number.NEGATIVE_INFINITY);
+        return box?.y ?? Number.NEGATIVE_INFINITY;
+      },
+      {
+        timeout: 2000,
+        message: () =>
+          `the evidence key never settled anchored (best top: ${worstSeen}px, header: ${headerHeight}px)`,
+      },
+    )
+    .toBeGreaterThanOrEqual(headerHeight - 1);
+
+  await waitForDisclosureSettled(details);
 }
 
 /**

@@ -73,7 +73,7 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
           {title}
         </h1>
 
-        <p class="rise rise-2 mb-8 max-w-[42ch] font-sans text-abstract leading-relaxed text-ink-muted">
+        <p class="rise rise-2 mb-8 max-w-[42ch] font-sans text-abstract leading-[1.6] text-ink-muted">
           {description}
         </p>
 
@@ -86,7 +86,7 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
       </div>
 
       <aside
-        class="rise rise-4 pt-2 lg:border-l lg:border-rule lg:pl-8 lg:pt-0 lg:text-right"
+        class="rise rise-4 pt-2 lg:self-end lg:border-l lg:border-rule lg:pl-8 lg:pt-0 lg:pb-1 lg:text-right"
         aria-label="Publication metadata"
       >
         <dl class="meta space-y-2">
@@ -197,7 +197,17 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
 </script>
 
 <section class="mx-auto mt-0 w-shell pb-16" aria-labelledby="contributions-heading">
-  <div class="max-w-contributions">
+  {/*
+    `mx-auto` on the measure. The list and the prose below it are both centred on
+    the page's axis, and they have to be: the list is 832px and the prose is
+    648px, so left-aligning each against the shell put their centre lines 160px
+    apart and their left edges 252px apart. Reading down the page the rules
+    stair-stepped — inset 144px for the list, inset 396px for the prose — and the
+    two regions were not concentric with each other or with the title block above
+    them. Centring is the honest resolution: a preprint's contents list and its
+    abstract are the same width in the best cases and concentric in all of them.
+  */}
+  <div class="mx-auto max-w-contributions">
     <div class="border-b border-rule-strong pt-10 pb-4">
       <h2 id="contributions-heading" class="running-head text-ink-muted text-xs">
         Contents · {contributions.length} {sectionWord}
@@ -218,7 +228,7 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
               {String(i + 1).padStart(2, '0')}
             </span>
             <span class="min-w-0">
-              <span class="block font-serif text-contribution font-semibold tracking-[-0.01em] transition-colors group-hover:text-accent">
+              <span class="block font-serif text-contribution font-semibold leading-[1.4] tracking-[-0.01em] transition-colors group-hover:text-accent">
                 {c.title}
               </span>
               {c.description && (
