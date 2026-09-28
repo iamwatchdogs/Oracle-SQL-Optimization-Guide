@@ -3,7 +3,16 @@ import { expect } from '@playwright/test';
 // Selectors for the real, shipped disclosure markup.
 export const PROSE_DETAILS = 'article.prose details';
 export const EVIDENCE_KEY = '#evidence-key';
-export const SITE_NAV_SUMMARY = 'header details > summary';
+export const SITE_NAV = 'header #site-nav';
+/*
+ * The header ships TWO disclosures now — the section list and the reading
+ * preferences — so a bare `header details` resolves to both and every assertion
+ * built on it became ambiguous the day the second control landed. `#site-nav` is
+ * the stable hook, and it is on the `<details>` rather than derived from its
+ * position, so reordering the header's controls cannot silently retarget a test.
+ */
+export const SITE_NAV_SUMMARY = `${SITE_NAV} > summary`;
+export const READING_PREFS = 'header #reading-prefs';
 export const MOBILE_TOC = '[data-toc-mobile]';
 export const THEME_TOGGLE = '#theme-toggle';
 
@@ -12,11 +21,20 @@ export const THEME_TOGGLE = '#theme-toggle';
  * The disclosure stylesheet is scoped to the `details` element rather than to
  * `.prose` precisely because none of these live inside the article body — a
  * regression that re-scopes the CSS to `.prose` must fail here.
+ *
+ * The reading preferences are the fourth, and they are the one that ships
+ * everywhere rather than on a single route.
  */
 export const SHIPPED_DISCLOSURES = [
-  { name: 'site navigation', route: '/', selector: 'header details' },
-  { name: 'evidence key', route: '/', selector: '#evidence-key' },
-  { name: 'mobile table of contents', route: '/00-preface/', selector: MOBILE_TOC },
+  { name: 'site navigation', route: '/', selector: SITE_NAV, dropdown: true },
+  { name: 'reading preferences', route: '/00-preface/', selector: READING_PREFS, dropdown: true },
+  { name: 'evidence key', route: '/', selector: EVIDENCE_KEY, dropdown: false },
+  {
+    name: 'mobile table of contents',
+    route: '/00-preface/',
+    selector: MOBILE_TOC,
+    dropdown: false,
+  },
 ];
 
 const DISCLOSURE_MARKUP = `

@@ -96,22 +96,48 @@ const createClosingState = (timers) => {
   };
 };
 
-export function bindDisclosureController(dependencies = {}) {
-  const isDocument = typeof dependencies?.querySelector === 'function';
-  const documentRef = isDocument ? dependencies : (dependencies.document ?? globalThis.document);
-  const windowRef =
-    dependencies.window ??
-    (isDocument ? dependencies.defaultView : documentRef?.defaultView) ??
-    globalThis.window;
-  const persistent = getDocumentController(documentRef);
-  if (persistent) {
-    return persistent;
+/*
+ * Close a disclosure that is already open, on the same animated path a click on
+ * its own summary takes — so the row collapses, the padding releases and the
+ * `transitionend` finalisation all still happen, and whatever is reading
+ * `data-disclosure-closing` (the scroll re-anchors) sees a close rather than a
+ * disappearance.
+ *
+ * This exists for the dismissal rules in `dropdown-dismiss.mjs`, which close a
+ * panel the reader did not click the trigger of. Those cannot just set
+ * `details.open = false`: that skips the row animation and the padding release
+ * entirely, so a panel dismissed by an outside click would leave the padding it
+ * opened with, and `waitForDisclosureClosed` would never see `closing === false`
+ * because `closing` was never set.
+ *
+ * Unlike the click path this does NOT treat a close already in flight as a
+ * cancel. A cancel is a reader changing their mind about a control they can see;
+ * a dismissal arriving while the panel is already folding away is redundant, and
+ * honouring it would leave the panel open because the trigger's click would then
+ * read as "second click while closing".
+ */
+const createCloseRequester = (state) => (details) => {
+  if (!details || details.open !== true || state.isClosing(details)) {
+    return false;
   }
-  if (!documentRef) {
-    return { beforeSwap() {} };
+  const flow = findFlow(details);
+  if (!flow) {
+    return false;
   }
+  state.begin(details, flow);
+  return true;
+};
 
-  const state = createClosingState(getTimerFunctions(dependencies.timers, windowRef, dependencies));
+/*
+ * The three document handlers, built once per bind.
+ *
+ * Split out of `bindDisclosureController` so the behaviour is readable in one pass:
+ * a click on a DIRECT summary of an open `<details>` that has a flow is a close, a
+ * `grid-template-rows` transition ending is that close finishing, and a swap
+ * abandons whatever is pending. The listeners are registered here rather than at
+ * the call site so there is one place that decides what this module listens to.
+ */
+const createHandlers = (documentRef, windowRef, state) => {
   const onClick = (event) => {
     if (prefersReducedMotion(windowRef)) {
       return;
@@ -142,7 +168,57 @@ export function bindDisclosureController(dependencies = {}) {
   documentRef.addEventListener?.('transitionend', onTransitionEnd);
   documentRef.addEventListener?.('astro:before-swap', onBeforeSwap);
 
-  const controller = { beforeSwap: onBeforeSwap, click: onClick, transitionEnd: onTransitionEnd };
+  return { onBeforeSwap, onClick, onTransitionEnd };
+};
+
+export function bindDisclosureController(dependencies = {}) {
+  const isDocument = typeof dependencies?.querySelector === 'function';
+  const documentRef = isDocument ? dependencies : (dependencies.document ?? globalThis.document);
+  const windowRef =
+    dependencies.window ??
+    (isDocument ? dependencies.defaultView : documentRef?.defaultView) ??
+    globalThis.window;
+  const persistent = getDocumentController(documentRef);
+  if (persistent) {
+    return persistent;
+  }
+  if (!documentRef) {
+    return { beforeSwap() {} };
+  }
+
+  const state = createClosingState(getTimerFunctions(dependencies.timers, windowRef, dependencies));
+  const { onBeforeSwap, onClick, onTransitionEnd } = createHandlers(documentRef, windowRef, state);
+
+  const controller = {
+    beforeSwap: onBeforeSwap,
+    click: onClick,
+    requestClose: createCloseRequester(state),
+    transitionEnd: onTransitionEnd,
+  };
   setDocumentController(documentRef, controller);
   return controller;
+}
+
+/**
+ * Ask the bound disclosure controller to close `details`, animated.
+ *
+ * Returns `true` when a close was started, `false` when there was nothing to close
+ * — no controller bound, not a `<details>`, not open, no `.disclosure-flow`, or a
+ * close already in flight.
+ *
+ * Falls back to closing natively when the controller is not bound, because a
+ * dismissal rule that does nothing when the module it delegates to is absent is
+ * worse than a dismissal without animation: the reader's pointer went somewhere
+ * else and the panel stayed up.
+ */
+export function requestDisclosureClose(details, documentRef) {
+  const controller = getDocumentController(documentRef ?? globalThis.document);
+  if (controller?.requestClose?.(details)) {
+    return true;
+  }
+  if (controller || details?.open !== true) {
+    return false;
+  }
+  details.open = false;
+  return true;
 }

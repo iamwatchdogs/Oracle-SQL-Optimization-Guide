@@ -9,7 +9,7 @@ test.describe('mobile navigation disclosure', () => {
     await page.goto('/02-papers-behind-recipes/02-oracles-own-papers/');
     await page.waitForLoadState('networkidle');
 
-    const details = page.locator('header details').first();
+    const details = page.locator('header #site-nav');
     const summary = page.locator(SITE_NAV_SUMMARY).first();
     const panel = summary.locator('xpath=following-sibling::*[1]');
 

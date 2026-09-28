@@ -9,7 +9,7 @@
  *    the scroll container: `display: block; overflow-x: auto`. That is exactly
  *    what this stylesheet used to do, and it is why one wide table once pushed
  *    a 390px phone to 914px.
- * 2. It must fill the 68ch measure, so its header rule and row rules share a
+ * 2. It must fill the 70ch measure, so its header rule and row rules share a
  *    right edge with the prose around it.
  *
  * Those are mutually exclusive in CSS. `overflow` is only honoured on a block

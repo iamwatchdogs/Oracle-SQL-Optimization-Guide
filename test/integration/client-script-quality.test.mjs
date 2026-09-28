@@ -238,13 +238,15 @@ test('a noindex page emits the robots meta and a normal page does not', async ()
  * assertions close that gap by checking the two halves against each other.
  */
 test('every route-loader querySelector resolves against a shipped template', async () => {
-  const [controller, layout, page, notFound] = await Promise.all([
+  const [controller, skeleton, page, notFound] = await Promise.all([
     readSource('../../src/lib/route-loader.mjs'),
-    readSource('../../src/layouts/BaseLayout.astro'),
+    /* The loader's markup is `RouteSkeleton.astro`'s, not the layout's — the
+       layout renders the component. */
+    readSource('../../src/components/RouteSkeleton.astro'),
     readSource('../../src/pages/[...slug].astro'),
     readSource('../../src/pages/404.astro'),
   ]);
-  const templates = [layout, page, notFound].join('\n');
+  const templates = [skeleton, page, notFound].join('\n');
   const selectors = [
     ...new Set(
       [...controller.matchAll(/querySelector\?\.\('([^']+)'\)/gu)].map(([, selector]) => selector),
@@ -268,8 +270,8 @@ test('every route-loader querySelector resolves against a shipped template', asy
   };
 
   for (const selector of selectors) {
-    /* Both halves of every `a ?? b` pair must exist somewhere; a single rename
-     * of the preferred half still resolves through its fallback. */
+    /* Both halves of every `a ?? b` pair must exist; a rename of the preferred
+     * half still resolves through its fallback. */
     for (const half of selector.split(',').map((part) => part.trim())) {
       expect(templates).toContain(anchors[half]);
     }
@@ -279,21 +281,20 @@ test('every route-loader querySelector resolves against a shipped template', asy
   expect(page).toMatch(/<main\b[\s\S]{0,200}id="main"/u);
 });
 
-test('the loader attribute the controller writes is the one the layout reveals on', async () => {
-  const [controller, layout] = await Promise.all([
+test('the loader attribute the controller writes is the one the skeleton reveals on', async () => {
+  const [controller, skeleton] = await Promise.all([
     readSource('../../src/lib/route-loader.mjs'),
-    readSource('../../src/layouts/BaseLayout.astro'),
+    readSource('../../src/components/RouteSkeleton.astro'),
   ]);
-  const loader = layout.match(/<div\s+id="route-loader"[\s\S]*?>/u)?.[0] ?? '';
+  const loader = skeleton.match(/<div\s+id="route-loader"[\s\S]*?>/u)?.[0] ?? '';
 
-  /* The utility is an attribute selector, so a JS-only write can never reveal
-   * the skeleton even when the state machine is correct. */
   expect(controller).toContain(`setAttribute?.('data-visible'`);
+  /* The reveal is an attribute selector, so a JS-only write can never show the
+   * skeleton even when the state machine is right. The skeleton is decorative, so
+   * a viewport-wide click blocker mid-navigation is worse than missing feedback. */
   expect(loader).toContain('data-visible="false"');
   expect(loader).toContain('data-[visible=true]:opacity-100');
   expect(loader).toContain('transition-opacity');
   expect(loader).toContain('opacity-0');
-  /* The skeleton is decorative; a viewport-wide click blocker over the content
-   * mid-navigation is worse than the missing feedback. */
   expect(loader).toContain('pointer-events-none');
 });

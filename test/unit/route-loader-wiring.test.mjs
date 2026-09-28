@@ -59,7 +59,9 @@ test('the reveal cap and the reveal gate are cleared by the same call', () => {
 
 test('BaseLayout wraps the loader only after setting pending state', () => {
   const source = layoutSource();
-  const preparation = 'controller.beforePreparation(event.signal);';
+  /* The destination rides along, so the skeleton can be shaped for the page being
+     loaded before the fetch resolves. */
+  const preparation = 'controller.beforePreparation(event.signal, event.to);';
   const wrapping = 'event.loader = wrapRouteLoader(';
   const prevented = '() => event.defaultPrevented';
 

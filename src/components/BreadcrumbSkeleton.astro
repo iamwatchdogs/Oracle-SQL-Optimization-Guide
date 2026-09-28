@@ -1,0 +1,65 @@
+---
+/*
+ * The breadcrumb stand-in.
+ *
+ * Split out because a notebook and a section index both open with one, and the
+ * whole point of the skeleton is that these are the SAME rows the page will
+ * render — copied containers, bars where the text goes. Two copies of this
+ * markup in `RouteSkeleton.astro` were two chances for the two page types to
+ * drift apart, which is the exact failure the skeleton exists to prevent.
+ *
+ * The crumb SHAPES are load-bearing, and not as decoration. The real nav is a
+ * `flex-wrap items-baseline` row of 13px items, so the row is as tall as its
+ * tallest item, and the row's height is whatever its own titles wrap to: 21.4px for
+ * a one-row trail, 41.4px for one that wraps to two, 69.4px for three. Every bar
+ * here is `h-[0.8125rem]` inside the trail's own `.meta` context — mono, uppercase,
+ * `--type-mono` — so it IS the real label's line box at any viewport and at any of
+ * the reader's text scales, and the trail below lands on the article header by
+ * itself. A `min-h` would have got the one-row case right and been 28px out on
+ * every phone.
+ *
+ * The last crumb used to be a `/` separator on one line and a `block` `text-sm`
+ * title on the next, because the real one was too: a 41.4px row for a 21.4px
+ * label, with a serif title on a second line box that moved at a different rate
+ * from the mono separator's. The real trail now puts the title back on the
+ * separator's line and onto the mono register, so the shape here has to as well —
+ * `inline-block max-w-full`, and no `font-serif text-sm`, which would reintroduce
+ * both the stranded separator and a second line box.
+ *
+ * The separator is INSIDE its label for the same reason it is there on the page: a
+ * label is an `inline-block`, which is atomic, so a label too long for the space
+ * left on its line moves to the next one whole and leaves the separator stranded
+ * above it. Sharing a flex item does not prevent that.
+ *
+ * The wrapper is capped at the measure, and in the body face, for the same reason
+ * the real nav is: the trail shares the article's right edge, and a stand-in that
+ * ran to the reading TRACK instead would be 70px wider than the row it is standing
+ * in for. `font-serif` is load-bearing here for the same reason it is there — `ch`
+ * resolves against the element's own font, and `--measure` is in characters.
+ */
+
+import { SKELETON_BAR as bar } from '../lib/route-skeleton.mjs';
+
+/* `Home`, then the section, then the page: the real nav's order and count. */
+const separator = `${bar} mr-1 inline-block h-[0.8125rem] w-[0.125rem] translate-y-[0.15rem] align-baseline`;
+const label = (width: string) => `${bar} inline-block h-[0.8125rem] translate-y-[0.15rem] ${width}`;
+---
+
+<div class="mb-6 max-w-measure font-serif" data-skeleton-row="breadcrumb">
+  <div class="meta m-0 flex list-none flex-wrap items-baseline gap-x-1 gap-y-1 p-0">
+    <div class="min-w-0">
+      <span class={`${label('w-16')} min-h-6 min-w-6`}></span>
+    </div>
+    <div class="min-w-0">
+      <span class={`${label('w-28')} min-h-6 min-w-6`}>
+        <span class={separator}></span>
+      </span>
+    </div>
+    <div class="min-w-0">
+      <span class="inline-block max-w-full truncate">
+        <span class={separator}></span>
+        <span class={`${bar} inline-block h-[0.8125rem] w-[22ch]`}></span>
+      </span>
+    </div>
+  </div>
+</div>

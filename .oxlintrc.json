@@ -53,7 +53,8 @@
       "files": ["test/e2e/**/*.mjs"],
       "rules": {
         "unicorn/consistent-function-scoping": "off",
-        "unicorn/prefer-number-coercion": "off"
+        "unicorn/prefer-number-coercion": "off",
+        "no-await-in-loop": "off"
       }
     },
     {

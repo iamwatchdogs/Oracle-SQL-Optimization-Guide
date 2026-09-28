@@ -74,23 +74,38 @@
     "motion": [
       {
         "name": "rise-in",
-        "value": "translateY(10px) → 0, 500ms cubic-bezier(0.22, 1, 0.36, 1)",
-        "purpose": "Home title-block entrance; transform-only, resting state visible."
+        "value": "translateY(10px) \u2192 0, 500ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Home title-block entrance; transform-only, resting state visible. Plays once per document, gated on data-title-entrance, so a client navigation cannot restart a 740ms stagger underneath a 180ms cross-fade."
       },
       {
         "name": "route-fade",
-        "value": "fade, 180ms",
-        "purpose": "Sanctioned opacity #1: Astro ClientRouter whole-page cross-fade on route swap, 180ms. Navigation feedback, never content entrance."
+        "value": "out 180ms cubic-bezier(0.4,0,1,1); in 260ms cubic-bezier(0,0,0.2,1) after a 140ms delay; view-transition groups 260ms cubic-bezier(0.22,1,0.36,1)",
+        "purpose": "Sanctioned opacity #1: the whole-page route fade. Out then in rather than a symmetric cross-fade, so the reader gets the moment the old page is gone; the 40ms overlap is a dissolve, not a flash. 400ms total. Retimed with longhands, because the UA's mix-blend-mode animation shares those pseudo-elements and a shorthand would take the anti-dip blending with it."
       },
       {
         "name": "disclosure",
-        "value": "grid-template-rows 0fr → 1fr, 280ms cubic-bezier(0.22, 1, 0.36, 1); caret rotate 0° → 45°",
-        "purpose": "Native details/summary Research Notes; opens and closes symmetrically."
+        "value": "grid-template-rows 0fr \u2192 1fr, 280ms cubic-bezier(0.22, 1, 0.36, 1) with a 40ms delay in both directions; caret rotate 0\u00b0 \u2192 45\u00b0 on the same delay",
+        "purpose": "Native details/summary Research Notes; opens and closes symmetrically. The row, the glyph and the padding release all share one 40ms delay from --disclosure-delay, because 280ms of travel with no latency reads as a removal rather than a fold. The two header dropdowns additionally dismiss on an outside press, on focus leaving, and on Escape \u2014 on the shared animated path, never by setting open=false, which would skip the collapse and the padding release the summary-click close gets."
       },
       {
         "name": "loader-reveal",
         "value": "transition-opacity, 180ms",
         "purpose": "Sanctioned opacity #2: persistent route loader state reveal, 180ms. In-flight navigation feedback, never content entrance."
+      },
+      {
+        "name": "rail-collapse",
+        "value": "grid-template-columns 280px \u2194 0px and gap 280ms cubic-bezier(0.22, 1, 0.36, 1); the control's translate into the gutter, 280ms, and its arrow rotate 180deg",
+        "purpose": "Collapsing the TOC rail. Layout and transform only. One control, not two: it slides from the rail's right edge into the gutter and its arrow turns to face the way the rail went, so the press and its consequence are one object moving. The visible chip is 28px inside a 44px hit area, the header's own icon-button treatment."
+      },
+      {
+        "name": "dropdown-dismiss",
+        "value": "no animation of its own; reuses the disclosure close",
+        "purpose": "Outside press, focus leaving, or Escape on the two header dropdowns. State, not motion: the dismissal is what makes a panel snappy and the delay is what keeps it smooth. The evidence key and the mobile outline ship the same markup and do not dismiss."
+      },
+      {
+        "name": "prose-rhythm",
+        "value": "calc(var(--type-body) * 1.6) \u2014 28.8px at the default size",
+        "purpose": "The gap between blocks of the article, as a LENGTH rather than an em. An em resolves against the element's own font-size, so a paragraph got 22.5px and a code frame 18px from the same declaration, and the heaviest block on the page was separated by less space than a paragraph got. One length on :root, inherited identically everywhere, and still moving with --type-scale because it is built on --type-body. About one line box: a paragraph break is a blank line."
       }
     ],
     "breakpoints": [
@@ -109,23 +124,23 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Single solid accent control — Begin at Preface.",
-      "html": "<a class=\"ds-btn-primary\" href=\"/00-preface/\">Begin at Preface →</a>",
+      "description": "Single solid accent control \u2014 Begin at Preface.",
+      "html": "<a class=\"ds-btn-primary\" href=\"/00-preface/\">Begin at Preface \u2192</a>",
       "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:8px;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1;padding:14px 24px;background:#8aa4ff;color:#0c0c0e;border:1px solid #8aa4ff;border-radius:2px;text-decoration:none;transition:background 150ms ease,transform 150ms ease}.ds-btn-primary:hover{background:#a3b8ff;transform:translateY(-1px)}.ds-btn-primary:focus-visible{outline:2px solid #8aa4ff;outline-offset:3px}"
     },
     {
       "name": "Ghost Button",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "Secondary control — Jump to techniques, Theme toggle.",
+      "description": "Header triggers \u2014 Sections, Reading, Theme. No box at rest: the label identifies the control, so 1.4.11 has nothing to require, and the box returns on hover, open and focus-visible at --control-edge. A 1px transparent border keeps the box model reserved so the edge appearing moves nothing.",
       "html": "<a class=\"ds-btn-ghost\" href=\"/01-proven-techniques/\">Jump to techniques</a>",
-      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;gap:8px;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:500;line-height:1;padding:12px 20px;background:transparent;color:#ece8e0;border:1px solid #3a3a40;border-radius:2px;text-decoration:none;transition:border-color 150ms ease,color 150ms ease}.ds-btn-ghost:hover{border-color:#8aa4ff;color:#8aa4ff}"
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;gap:8px;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:500;line-height:1;padding:0 12px;min-height:44px;background:transparent;color:#a8a49c;border:1px solid transparent;border-radius:2px;transition:border-color .18s,color .18s}.ds-btn-ghost:hover,.ds-btn-ghost:focus-visible{border-color:#62626a;color:#8aa4ff}"
     },
     {
       "name": "Grade Chip",
       "kind": "chip",
       "refersTo": "grade-chip",
-      "description": "Zone-ramp evidence grade badge (A1–D).",
+      "description": "Zone-ramp evidence grade badge (A1\u2013D).",
       "html": "<span class=\"ds-grade-chip\" data-zone=\"a\">A1</span>",
       "css": ".ds-grade-chip{display:inline-flex;align-items:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:0.06em;text-transform:uppercase;line-height:1;padding:4px 6px;border:1px solid currentColor;border-radius:2px;background:rgba(236,232,224,0.06);white-space:nowrap}.ds-grade-chip[data-zone=\"a\"]{color:#e0dbd2}.ds-grade-chip[data-zone=\"b\"]{color:#b8b3a9}.ds-grade-chip[data-zone=\"c\"]{color:#aaa59c}.ds-grade-chip[data-zone=\"d\"]{color:#9e998f}"
     },
@@ -142,7 +157,7 @@
       "kind": "custom",
       "refersTo": "custom",
       "description": "Home numbered contents row with proof line.",
-      "html": "<a class=\"ds-contribution\" href=\"/00-preface/\"><span class=\"n\">01</span><span><span class=\"t\">Preface - Trust Runs, Not Rumors</span><span class=\"d\">How this book grades evidence…</span></span></a>",
+      "html": "<a class=\"ds-contribution\" href=\"/00-preface/\"><span class=\"n\">01</span><span><span class=\"t\">Preface - Trust Runs, Not Rumors</span><span class=\"d\">How this book grades evidence\u2026</span></span></a>",
       "css": ".ds-contribution{display:grid;grid-template-columns:40px 1fr;gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid #2a2a2e;text-decoration:none;color:#ece8e0;transition:background 150ms ease}.ds-contribution:hover{background:rgba(138,164,255,0.12);color:#ece8e0}.ds-contribution .n{font-family:'JetBrains Mono',monospace;font-size:13px;font-variant-numeric:tabular-nums;color:#9a958c}.ds-contribution .t{display:block;font-family:'Source Serif 4',Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-0.01em}.ds-contribution:hover .t{color:#8aa4ff}.ds-contribution .d{display:block;font-family:Inter,system-ui,sans-serif;font-size:14px;color:#a8a49c;margin-top:4px}"
     },
     {
@@ -150,15 +165,15 @@
       "kind": "custom",
       "refersTo": "custom",
       "description": "Home first-viewport preprint title block with metadata margin.",
-      "html": "<section class=\"ds-title-block\"><h1>Oracle SQL Optimization for Junior Devs</h1><p class=\"abstract\">Prove every speed win twice…</p><div class=\"actions\"><a class=\"ds-btn-primary\">Begin at Preface →</a></div><aside class=\"meta\">68 catalog entries<br>A1 A2 B1 B2 C1 C2 D</aside></section>",
+      "html": "<section class=\"ds-title-block\"><h1>Oracle SQL Optimization for Junior Devs</h1><p class=\"abstract\">Prove every speed win twice\u2026</p><div class=\"actions\"><a class=\"ds-btn-primary\">Begin at Preface \u2192</a></div><aside class=\"meta\">68 catalog entries<br>A1 A2 B1 B2 C1 C2 D</aside></section>",
       "css": ".ds-title-block{border-block:1px solid #3a3a40;padding-block:clamp(2.5rem,6vw,4.5rem);display:grid;grid-template-columns:1fr auto;gap:4rem}.ds-title-block h1{font-family:'Source Serif 4',Georgia,serif;font-size:clamp(2.75rem,6vw,6rem);font-weight:700;line-height:1.05;letter-spacing:-0.03em;margin:0 0 1.25rem;color:#ece8e0}.ds-title-block .abstract{font-family:Inter,system-ui,sans-serif;color:#a8a49c;max-width:42ch;margin-bottom:2rem}.ds-title-block .meta{font-family:'JetBrains Mono',monospace;font-size:13px;text-transform:uppercase;letter-spacing:0.02em;color:#9a958c;border-left:1px solid #2a2a2e;padding-left:2rem;text-align:right}"
     }
   ],
   "narrative": {
     "northStar": "The Academic Preprint",
-    "overview": "A scholarly reading surface for junior developers learning evidence-graded Oracle SQL tuning. The world borrows the apparatus of a research preprint — title block, numbered contributions, running heads, zone-ramped evidence grades — and makes it navigable as a 37-page web book. Dark near-black paper is the default ground; light mode is a full palette swap. Structure comes from hairline rules, mono tabular metadata, and one solid accent for the primary path.",
+    "overview": "A scholarly reading surface for junior developers learning evidence-graded Oracle SQL tuning. The world borrows the apparatus of a research preprint \u2014 title block, numbered contributions, running heads, zone-ramped evidence grades \u2014 and makes it navigable as a 37-page web book. Dark near-black paper is the default ground; light mode is a full palette swap. Structure comes from hairline rules, mono tabular metadata, and one solid accent for the primary path.",
     "keyCharacteristics": [
-      "Near-black paper with stepped neutral zone ramp (A1–D) for evidence grades",
+      "Near-black paper with stepped neutral zone ramp (A1\u2013D) for evidence grades",
       "Source Serif 4 for reading/display; Inter for UI chrome; JetBrains Mono for grades and measured figures",
       "One restrained ink accent for primary action and active wayfinding only",
       "Hairline title-block framing and rules instead of cards",
@@ -178,7 +193,7 @@
       },
       {
         "name": "Flat by Contract",
-        "body": "No authored box-shadows exist in any theme, and Expressive Code frames are flat. Depth is tonal: paper → raised → sunken, separated by 1px hairlines and never by blur or offset shadows.",
+        "body": "No authored box-shadows exist in any theme, and Expressive Code frames are flat. Depth is tonal: paper \u2192 raised \u2192 sunken, separated by 1px hairlines and never by blur or offset shadows.",
         "section": "elevation"
       }
     ],
@@ -195,9 +210,12 @@
       "Don't use side accent stripes >1px on list items, callouts, or TOC rows.",
       "Don't put Unicode glyph icons where an authored SVG belongs.",
       "Don't introduce a second solid accent button or a hero-metric card grid.",
-      "Don't add a box-shadow, a --shadow-* token, or a Tailwind shadow-* utility in any theme — depth is tonal.",
+      "Don't add a box-shadow, a --shadow-* token, or a Tailwind shadow-* utility in any theme \u2014 depth is tonal.",
       "Don't reach for an animation library; page transitions, the disclosure, and the skeleton are native Astro plus Tailwind core.",
-      "Don't animate prose, a disclosure, or any other reading element in from opacity 0 — first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned, both 180ms: the whole-page ClientRouter cross-fade and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.",
+      "Don't animate prose, a disclosure, or any other reading element in from opacity 0 \u2014 first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned, both 180ms: the whole-page ClientRouter cross-fade and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.",
+      "Don't size a title-block or reading-surface column track by its content \u2014 an `auto` track is how a 150px disclosure reflows a whole page.",
+      "Don't move only one cap of the reading column: the track and the measure bind independently and the measure is the one that shows.",
+      "Don't scale part of the type ramp \u2014 every absolute `--type-*` step multiplies by `--type-scale`, and the two `em`-relative steps must not.",
       "Don't rewrite, reorder, or reword the frozen notebook content."
     ]
   }

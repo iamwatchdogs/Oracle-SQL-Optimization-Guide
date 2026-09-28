@@ -1,6 +1,8 @@
 ---
 import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
+import RouteSkeleton from '../components/RouteSkeleton.astro';
+import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
 import '../styles/global.css';
 
 interface SectionLink {
@@ -41,6 +43,16 @@ const fallbackSections: SectionLink[] = [
 ];
 const navigationSections = sections.length > 0 ? sections : fallbackSections;
 const currentPath = Astro.url.pathname;
+
+/*
+ * The reading-preference steppers, in the order the controls present them.
+ *
+ * They come from the controller's step lists rather than being written out here,
+ * so the stylesheet, the controller's validation and the rendered buttons cannot
+ * drift into three different sets. `aria-pressed` is what says which is live.
+ */
+const textScales = TEXT_SCALE_STEPS;
+const measures = MEASURE_STEPS;
 
 const fullTitle =
   title === 'Oracle SQL Optimization for Junior Devs'
@@ -87,17 +99,48 @@ const isArticle = Astro.url.pathname !== '/';
     <Font cssVariable="--face-sans" />
     <Font cssVariable="--face-mono" />
 
-    {/* Theme init — dark default; light only from stored preference or OS */}
+    {/*
+      Theme and reading preferences init — dark default; everything else from
+      stored preference.
+
+      One blocking inline script, not two. Both halves have to land before the
+      first paint, and a second script would have to observe the first one's DOM
+      write to build on it, which is a worse contract than one script that owns
+      all of it. Every read is inside the `try`, so a storage-blocked reader gets
+      the defaults rather than an exception in the head.
+
+      `data-title-entrance` marks the FIRST document only. `.rise` is the title
+      block's entrance and the router re-creates that markup on every client
+      navigation, so without the marker the abstract and the metadata margin kept
+      drifting into place 740ms after a cross-fade that ended at 180ms.
+    */}
     <script is:inline>
       (function () {
+        var root = document.documentElement;
+        root.dataset.titleEntrance = '';
         try {
-          var t = localStorage.getItem('theme');
-          if (t === 'light') {
-            document.documentElement.dataset.theme = 'light';
+          var theme = localStorage.getItem('theme');
+          if (theme === 'light') {
+            root.dataset.theme = 'light';
           }
           /* dark is default; no prefers-color-scheme override */
         } catch (e) {
           /* dark default */
+        }
+        try {
+          var text = localStorage.getItem('reading-text');
+          if (text === '0.9' || text === '1.1' || text === '1.2') {
+            root.dataset.readingText = text;
+          }
+          var measure = localStorage.getItem('reading-measure');
+          if (measure === '60' || measure === '75') {
+            root.dataset.readingMeasure = measure;
+          }
+          if (localStorage.getItem('reading-toc') === 'collapsed') {
+            root.dataset.readingToc = 'collapsed';
+          }
+        } catch (e) {
+          /* reader defaults */
         }
       })();
     </script>
@@ -162,8 +205,29 @@ const isArticle = Astro.url.pathname !== '/';
               sticky header that is on screen at all times.
             */}
           {navigationSections.length > 0 ? (
-            <details class="group relative ml-auto max-[48rem]:static max-[48rem]:open:basis-full">
-              <summary class="flex min-h-11 list-none items-center gap-[0.6rem] rounded-ui border border-control-edge px-3 py-2 font-sans text-ui font-medium text-ink-muted transition-colors hover:border-rule-strong hover:text-ink group-open:border-rule-strong group-open:text-ink max-[30rem]:px-[0.55rem] [&::-webkit-details-marker]:hidden marker:content-none">
+            <details
+              id="site-nav"
+              data-dropdown
+              class="group relative ml-auto max-[48rem]:static max-[48rem]:open:basis-full"
+            >
+              {/*
+              At rest this trigger is a word and a glyph, not a box. It carried a
+              permanent `--control-edge` border, which put three 3.23:1 boxes in a
+              header that already has a hairline under it — four horizontal lines in
+              48px — and made the least important thing on the page the loudest.
+
+              WCAG 1.4.11 asks for 3:1 on the visual information *required* to
+              identify a control, and the boundary is not required when the control
+              says what it is: this is the word "Contents" at 5.4:1, next to a
+              section count, next to a disclosure glyph. The box comes back for
+              hover, for open, and for `focus-visible`, so the affordance is never
+              more than a hover away, and `border-transparent` keeps the 1px box
+              model reserved so its arrival moves nothing.
+
+              `ReadingTocToggle` already works this way, and the panel below keeps
+              its own `--rule-strong` hairline when open.
+            */}
+              <summary class="flex min-h-11 list-none items-center gap-[0.6rem] rounded-ui border border-transparent focus-visible:border-control-edge focus-visible:text-ink px-3 py-2 font-sans text-ui font-medium text-ink-muted transition-colors hover:border-control-edge hover:text-accent group-open:border-control-edge group-open:text-ink max-[30rem]:px-[0.55rem] [&::-webkit-details-marker]:hidden marker:content-none">
                 <span>Contents</span>
                 {/* Decorative: the accessible name of this button must not change
                     with viewport width (WCAG 2.5.3, Label in Name). */}
@@ -240,10 +304,133 @@ const isArticle = Astro.url.pathname !== '/';
             </details>
           ) : null}
 
+          {/*
+            Reading preferences.
+
+            Two steppers, not a settings page: text scale on four steps and line
+            measure on three. Both write one attribute on `<html>` and nothing
+            else — the ramp and the measure live in `global.css`, so the control
+            is a projection of the stylesheet rather than a second copy of it.
+
+            The measure steppers are labelled in CHARACTERS, because that is the
+            unit the stylesheet is written in and the number a reader of a
+            68-character book already has a feel for. The scale steppers are
+            labelled with an `A` at the size they select, so the control is its
+            own preview and needs no icon set to explain itself.
+          */}
+          {/* `data-dropdown` is the whole dismissal contract: this panel and the
+              section list beside it close when the reader looks away, and the other
+              two disclosures in the project — the evidence key and the mobile
+              outline — deliberately do not. An evidence key is something you read
+              in place, and a mobile outline that closed when a link inside it took
+              focus would close on every use. */}
+          <details class="group relative" id="reading-prefs" data-dropdown>
+            <summary class="flex min-h-11 list-none cursor-pointer items-center gap-[0.6rem] rounded-ui border border-transparent focus-visible:border-control-edge focus-visible:text-ink px-3 py-2 font-sans text-ui font-medium text-ink-muted transition-colors hover:border-control-edge hover:text-accent group-open:border-control-edge group-open:text-ink max-[30rem]:px-[0.55rem] [&::-webkit-details-marker]:hidden marker:content-none">
+              <span class="max-[30rem]:hidden">Reading</span>
+              {/* `Aa` is the control's own preview, not an icon: two letters at two
+                  sizes is the most legible shorthand there is for a type control,
+                  and it needs no icon set to be understood. Hidden from the tree so
+                  the accessible name does not change with viewport width
+                  (WCAG 2.5.3, Label in Name). */}
+              <span class="font-serif text-ui max-[30rem]:inline" aria-hidden="true">
+                Aa
+              </span>
+              <svg
+                class="disclosure-icon shrink-0 text-ink-faint transition-transform duration-[280ms] ease-[cubic-bezier(.22,1,.36,1)] group-open:rotate-45 motion-reduce:transition-none"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14"></path>
+              </svg>
+            </summary>
+            {/*
+              `absolute` at EVERY width, which is the opposite of the section
+              list's treatment and the reason for the difference.
+
+              The section list cannot overlay: nine 44px rows is most of a phone
+              viewport, so below `48rem` it goes in flow and the header returns to
+              normal flow with it. This panel is 320px of mostly whitespace, and
+              putting it in flow made the header 402.3px tall on an 844px
+              viewport — the panel pushed its own summary onto a second row and
+              the theme button onto a third, so opening a text-size control ate
+              half the screen. A `<details>`'s panel is positioned against the
+              summary's own box, and a right-anchored 20rem dropdown needs
+              nothing more than that: it hangs off the control that opened it and
+              covers the article, which is what a dropdown is for.
+            */}
+            <div class="absolute right-0 top-[calc(100%_+_0.5rem)] z-50 w-[min(20rem,calc(100vw_-_2rem))] disclosure-flow">
+              <div class="disclosure-flow-inner">
+                <div
+                  class="nav-overlay-viewport w-full overflow-y-auto overscroll-contain border border-rule-strong bg-paper p-4"
+                  aria-label="Reading preferences"
+                >
+                  <div class="flex flex-col gap-4">
+                    <fieldset class="m-0 border-0 p-0">
+                      <legend class="running-head mb-2 p-0">Text size</legend>
+                      <div class="grid grid-cols-4 gap-1.5">
+                        {textScales.map((scale) => (
+                          <button
+                            type="button"
+                            class="flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-ui border border-control-edge bg-transparent font-serif text-ink transition-colors hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent"
+                            data-reading-pref="text"
+                            data-value={scale}
+                            aria-pressed="false"
+                            aria-label={`Set text size to ${Math.round(Number(scale) * 100)}%`}
+                          >
+                            {/*
+                              The preview is the step it selects, at 1.5× so a
+                              10% step is still visibly a step: at 1.1× the four
+                              letters read as four near-identical rows.
+                            */}
+                            <span
+                              class="leading-none"
+                              style={`font-size: ${Number(scale) * 1.5}rem`}
+                            >
+                              A
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <fieldset class="m-0 border-0 p-0">
+                      <legend class="running-head mb-2 p-0">Line measure · characters</legend>
+                      <div class="grid grid-cols-3 gap-1.5">
+                        {measures.map((measure) => (
+                          <button
+                            type="button"
+                            class="flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-ui border border-control-edge bg-transparent font-mono text-mono tabular-nums text-ink transition-colors hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent"
+                            data-reading-pref="measure"
+                            data-value={measure}
+                            aria-pressed="false"
+                            aria-label={`Set line measure to ${measure} characters`}
+                          >
+                            {measure}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <p class="meta m-0 leading-[1.5] normal-case">
+                      Saved on this device. Both restore on your next visit.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+
           <button
             type="button"
             id="theme-toggle"
-            class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-ui border border-control-edge bg-transparent px-2.5 py-1.5 font-sans text-ui font-medium leading-none text-ink transition-colors hover:border-accent hover:text-accent"
+            class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-ui border border-transparent focus-visible:border-control-edge focus-visible:text-ink bg-transparent px-2.5 py-1.5 font-sans text-ui font-medium leading-none text-ink-muted transition-colors hover:border-control-edge hover:text-accent"
             aria-label="Switch to light theme"
           >
             <svg
@@ -283,50 +470,7 @@ const isArticle = Astro.url.pathname !== '/';
 
     <slot />
 
-    {/*
-      Hit testing is deliberately never re-enabled. The loader is a decorative
-      `aria-hidden` skeleton plus an `sr-only` status message — nothing in it is
-      interactive, so a visible-state variant that restores pointer events only
-      makes a viewport-wide, z-50 click blocker sit over the content
-      mid-navigation.
-
-      That variant's class name is spelled out nowhere in this file, and that is
-      not an accident. `src/**` is a declared Tailwind source and Tailwind's
-      scanner does not skip comments, so writing the utility name here — even
-      inside a comment explaining why it must not be used — emits a real rule at
-      (0,2,0) specificity, which beats the base `pointer-events-none` at (0,1,0).
-      The class was reintroduced exactly this way once, and the loader silently
-      became a click blocker again while every test stayed green.
-      `test/integration/client-script-quality.test.mjs` compiles the sheet and
-      asserts the utility is absent, so the next occurrence fails the build.
-    */}
-    <div
-      id="route-loader"
-      data-route-loader
-      transition:persist="route-loader"
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      data-visible="false"
-      class="pointer-events-none fixed inset-x-0 top-20 z-50 mx-auto w-shell opacity-0 transition-opacity duration-[180ms] data-[visible=true]:opacity-100"
-    >
-      <span data-route-loader-message class="sr-only"></span>
-      {/*
-        `bg-rule-strong`, not `bg-paper-raised`. The container has no background of
-        its own, so the bars sat on the paper ground — `#141417` on `#0c0c0e`,
-        1.06:1. A loading state nobody can see is not a loading state: after the
-        180ms gate the skeleton faded in to three bars the eye could not resolve,
-        and `animate-pulse` made the dip in contrast worse. `--rule-strong` is the
-        strongest hairline already in the vocabulary, reads at 1.73:1 in dark and
-        1.92:1 in light, and keeps the skeleton subordinate to the content it sits
-        over rather than competing with it.
-      */}
-      <div aria-hidden="true" class="space-y-3">
-        <span class="block h-3 w-full animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
-        <span class="block h-3 w-11/12 animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
-        <span class="block h-3 w-8/12 animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
-      </div>
-    </div>
+    <RouteSkeleton />
 
     <script>
       import { createRouteLoaderController, wrapRouteLoader } from '../lib/route-loader.mjs';
@@ -334,7 +478,7 @@ const isArticle = Astro.url.pathname !== '/';
       if (!Object.prototype.hasOwnProperty.call(document, 'routeLoaderInitialized')) {
         const controller = createRouteLoaderController({ document, window });
         document.addEventListener('astro:before-preparation', (event) => {
-          controller.beforePreparation(event.signal);
+          controller.beforePreparation(event.signal, event.to);
           event.loader = wrapRouteLoader(
             event.loader,
             /* Signal-scoped. This path also fires when a navigation is
@@ -379,9 +523,41 @@ const isArticle = Astro.url.pathname !== '/';
       bindThemeController({ document });
     </script>
     <script>
+      import { bindReadingPrefs } from '../lib/reading-prefs-controller.mjs';
+
+      bindReadingPrefs({ document });
+    </script>
+    <script>
       import { bindDisclosureController } from '../lib/disclosure-controller.mjs';
 
       bindDisclosureController({ document });
+    </script>
+    <script>
+      import { bindDropdownDismiss } from '../lib/dropdown-dismiss.mjs';
+
+      bindDropdownDismiss({ document });
+    </script>
+    <script>
+      /*
+       * The title-block entrance plays once per document.
+       *
+       * `data-title-entrance` is written by the inline bootstrap in `<head>` and
+       * cleared here, on the first `astro:page-load` that is not the initial
+       * load. Clearing it after the first completed navigation — rather than
+       * before, or on `astro:before-swap` — keeps the first paint animated and
+       * every arrival after it at rest.
+       */
+      if (!Object.prototype.hasOwnProperty.call(document, 'titleEntranceInitialized')) {
+        let initial = true;
+        document.addEventListener('astro:page-load', () => {
+          if (initial) {
+            initial = false;
+            return;
+          }
+          delete document.documentElement.dataset['titleEntrance'];
+        });
+        Object.defineProperty(document, 'titleEntranceInitialized', { value: true });
+      }
     </script>
   </body>
 </html>

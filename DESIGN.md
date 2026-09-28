@@ -187,23 +187,52 @@ Full swap under `[data-theme='light']`: paper `#f7f5f0`, ink `#1a1815`, accent `
 - **Display** (700, clamp 2.75–6rem, lh 1.05, tracking -0.03em): Home title block only.
 - **Title** (600, clamp 1.75–2.5rem, lh 1.2, tracking -0.025em): Page h1 on interior routes.
 - **Headline** (600, clamp 1.35–1.75rem): Section h2 with bottom hairline rule.
-- **Body** (400, 1.125rem, lh 1.65, measure 68ch): Long-form prose; `hyphens: auto`.
+- **Body** (400, 1.125rem, lh 1.65, measure 70ch): Long-form prose; `hyphens: auto`.
 - **Label** (Inter 500, 0.875rem): Buttons, nav, TOC, jargon summaries.
 - **Mono / Meta** (JetBrains 400, 0.8125rem, tracking 0.02em, uppercase): Running heads, breadcrumbs, grade chips, tabular metadata.
 
-**The Measure Rule.** Body prose never exceeds 68ch. Display never exceeds 6rem. Tracking never tighter than -0.04em.
+**The Measure Rule.** Body prose never exceeds 70ch. Display never exceeds 6rem. Tracking never tighter than -0.04em.
 
 ## Layout
 
-Desktop interior: `280px` sticky TOC rail + centered reading column (`max-w-reading`, 46rem) inside `w-shell-wide` (80rem max). Home: full-bleed title block (hairline top/bottom) over a `max-w-contributions` (52rem) list, then centered `max-w-measure` (68ch) prose.
+Desktop interior: `--width-toc-rail` (280px) sticky TOC rail + centered reading column (`max-w-reading`, `--width-reading-track` 46rem) inside `w-shell` (72rem max). Home: full-bleed title block (hairline top/bottom) over a `max-w-contributions` (52rem) list, then centered `max-w-measure` (`--measure`, 70ch) prose.
 
-Container widths are Tailwind utilities generated from `--width-shell` / `--width-shell-wide` and `--container-reading` / `--container-contributions` / `--container-measure`: `w-shell`, `w-shell-wide`, `max-w-reading`, `max-w-contributions`, `max-w-measure`.
+**Every column track in a title block or a reading surface is a fixed length, never content-sized.** The home page's metadata margin is `--width-title-meta` (27.5rem) and the interior rail is `--width-toc-rail`. Both were `auto` or a bare literal once, and both reflowed their whole page when a disclosure inside them opened: an `auto` track resolves to its own max-content width, and the evidence key's panel is 150.14px wider at its widest than the summary that closes it, so opening it handed 150px to the `1fr` column and re-wrapped the display title onto an extra line. A track measured in `rem` cannot move, so nothing that depends on it can either.
+
+Container widths are Tailwind utilities generated from `--width-shell` / `--width-shell-wide` and `--container-reading` / `--container-contributions` / `--container-measure`: `w-shell`, `w-shell-wide`, `max-w-reading`, `max-w-contributions`, `max-w-measure`. `--container-reading` resolves through `var(--width-reading-track)` rather than naming a literal, so a reader's measure control has something to move.
+
+**The two caps on the reading column, and which one binds.** `--width-reading-track` (46rem) is the column; `--measure` (70ch) is the text inside it. At every desktop size the measure is the smaller of the two, so a control that moves only the track does nothing visible. Both are reader-controlled and they move together.
 
 Mobile: single column; TOC collapses to a disclosure above content; contributions stack full-width; title block stacks metadata below CTAs.
 
 Spacing rhythm: 8px base. Title block padding `clamp(2.5rem, 6vw, 4.5rem)`. Section h2 margin-top 2.5em (more above than below heading).
 
+**Prose blocks are separated by one rhythm, and it is a length.** `--prose-rhythm` is `calc(var(--type-body) * 1.6)` on `:root`: 28.8px at the default size, against a 29.7px line box, so a paragraph break is almost exactly one blank line. It was `1.25em` per element, and `em` resolves against the element's OWN font-size — so a paragraph got 22.5px on 18px text and a code frame got 18px on its own 14.4px. The widest and heaviest block on the page was separated by LESS space than a paragraph got, and the rhythm disagreed with itself in four places at once. Declaring it as a length fixes both halves: a custom property's `em` is substituted where it is declared, so it resolves once and every consumer inherits the same distance whatever its own type is; and because it is built on `--type-body` it still moves with `--type-scale`, which is the one thing the `em` was getting right. A gap written in `rem` would have sat still while the type around it grew, and the page would get denser as a reader made it larger.
+
+**Headings get more space than blocks, in descending order.** h2 `2.5em`, h3 `2em`, h4 `1.1 × the rhythm`, the rhythm. The h4 token was dead while it was written: the `>*+*` rule did not exclude `h4`, so at (0,3,6) against the plugin's (0,1,0) the sibling gap won and h4 measured 21.25px — the same as a plain block. Its own `1.5em` was 25.5px, which is _less_ than a paragraph break, so it is expressed against the rhythm instead, which also makes it impossible for a heading's leading to fall below a block's by editing one number.
+
 Breakpoints: TOC rail appears at `lg` (1024px). Header nav links hide below `md`.
+
+### Reader preferences
+
+Three persisted choices, each one attribute on `<html>`, each written by the inline bootstrap in `BaseLayout.astro` before first paint and re-asserted by `src/lib/reading-prefs-controller.mjs` on `astro:after-swap`. The **default is the absence of the attribute**, not the default value, so a reader who never touched a control has no override in play and "back to default" is a real state rather than a fourth step.
+
+| Attribute           | Values                      | What it moves                                                |
+| ------------------- | --------------------------- | ------------------------------------------------------------ |
+| `data-reading-text` | `0.9` · `1` · `1.1` · `1.2` | `--type-scale`, which multiplies every step in the type ramp |
+
+| `data-reading-measure` | `60` · `70` · `75` | `--measure` in characters, and `--width-reading-track` with it |
+| `data-reading-toc` | `collapsed` | the rail's grid track, its gutter, and the reading column's cap |
+
+- **One scale for the whole ramp, and one place that opts out of it.** Every absolute `--type-*` step is `calc(<base> * var(--type-scale))`. A control that moved only `--type-body` grew the prose and left the headings, TOC labels, running heads and mono metadata exactly where they were, so the page came apart into two type systems the moment a reader touched it. `--type-citation` and `--type-annotation` are the two exceptions: they are `em`-relative already and must not be scaled twice.
+
+**The home hero is that one place.** The reader's text size stops at the edge of the title block. The hero is a display composition — a display title, an abstract wrapped at `42ch`, a control, a metadata margin — and scaling it does not honour a reading preference so much as break an arrangement: the display title's cap is 6rem, and 1.2 turns that into 7.2rem, which re-wraps the abstract beneath it and hands the metadata margin a height it was never measured with. The prose and the contributions list, which is a separate `<section>` directly below, are reading material and scale normally.
+
+**It takes re-declaring the ramp, not re-setting the multiplier, and the reason is a custom-property trap worth stating once.** A `var()` inside a custom property is substituted where that property is **declared**, not where it is used. The ramp is declared on `:root`, so `html[data-reading-text='1.2']` has already resolved `--type-display` to `calc(clamp(...) * 1.2)` by the time the hero inherits it — and a descendant re-setting `--type-scale: 1` changes nothing, because the inherited value no longer reads it. The five steps the hero renders (`--type-display`, `--type-abstract`, `--type-ui`, `--type-mono`, `--type-chip`) therefore each keep an authored `-base` twin, and `.hero-composition` re-declares all five against its own `--type-scale: 1`. That is a re-multiplication, not a second copy of the ramp: one authored value per step, and changing a base moves the hero with it. The route loader's hero branch carries the class too, because a skeleton whose bar is 15% taller than the title it is standing in front of is not a copy.
+
+- **The measure is reported in characters**, because that is the unit the stylesheet is written in and the number a reader of a 68-character book has a feel for.
+- **The rail collapses its track, not its content.** Two tracks at both ends (`280px minmax(0,1fr)` ↔ `0px minmax(0,1fr)`) and the gutter with them; interpolating a two-track template to a single-track one is not a transition, it is a snap. The reading column is already `flex justify-center` inside that track, and the track is capped at the measure while the rail is shut, so the TEXT block — not merely the track — lands on the page's axis.
+- **The rail is invisible to the tab order when shut.** `visibility: hidden` on the cell, delayed by 280ms so the links are present for as long as they have somewhere to be seen, and undelayed the instant the rail reopens. The control that brings it back is not in the cell at all — see the rail's control below.
 
 ## Elevation & Depth
 
@@ -224,22 +253,44 @@ The vocabulary is deliberately empty.
 
 Motion is enhancement, never meaning. Four mechanisms, no animation library.
 
-**Exactly two sanctioned opacity transitions, both 180ms.** Opacity is allowed in exactly two places, and both are feedback about _where you are_ — never about content arriving:
+**Exactly two sanctioned opacity transitions, and only the second is 180ms.** Opacity is allowed in exactly two places, and both are feedback about _where you are_ — never about content arriving:
 
-1. **Whole-page cross-fade** — the Astro `ClientRouter` route swap, `fade` at **180ms**.
+1. **Whole-page route fade** — the Astro `ClientRouter` route swap, out-then-in over **400ms** in total. See Route choreography.
 2. **Loader state reveal** — the persistent route loader fading in/out, `transition-opacity` at **180ms**.
 
 Both are **navigation or state feedback**: one reports that the document is being replaced, the other reports that a route is still preparing. Neither reveals content that is already on the page. **No prose, disclosure, or reading element may fade in** — that is content entrance, and it is forbidden.
 
-- **Title-block entrance**: transform-only `translateY(10px→0)`, 500ms `cubic-bezier(0.22, 1, 0.36, 1)`, staggered by `rise-1` … `rise-4`. The resting state is the first painted state.
-- **Page transitions — sanctioned opacity #1, whole-page cross-fade.** Route swaps use the built-in `fade` animation at **180ms**: a pure opacity cross-fade between the outgoing document and the incoming one. It is permitted because a route swap replaces the whole page rather than revealing content inside it. It is not a template for in-page motion — no element on a page may fade in from `opacity: 0`, and no separate opacity-0 entrance animation may be added alongside it.
+- **Title-block entrance**: transform-only `translateY(10px→0)`, 500ms `cubic-bezier(0.22, 1, 0.36, 1)`, staggered by `rise-1` … `rise-4`. The resting state is the first painted state. It plays **once per document**, not once per arrival: `data-title-entrance` is set by the head bootstrap and cleared on the first completed `astro:page-load` that is not the initial load, so the router re-creating that markup cannot restart a 740ms stagger underneath a cross-fade that ended at 180ms.
+- **Page transitions — sanctioned opacity #1, whole-page route fade.** Route swaps fade the outgoing document out and the incoming one in over **400ms**, rather than dissolving between them at one instant. It is permitted because a route swap replaces the whole page rather than revealing content inside it. It is not a template for in-page motion — no element on a page may fade in from `opacity: 0`, and no separate opacity-0 entrance animation may be added alongside it.
+- **Route choreography: fade OUT, then fade IN.** The two halves of a route swap are **sequential**, because a page change is:
+  - geometry (position and scale) **260ms** on the project's exponential ease-out, because a title that arrives fast and settles reads as one motion while a linear one reads as a drag;
+  - **out 180ms** on `cubic-bezier(0.4, 0, 1, 1)`, accelerating — the old page leaves rather than thinning;
+  - **in 260ms** on `cubic-bezier(0, 0, 0.2, 1)`, settling, after a **140ms** delay.
+
+  Total 400ms. The **40ms overlap** between the end of the fade-out and the start of the fade-in is the part that matters: a gap with nothing on screen reads as a flash and a stutter, and a cross-fade with _zero_ overlap — the previous design, 180ms into 180ms — never gave the reader a moment when either page was settled, which is what "it does not feel like a transition" was. 400ms against 180ms is slower on the clock and calmer on the screen; those are not the same measurement.
+
+  The declarations are **longhands**, not the `animation` shorthand, because the UA puts two animations on `::view-transition-old/new(root)`: the fade and a `mix-blend-mode` one that is what stops the dissolve going dark in the middle. A shorthand replaces both and takes the blending with it.
+
+  They live unlayered, which is the whole mechanism: unlayered rules outrank every `@layer`, Astro's included, and they outrank the UA stylesheet besides. Left to the UA, the shared `page-title` snapshot was moved and scaled on a 250ms **linear** curve while the page it belonged to cross-faded on 180ms — a 70ms tail of title still in flight over a page that had already arrived.
+
+  `prefers-reduced-motion: reduce` names the three view-transition pseudo-elements explicitly, because `*` does not reach them. Without that override a reader who has asked for less motion would get 400ms — longer than before the sequence existed.
+
 - **Loader state reveal — sanctioned opacity #2, state feedback.** The persistent route loader toggles `opacity-0` ↔ `opacity-100` on `transition-opacity duration-[180ms]`, matching the 180ms reveal threshold. It is feedback about an in-flight navigation, not content entrance: it renders no prose and reveals nothing that is already readable.
+- **The rail collapse.** `grid-template-columns` and `gap` over 280ms on the same ease-out, plus a `translate` on the rail's control and a 180° `transform` on its arrow. Transform and layout, no opacity.
+- **The rail's control is one control, and it travels.** There were two — a button at the rail's right edge and an "edge tab" on the shell's left edge — and pressing the first put the second 232px away, under a cursor that had not moved, with the chevron swapping between two static glyphs. There is now one button, `position: fixed`, rendered outside the rail's cell so it outlives a track that clips to zero width. It slides from the rail's right edge into the gutter as the rail closes and the arrow rotates 180° on the way, so the press and its consequence are the same object moving. It is never hidden and never re-created, which is why there is one `aria-expanded` rather than two. `top` is the rail's own sticky offset, so the two line up whenever the rail is sticking; at the very top of a page the rail sits 19px lower and the control is above its label, in the empty stretch of the running head's row. Below `lg` it is `display: none` — a phone has a disclosure instead of a rail, and a fixed element with no paint should not be in the tab order.
 - **Research Notes — native `<details>`/`<summary>`.** The disclosure icon rotates 0° → 45° (plus → ×) on a 280ms `transition-transform` with `cubic-bezier(0.22, 1, 0.36, 1)`. The panel opens and closes **symmetrically** through the `disclosure-flow` `grid-template-rows: 0fr → 1fr` transition — never a one-way reveal — and `details::details-content` uses `allow-discrete` so content stays rendered through the close transition.
+- **The two header dropdowns dismiss themselves; the other two disclosures do not.** The section list and the reading preferences carry `data-dropdown`, and they close on a press outside them, on focus leaving them, and on Escape — Escape handing focus back to the trigger, because the alternative is to drop a keyboard reader at the top of a 40-link document. They close on the **shared animated path**, never by setting `open = false`: a native close skips the 280ms row collapse, skips the padding release, and leaves the scroll re-anchors in `disclosure-reanchor.mjs` with a panel that vanished rather than one that is on its way. The evidence key and the mobile outline ship the same `<details>`, the same `.disclosure-flow` and the same 280ms, and deliberately do **not** dismiss: the evidence key is read in place, and a mobile outline that closed when focus left it would close on every link inside it. Choosing a preference does **not** close the panel — a second choice has to be reachable without reopening.
+- **A press on a control is never an outside press, and focus moving _within_ a panel is not focus leaving it.** The first is what keeps a preference reachable; the second is what keeps the controls reachable by keyboard at all, since tabbing from a summary to the stepper fires a real `focusout` with a `relatedTarget` inside the same panel. A press on a header summary belongs to the sibling rule in `reading-prefs-controller.mjs`, which closes the other header disclosure synchronously — two rules racing for one panel means one of them closes it natively and the animation is lost, so the dismissal rule stands back.
+- **The disclosure has a 40ms delay, in both directions, and so does its glyph.** 280ms of travel with zero of latency is still a snap: the row is at full height on the frame the press is reported on, so the panel reads as having been removed rather than folded away, and a pointer that drifted a pixel out of the panel while the reader was reaching for a control is enough to trigger it. 40ms buys the travel a moment of lead-in and costs nothing legible — the delay is not perceived as lag below about 100ms, so this is a quarter of the way there. One variable (`--disclosure-delay`) feeds the row, the padding release and the `::details-content` slide, and one rule gives `.disclosure-icon` the same delay, because the icon and the row are the same motion and a delay on one of them alone is a desync that costs more to explain than it is worth.
 - **Reduced motion overrides everything.** One `@media (prefers-reduced-motion: reduce)` block sets `animation: none !important` and `transition: none !important` on `*`, `*::before`, `*::after`, and `details::details-content`, and forces `scroll-behavior: auto`. Components additionally carry `motion-reduce:transition-none` / `motion-reduce:animate-none`. Both sanctioned opacity transitions are covered by the same block.
 
 ## Loading & Focus
 
-- **Persistent skeleton.** A `transition:persist`-carried route loader lives outside the swapped page. It is invisible at rest (`opacity-0`, `pointer-events-none`) and reveals **only after 180ms of route preparation**, so fast navigations never flash it. Its `transition-opacity` is `duration-[180ms]`, matching the reveal threshold. It is `role="status" aria-live="polite"` with an `sr-only` "Loading requested page" message, and its three bars pulse on `bg-paper-raised` with `motion-reduce:animate-none`.
+- **Persistent skeleton.** A `transition:persist`-carried route loader lives outside the swapped page. It is invisible at rest (`opacity-0`, `pointer-events-none`) and reveals **only after 180ms of route preparation**, so fast navigations never flash it. Its `transition-opacity` is `duration-[180ms]`, matching the reveal threshold. It is `role="status" aria-live="polite"` with an `sr-only` "Loading requested page" message, and its three bars pulse on `bg-rule-strong` with `motion-reduce:animate-none`.
+- **The skeleton is a copy of the page's opening, not a drawing of it.** `RouteSkeleton.astro` rebuilds the destination's own containers with the same classes and swaps the text for bars: the same shells, the same `toc-rail-grid` track, the same `.reading-column` cap, the same `max-w-measure` article, and the same top chain (`pt-4`, running head, mobile TOC row, breadcrumb). Nothing in it is positioned by a measured constant, so it lands on the breadcrumb because the breadcrumb is there. Its three shapes are chosen from the destination URL at `astro:before-preparation` — `route-skeleton.mjs` maps `event.to` onto `data-skeleton` — because that is the one moment the loader knows where it is going and the page has not arrived. Asking the incoming document is not an option: `event.newDocument` is the outgoing one at that event.
+- **A bar is a line box with a bar in it, not a line box.** Each row reserves `1lh` in the real type context — so the rows below land where the real rows land — and draws a bar at 55% of it, centred. A full-height bar at the home page's 76.8px display type is a 650×242px slab, and a reader reads that as a broken image rather than as a title arriving. Both dimensions are set inline, because Tailwind emits nothing for a class built from a prop and a bar with no height is invisible.
+- **The loader covers the content area with the paper colour.** A transparent skeleton is only defensible while it is a few hairlines; a skeleton that maps the whole opening means a full page of grey drawn over a full page of live text, and the two interleave rather than layer. It starts below the header, because the header is furniture a reader may want mid-navigation. This adds no transition — the reveal is the sanctioned 180ms opacity fade, which now brings up the ground and the bars together.
+- **What the skeleton cannot know, the mapping test does not assert.** The real breadcrumb is as tall as its own titles wrap — 41.4px on a section index, 69.4px or 137.8px on a notebook — so on a phone the rows below the breadcrumb move with a number no skeleton can have. Horizontal geometry is asserted to 1px at both viewports, because those are grid tracks and anything else means the two are computing their geometry differently.
 - **Cancellation.** Each navigation arms a 180ms timer on `astro:before-preparation`; an abort, an error, or a prevented default clears the timer, hides the loader, and drops `aria-busy`.
 - **Busy marking.** `main` carries `aria-busy="true"` for the duration of the pending navigation and it is always removed on settle.
 - **Focus handoff.** After a successful navigation `main#main` receives focus with `preventScroll: true`, so keyboard and screen-reader users land at the top of the new page without a scroll jump. The focus ring stays 2px accent at 2px offset.
@@ -275,8 +326,21 @@ No form fields in current surfaces. Focus ring: 2px accent, 2px offset, 2px radi
 ### Navigation
 
 - **Header:** Sticky, opaque paper (`bg-paper`, no blur and no alpha), 1px rule bottom. Running-head wordmark left, Inter nav center (md+), theme toggle right.
-- **Breadcrumb:** Mono uppercase meta above h1.
-- **TOC:** Inter 14px; idle ink-muted; active accent text + accent-soft fill + 1px accent left border (≤1px per floor).
+
+**The three header triggers are quiet at rest and box themselves on approach.** They sat at `--control-edge` permanently, which put three 3.23:1 boxes in a header that already has a hairline under it — four horizontal lines inside 48px — and made the least important thing on the page the loudest. The theme toggle was a second problem: `text-ink` beside two `text-ink-muted` summaries, so it was one step louder in ink than its own neighbours.
+
+At rest a trigger is a word and a glyph, with `border-transparent`. WCAG 1.4.11 asks for 3:1 on the visual information _required_ to identify a control, and a boundary is not required where the control says what it is — "Contents", "Reading", "Theme" are all well past 4.5:1, which is the argument `--control-edge` itself makes about not borrowing the decorative hairline. The box returns on hover, on open and on `focus-visible`, always at `--control-edge`, and `border-transparent` keeps the 1px box model reserved so its arrival moves nothing. All three share one resting ink, which is a stronger property to hold than any one control's colour, and it is what `hit-targets.test.mjs` now asserts.
+
+- **Breadcrumb:** Mono uppercase meta above h1 — one register for the whole trail, including the last crumb.
+
+**The last crumb is the same type as the rest of the trail.** It was the only element out of register: Source Serif at Tailwind's raw `text-sm`, 14px, `normal-case`, in a trail that is mono, uppercase and scaled. So the separator sat on one line box — mono, `--type-mono`, leading 1.65, which moves with the reader's text size — and the title on another, and the gap between them ran from 1.45px at the default size to 5.74px at 120%. It was also `display: block`, which put the `/` alone on the line above its own title: a 41.4px row for a 21.4px label. It is now mono like the rest, `inline-block` so the title shares the separator's line box, and it carries `aria-current="page"` with `--ink` against the trail's `--ink-faint` for the "you are here" signal — a typographic difference inside one register rather than a change of typeface and case.
+
+**The separator is INSIDE its label.** A label is an `inline-block`, which is an atomic inline-level box, so a label too long for the space left on the current line moves to the next one whole and a sibling separator is stranded at the head of the line above. One flex item does not prevent that; the break happens between two atomic boxes. The separator is the label's own first child, `aria-hidden` so it stays out of the link's accessible name, and the two cannot come apart.
+
+**The trail is capped at the measure, measured in the body face.** It is a child of the reading COLUMN, so its natural cap was `--width-reading-track` (46rem) while the h1 and the prose under it are capped at `--measure` (70ch) — 70px wider, and ~101px and ~119px at the other two measure steps. Left edges matched and right edges did not, so a long title truncated at an x nothing else on the page reached. And `--measure` is `70ch`, which resolves against the element's OWN font: `@layer base` puts `nav { font-family: var(--font-sans) }` on every nav, so the trail measured 70 characters of Inter (794.88px) while the article measured 70 of Source Serif (666.54px) — a cap 128px too loose, which the 46rem parent then beat, so `max-w-measure` on the trail did nothing at all. The nav declares `font-serif` for that reason alone; no glyph on the trail is drawn in the body face.
+
+- **TOC:** Inter 14px; idle ink-muted; active accent text + accent-soft fill + 1px accent left border (≤1px per floor). Its header is a row — label left, `pr-12` reserving the 44px the fixed control covers — so the label holds its place at whatever width the rail is at.
+- **Reading preferences:** a header disclosure of two `fieldset` groups — text size (four steps, each an `A` at 1.5× the step it selects, so a 10% step is still visibly a step) and line measure (three steps, labelled in characters). It is `absolute` and right-anchored at **every** width, unlike the section list which goes in flow below `48rem`: this panel is 320px of whitespace, and in flow it made the header 402.3px tall on an 844px viewport. The measure steppers are labelled in characters because that is the unit the stylesheet is written in; the scale steppers are their own preview and need no icon set.
 - **Prev/next:** Bordered pager cells, mono labels, serif titles; hover accent border + soft fill.
 
 ### Signature Components
@@ -285,6 +349,7 @@ No form fields in current surfaces. Focus ring: 2px accent, 2px offset, 2px radi
 - **Contributions list:** Numbered mono index rows with serif titles and sans proof lines; hover accent-soft wash.
 - **Measured values:** `.measured` mono tabular spans for `E-Rows`, elapsed seconds, multipliers — force annotation without altering content wording.
 - **Keep-this takeaway:** Whole-paragraph strong → accent-soft tint + hairline top/bottom + italic (no side stripe).
+- **Panel inset:** the framed disclosure's summary and its panel are inset the same `0.9rem` inside the frame. The inset lives on the panel's FLOW, not on its inner, because the inner must rest at exactly zero padding for the `0fr` close to collapse to exactly zero.
 
 ## Do's and Don'ts
 
@@ -293,7 +358,7 @@ No form fields in current surfaces. Focus ring: 2px accent, 2px offset, 2px radi
 - **Do** keep the accent on one solid control and the active TOC state per viewport.
 - **Do** render grades, citations, and measured numbers in JetBrains Mono with tabular figures.
 - **Do** frame major regions with 1px hairlines and title-block rules, not cards.
-- **Do** hold body measure at 68ch and display at max 6rem.
+- **Do** hold body measure at 70ch and display at max 6rem.
 - **Do** theme browser surfaces (selection, caret, scrollbars, focus) from the palette tokens.
 - **Do** ship dark as default with a complete light palette swap.
 
@@ -305,5 +370,9 @@ No form fields in current surfaces. Focus ring: 2px accent, 2px offset, 2px radi
 - **Don't** introduce a second solid accent button or a hero-metric card grid.
 - **Don't** add a box-shadow, a `--shadow-*` token, or a Tailwind `shadow-*` utility in any theme — depth is tonal.
 - **Don't** reach for an animation library; page transitions, the disclosure, and the skeleton are native Astro plus Tailwind core.
-- **Don't** animate prose, a disclosure, or any other reading element in from opacity 0 — first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned, both 180ms: the whole-page `ClientRouter` cross-fade and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.
+- **Don't** animate prose, a disclosure, or any other reading element in from opacity 0 — first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned: the whole-page `ClientRouter` route fade and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.
+- **Don't** size a title-block or reading-surface column track by its content. `auto` tracks are how a 150px disclosure reflows a whole page.
+- **Don't** move only one cap of the reading column. The track and the measure bind independently and the measure is the one that shows.
+- **Don't** scale part of the type ramp. Every absolute `--type-*` step multiplies by `--type-scale`; the two `em`-relative steps must not.
+- **Don't** let a persistent overlay position itself from a magic number when the element it mirrors has a grid.
 - **Don't** rewrite, reorder, or reword the frozen notebook content.

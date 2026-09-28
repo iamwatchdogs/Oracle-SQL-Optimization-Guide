@@ -44,6 +44,11 @@ const dontList = listItems(designMarkdown, "Do's and Don'ts").filter((line) =>
   line.startsWith("- **Don't**"),
 );
 const baseLayout = await readRepoFile('src/layouts/BaseLayout.astro');
+/* The loader's own markup lives in `RouteSkeleton.astro`; the layout renders the
+   component. Both are read wherever the test is about what ships, because the
+   component is what ships the loader. */
+const routeSkeleton = await readRepoFile('src/components/RouteSkeleton.astro');
+const loaderSurface = `${baseLayout}\n${routeSkeleton}`;
 
 /*
  * Template source with its comments stripped.
@@ -55,19 +60,43 @@ const markup = (source) =>
   source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/^\s*\/\/.*$/gmu, '');
 
 const routeLoaderMarkup = () => {
-  const start = baseLayout.indexOf('data-route-loader');
+  const start = routeSkeleton.indexOf('data-route-loader');
 
   expect(start).toBeGreaterThan(-1);
-  return baseLayout.slice(start, baseLayout.indexOf('</div>', start));
+  return routeSkeleton.slice(start, routeSkeleton.indexOf('</div>', start));
 };
 
-test('motion names exactly two sanctioned opacity transitions, both 180ms', () => {
-  expect(motionSection).toMatch(/exactly two sanctioned opacity transitions, both 180ms/iu);
-  expect(motionSection).toMatch(/whole-page cross-?fade/iu);
+test('motion names exactly two sanctioned opacity transitions, and only one is 180ms', () => {
+  /*
+   * This asserted "both 180ms" for as long as both were. They are not any more: the
+   * route fade is now 400ms of out-then-in, because a symmetric 180ms cross-dissolve
+   * never gave the reader a moment when either page was settled. The loader reveal
+   * is still 180ms and still is a plain in-out toggle.
+   *
+   * The count is the part that must not drift. Everything else here is the sequence.
+   */
+  expect(motionSection).toMatch(/exactly two sanctioned opacity transitions/iu);
+  expect(motionSection).toMatch(/only the second is 180ms/iu);
+  expect(motionSection).toMatch(/whole-page route fade/iu);
   expect(motionSection).toMatch(/loader state reveal/iu);
   expect(motionSection).toMatch(/no prose, disclosure, or reading element may fade in/iu);
   expect(motionSection).toMatch(/navigation or state feedback/iu);
   expect(motionSection).not.toMatch(/one opacity exception|single opacity exception/iu);
+});
+
+test('the route fade is documented as a sequence with an overlap, not a cross-fade', () => {
+  expect(motionSection).toMatch(/fade OUT, then fade IN/iu);
+  /* out, in, delay, geometry, overlap. Each one is a number a reader of this file
+     would otherwise have to take on trust. */
+  expect(motionSection).toMatch(/out 180ms/iu);
+  expect(motionSection).toMatch(/in 260ms/iu);
+  expect(motionSection).toMatch(/140ms\*\* delay/iu);
+  expect(motionSection).toMatch(/260ms\*\*/u);
+  expect(motionSection).toMatch(/40ms overlap/iu);
+  /* The longhand rule, and why it is not a style preference. */
+  expect(motionSection).toMatch(/mix-blend-mode/iu);
+  /* Reduced motion has to be less motion, not the same motion on a longer clock. */
+  expect(motionSection).toMatch(/prefers-reduced-motion/iu);
 });
 
 test('the shipped route loader reveals at 180ms, not 150ms', () => {
@@ -105,10 +134,10 @@ test('the shipped reveal duration matches the shipped loader delay', () => {
 });
 
 test('the loader is the only shipped opacity transition in the layout', () => {
-  const others = baseLayout.replace(routeLoaderMarkup(), '');
+  const others = loaderSurface.replace(routeLoaderMarkup(), '');
 
   expect(others).not.toMatch(/transition-opacity/u);
-  expect(baseLayout.match(/transition-opacity/gu)).toHaveLength(1);
+  expect(loaderSurface.match(/transition-opacity/gu)).toHaveLength(1);
 });
 
 test('both sanctioned opacity transitions ship at the same 180ms duration', async () => {
@@ -165,7 +194,7 @@ test('both sanctioned opacity bullets stay in Motion', () => {
 
   expect(first).toBeDefined();
   expect(first).toMatch(/no element on a page may fade in from `opacity: 0`/iu);
-  expect(first).toMatch(/180ms/u);
+  expect(first).toMatch(/400ms/iu);
   expect(second).toBeDefined();
   expect(second).toMatch(/state feedback/iu);
   expect(second).toMatch(/duration-\[180ms\]/u);
@@ -177,7 +206,8 @@ test("the Don't list keeps both sanctioned opacity transitions consistent", () =
   expect(opacityDont).toBeDefined();
   expect(opacityDont).toMatch(/ClientRouter/u);
   expect(opacityDont).toMatch(/loader state reveal/u);
-  expect(opacityDont).toMatch(/both 180ms/iu);
+  /* The two are no longer the same length, so the Don't cannot claim they are. */
+  expect(opacityDont).not.toMatch(/both 180ms/iu);
   expect(opacityDont).toMatch(/never content entrance/iu);
 });
 
@@ -187,17 +217,32 @@ test('design metadata motion mirrors the documented motion values', () => {
   const route = motion.find((entry) => entry.name === 'route-fade');
   const disclosure = motion.find((entry) => entry.name === 'disclosure');
   const loader = motion.find((entry) => entry.name === 'loader-reveal');
+  const rail = motion.find((entry) => entry.name === 'rail-collapse');
 
   expect(rise.value).toMatch(/500ms/u);
   expect(rise.value).toMatch(/translateY\(10px\)/u);
   expect(rise.purpose).toMatch(/transform-only/u);
-  expect(route.value).toMatch(/180ms/u);
-  expect(route.purpose).toMatch(/ClientRouter/u);
+  expect(route.value).toMatch(/out 180ms/u);
+  expect(route.value).toMatch(/in 260ms/u);
+  expect(route.value).toMatch(/140ms delay/u);
+  /* The geometry curve is written without spaces after the commas here, unlike
+     everywhere else in this project — matching how the other `design.json` values
+     are spelled, so a reader comparing the two does not think it is a different
+     curve. */
+  expect(route.value).toMatch(/view-transition groups 260ms cubic-bezier\(0\.22,1,0\.36,1\)/u);
   expect(route.purpose).toMatch(/opacity #1/iu);
+  expect(route.purpose).toMatch(/out then in/iu);
+  expect(route.purpose).toMatch(/40ms overlap/iu);
+  expect(route.purpose).toMatch(/longhands/iu);
   expect(disclosure.value).toMatch(/280ms/u);
   expect(loader.value).toMatch(/180ms/u);
   expect(loader.purpose).toMatch(/opacity #2/iu);
   expect(loader.purpose).toMatch(/never content entrance/iu);
+  /* The rail's control is one control that moves, and the metadata has to say so —
+     an "edge tab" in the motion table is a description of a control that no longer
+     exists. */
+  expect(rail.value).toMatch(/rotate 180deg/u);
+  expect(rail.purpose).toMatch(/One control, not two/u);
 });
 
 test('exactly two metadata motion entries are opacity-bearing', () => {

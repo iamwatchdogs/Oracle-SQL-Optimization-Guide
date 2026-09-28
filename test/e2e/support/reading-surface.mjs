@@ -134,28 +134,6 @@ export const tocSummary = (page) =>
     };
   });
 
-/** The breadcrumb trail's line count and the lines each segment occupies. */
-export const breadcrumbShape = (page) =>
-  page.evaluate(() => {
-    const list = document.querySelector('nav[aria-label="Breadcrumb"] ol');
-    return {
-      lines: Math.round(list.getBoundingClientRect().height / 22),
-      items: [...list.children].map((item) => {
-        const separator = item.querySelector('span[aria-hidden="true"]');
-        const box = item.getBoundingClientRect();
-        return {
-          text: item.textContent.replaceAll(/\s+/gu, ' ').trim().slice(0, 40),
-          overflows: item.scrollWidth > item.clientWidth + 1,
-          /* `null` for the root crumb, which has no separator to strand. */
-          separatorStranded:
-            separator === null
-              ? null
-              : Math.abs(separator.getBoundingClientRect().top - box.top) > 12,
-        };
-      }),
-    };
-  });
-
 /**
  * How many annotated spans break across a line.
  *

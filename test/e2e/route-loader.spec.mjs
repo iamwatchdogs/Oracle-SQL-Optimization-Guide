@@ -13,8 +13,6 @@ import { LOADER } from './support/route-loader.mjs';
  * a browser. Everything below asserts against the real DOM.
  */
 
-const MESSAGE = '[data-route-loader-message]';
-
 /**
  * Hold a route's response open so the navigation reliably outlasts the 180ms
  * reveal gate.
@@ -58,10 +56,6 @@ test.describe('route loader — resting state', () => {
 
   test('is inert even when visible, so it can never block a click', isInertEvenWhenVisible);
 
-  test('renders exactly three skeleton bars', rendersThreeSkeletonBars);
-
-  test('marks the skeleton decorative and hides it from assistive tech', hidesSkeletonFromAT);
-
   test('takes no layout space, so revealing it causes no shift', takesNoLayoutSpace);
 
   test('respects prefers-reduced-motion for the bar pulse', respectsReducedMotion);
@@ -93,15 +87,6 @@ async function isInertEvenWhenVisible({ page }) {
   expect(pointerEvents).toBe('none');
 }
 
-async function rendersThreeSkeletonBars({ page }) {
-  await expect(page.locator(`${LOADER} [aria-hidden="true"] > span`)).toHaveCount(3);
-}
-
-async function hidesSkeletonFromAT({ page }) {
-  await expect(page.locator(`${LOADER} [aria-hidden="true"]`)).toHaveCount(1);
-  await expect(page.locator(MESSAGE)).toHaveClass(/sr-only/u);
-}
-
 async function takesNoLayoutSpace({ page }) {
   const position = await page.locator(LOADER).evaluate((el) => getComputedStyle(el).position);
   expect(position).toBe('fixed');
@@ -111,7 +96,7 @@ async function respectsReducedMotion({ page }) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   const animation = await page
-    .locator(`${LOADER} [aria-hidden="true"] > span`)
+    .locator(`${LOADER} [aria-hidden="true"] span`)
     .first()
     .evaluate((el) => getComputedStyle(el).animationName);
   expect(animation).toBe('none');
