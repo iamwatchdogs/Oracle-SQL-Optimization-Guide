@@ -158,12 +158,25 @@ const isArticle = Astro.url.pathname !== '/';
     {!bare && (
       /* Two deliberate omissions from this element.
        *
-       * No Astro transition animation. DESIGN.md sanctions exactly two opacity
-       * transitions, and the cross-fade is the whole-document one the
-       * `<ClientRouter>` swap performs on `<main>`. Animating the header too made
-       * persistent site chrome dissolve and re-materialise on every navigation —
-       * content-entrance behaviour on a piece of furniture — and it had four
-       * sibling elements cross-fading independently instead of one page.
+       * No transition directives at all — no `transition:persist`, and none wanted.
+       *
+       * Persisting the header is the obvious-looking next step after a route swap:
+       * it would make the chrome literally motionless across the navigation. Do not
+       * do it. The `Contents` trigger carries a section counter — `Section 02 / 09`
+       * on a chapter, `09 sections` on the home page — which is this design system's
+       * running head, and a persisted element keeps its DOM, so the counter would
+       * survive the hop and a reader sitting in Section 03 would be looking at
+       * `Section 02 / 09`. There is no way to persist the shell and re-render one
+       * child. The wordmark, the two dropdown triggers and the theme toggle are
+       * chrome; the counter is page state, and this element holds both.
+       * `test/e2e/running-head.spec.mjs` is the guard, and it exists for this reason.
+       *
+       * The counter cross-fading with the page it belongs to is correct, not an
+       * oversight. It is a running head doing what a running head does, and it
+       * cross-fades over an identical `bg-paper` ground, so the header does not dim
+       * or move while it happens. Animating the header *as a group* is a different
+       * and rejected thing: that made four sibling elements cross-fade independently
+       * instead of one page, which is content-entrance behaviour on furniture.
        *
        * `max-[48rem]:static`. The mobile menu is in flow (see the note on the
        * `<details>` below), so an open panel makes the header as tall as the
