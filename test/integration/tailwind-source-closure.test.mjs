@@ -252,30 +252,36 @@ test('compiled utilities cover real templates and real content', async () => {
 });
 
 /**
- * The compiled stylesheet must not contain a rule that re-enables hit testing on
- * the loader.
+ * The compiled stylesheet must not contain `pointer-events-auto` at all.
  *
- * This exists because the class-name check above could not see the bug it was
- * written for. `src/**` is a declared Tailwind source and the scanner does not
- * skip COMMENTS, so the utility name was present in `BaseLayout.astro` inside a
- * comment explaining why it must never be used — thirteen lines above the
- * element, and therefore outside the `loader` slice this file matched on. Every
- * source-level assertion stayed green while the shipped CSS grew
+ * The bug this was written for: `src/**` is a declared Tailwind source and the
+ * scanner does not skip COMMENTS, so `pointer-events-auto` sat inside a comment
+ * in `BaseLayout.astro` explaining why it must never be used — outside the slice
+ * the source-level check matched on. Every source-level assertion stayed green
+ * while the shipped CSS grew
  *
  *     .data-\[visible\=true\]\:pointer-events-auto[data-visible="true"]
  *       { pointer-events: auto; }
  *
- * which is (0,2,0) and beats the base `pointer-events-none` at (0,1,0). The
- * loader became a full-width, z-50 click blocker for the whole duration of every
+ * which is (0,2,0) and beats the base `pointer-events-none` at (0,1,0). A
+ * full-width, z-50 element became a click blocker for the whole duration of every
  * slow navigation.
  *
- * Asserting against the COMPILED OUTPUT is the only level at which this is
- * checkable: the utility can arrive from a class, a comment, or a string
- * anywhere in any declared source, and only the emitted rule is the truth.
+ * It was found on the route loader, which no longer exists. The check is kept and
+ * generalised, because the failure mode is not about loaders: any utility named in
+ * a comment, a class, or a string anywhere in a declared source reaches the
+ * output. Asserting against the COMPILED OUTPUT is the only level at which this is
+ * checkable.
  */
-test('the compiled stylesheet never re-enables hit testing on the route loader', async () => {
+test('the compiled stylesheet never re-enables hit testing', async () => {
   const css = await compileProjectStylesheet();
 
-  expect(css).toContain('.pointer-events-none');
+  /* Only the negative half survives. It used to be paired with
+     `toContain('.pointer-events-none')` to prove the base class was emitted, but
+     the only element carrying it was the route loader, and that is gone. With
+     nothing in the project using the utility the positive assertion had nothing
+     left to say and would only have begun failing the next time an element that
+     wants `pointer-events: none` stops existing. The invariant is the negative
+     one: nothing anywhere may turn hit testing back on. */
   expect(css).not.toMatch(/pointer-events-auto/u);
 });

@@ -482,69 +482,41 @@ const isArticle = Astro.url.pathname !== '/';
 
     <slot />
 
-    <div
-      id="route-loader"
-      data-route-loader
-      transition:persist="route-loader"
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      data-visible="false"
-      class="pointer-events-none fixed inset-x-0 top-20 z-50 mx-auto w-shell opacity-0 transition-opacity duration-[180ms] data-[visible=true]:opacity-100"
-    >
-      <span data-route-loader-message class="sr-only"></span>
-      {/*
-        `bg-rule-strong`, not `bg-paper-raised`. The container has no background of
-        its own, so the bars sat on the paper ground — `#141417` on `#0c0c0e`,
-        1.06:1. A loading state nobody can see is not a loading state: after the
-        180ms gate the loader faded in to three bars the eye could not resolve,
-        and `animate-pulse` made the dip in contrast worse. `--rule-strong` is the
-        strongest hairline already in the vocabulary, reads at 1.73:1 in dark and
-        1.92:1 in light, and keeps the loader subordinate to the content it sits
-        over rather than competing with it.
-      */}
-      <div aria-hidden="true" class="space-y-3">
-        <span class="block h-3 w-full animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
-        <span class="block h-3 w-11/12 animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
-        <span class="block h-3 w-8/12 animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
-      </div>
-    </div>
-
     <script>
-      import { createRouteLoaderController, wrapRouteLoader } from '../lib/route-loader.mjs';
+      import { createRouteFocusController } from '../lib/route-focus.mjs';
 
-      if (!Object.prototype.hasOwnProperty.call(document, 'routeLoaderInitialized')) {
-        const controller = createRouteLoaderController({ document, window });
-        document.addEventListener('astro:before-preparation', (event) => {
-          controller.beforePreparation(event.signal);
-          event.loader = wrapRouteLoader(
-            event.loader,
-            /* Signal-scoped. This path also fires when a navigation is
-               SUPERSEDED, and an unscoped cancel there settles the live
-               navigation's loader, timers and focus handoff — see the note on
-               `cancelIfCurrent` in `src/lib/route-loader.mjs`. */
-            () => controller.cancelIfCurrent(event.signal),
-            () => event.defaultPrevented,
-          );
-        });
+      /*
+       * The focus handoff, and nothing else.
+       *
+       * There is no loading state here any more. A route loader was removed, along
+       * with the three pulsing bars, the 180ms reveal gate, the 8000ms cap, the
+       * `aria-busy` bookkeeping and the `event.loader` wrapper. What survives is
+       * the one line of it that was ever about the reader rather than about the
+       * request: after a client-side swap the focused element no longer exists, so
+       * focus falls to <body> and a keyboard or screen-reader user is given no
+       * signal that the document was replaced. See `src/lib/route-focus.mjs`.
+       */
+      if (!Object.prototype.hasOwnProperty.call(document, 'routeFocusInitialized')) {
+        const controller = createRouteFocusController({ document });
+        document.addEventListener('astro:before-preparation', () => controller.begin());
         document.addEventListener('astro:page-load', () => controller.pageLoad());
-        /* Safety net. Every documented exit from a transition is already covered
-           by pageLoad, an abort, or defaultPrevented — but if a future Astro
-           release settles a navigation through some other path, the loader must
-           not be left on screen with a permanently announcing live region.
-           `beforeSwap` hides the loader WITHOUT discarding the "a navigation
-           was prepared" flag that `pageLoad` needs for the focus handoff. */
-        document.addEventListener('astro:before-swap', () => controller.beforeSwap());
-        /* Astro announces the new title from an `aria-live="assertive"` node it
-           appends to <body> on every completed navigation, and never removes it.
-           The route loader already moves focus to `main#main`, so the assertive
-           announcement is a duplicate at best and an unbounded DOM leak at
-           worst. It is created after `astro:page-load` fires, hence the defer.
-
-           An earlier version also observed insertions with a `MutationObserver`.
-           It was removed: it made three Firefox route-loader tests fail that had
-           been passing, and the leak it guarded against is already closed by
-           this sweep on every navigation the reader actually completes. */
+        Object.defineProperty(document, 'routeFocusInitialized', { value: true });
+      }
+    </script>
+    <script>
+      if (!Object.prototype.hasOwnProperty.call(document, 'routeAnnouncerSweepInitialized')) {
+        /*
+         * Astro announces the new title from an `aria-live="assertive"` node it
+         * appends to <body> on every completed navigation, and never removes it.
+         * The focus handoff above already conveys the change, so the assertive
+         * announcement is a duplicate at best and an unbounded DOM leak at worst.
+         * It is created after `astro:page-load` fires, hence the defer.
+         *
+         * An earlier version also observed insertions with a `MutationObserver`.
+         * It was removed: it made three Firefox route-loader tests fail that had
+         * been passing, and the leak it guarded against is already closed by this
+         * sweep on every navigation the reader actually completes.
+         */
         document.addEventListener('astro:page-load', () => {
           setTimeout(() => {
             for (const stale of document.querySelectorAll('.astro-route-announcer')) {
@@ -552,7 +524,7 @@ const isArticle = Astro.url.pathname !== '/';
             }
           }, 150);
         });
-        Object.defineProperty(document, 'routeLoaderInitialized', { value: true });
+        Object.defineProperty(document, 'routeAnnouncerSweepInitialized', { value: true });
       }
     </script>
     <script>

@@ -284,14 +284,11 @@ async function page(route, viewport, theme = 'dark') {
   await p.close();
 }
 
-/* ---- K. scrollbar + loader bar contrast ---------------------- */
+/* ---- K. scrollbar + caret theming -------------------------- */
 {
   const p = await page('/', { width: 1440, height: 900 });
   const r = await p.evaluate(() => {
-    const bar = document.querySelector('#route-loader [aria-hidden="true"] > span');
-    const cs = bar ? getComputedStyle(bar) : null;
     return {
-      barBg: cs?.backgroundColor,
       hasScrollbarColor: [...document.styleSheets].some((s) => {
         try {
           return [...s.cssRules].some((x) => x.cssText.includes('scrollbar-color'));
@@ -302,7 +299,7 @@ async function page(route, viewport, theme = 'dark') {
       caretOnHtml: getComputedStyle(document.documentElement).caretColor,
     };
   });
-  log('K. scrollbar-color declared; loader bar measurable', true, JSON.stringify(r));
+  log('K. scrollbar-color declared; caret themed on html', true, JSON.stringify(r));
   await p.close();
 }
 
