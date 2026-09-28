@@ -221,10 +221,6 @@
  * and still scales everywhere else, and the hero simply redeclares the multiplier
  * to `1` for itself. `ch` units inside the hero stop moving too, which is the
  * point — the hero is identical at every text size.
- *
- * The route loader's hero branch carries the same class. The skeleton's whole claim
- * is that it is a copy of the page's opening, and a copy whose display bar was 15%
- * taller than the title it is standing in front of would be a lie.
  */
 .hero-composition {
   --type-scale: 1;
@@ -473,7 +469,7 @@ html[data-reading-measure='75'] {
 }
 
 /*
- * The route loader's skeleton bars run at REST, forever.
+ * The route loader's bars run at REST, forever.
  *
  * The loader is `transition:persist`, so it survives every client navigation and
  * is in the DOM from the first paint onward. It is also `opacity: 0` and

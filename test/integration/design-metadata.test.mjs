@@ -44,11 +44,7 @@ const dontList = listItems(designMarkdown, "Do's and Don'ts").filter((line) =>
   line.startsWith("- **Don't**"),
 );
 const baseLayout = await readRepoFile('src/layouts/BaseLayout.astro');
-/* The loader's own markup lives in `RouteSkeleton.astro`; the layout renders the
-   component. Both are read wherever the test is about what ships, because the
-   component is what ships the loader. */
-const routeSkeleton = await readRepoFile('src/components/RouteSkeleton.astro');
-const loaderSurface = `${baseLayout}\n${routeSkeleton}`;
+const loaderSurface = baseLayout;
 
 /*
  * Template source with its comments stripped.
@@ -60,10 +56,10 @@ const markup = (source) =>
   source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/^\s*\/\/.*$/gmu, '');
 
 const routeLoaderMarkup = () => {
-  const start = routeSkeleton.indexOf('data-route-loader');
+  const start = baseLayout.indexOf('data-route-loader');
 
   expect(start).toBeGreaterThan(-1);
-  return routeSkeleton.slice(start, routeSkeleton.indexOf('</div>', start));
+  return baseLayout.slice(start, baseLayout.indexOf('</div>', start));
 };
 
 test('motion names exactly two sanctioned opacity transitions, and only one is 180ms', () => {
@@ -129,7 +125,7 @@ test('the shipped reveal duration matches the shipped loader delay', () => {
   expect(duration).toBe(180);
   expect(duration).toBe(LOADER_DELAY);
   // The cap must outlast the reveal by a wide margin or it would hide the
-  // skeleton before it ever appeared.
+  // loader before it ever appeared.
   expect(LOADER_MAX_VISIBLE_MS).toBeGreaterThan(LOADER_DELAY * 10);
 });
 

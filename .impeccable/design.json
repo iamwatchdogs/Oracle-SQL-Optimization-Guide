@@ -211,7 +211,7 @@
       "Don't put Unicode glyph icons where an authored SVG belongs.",
       "Don't introduce a second solid accent button or a hero-metric card grid.",
       "Don't add a box-shadow, a --shadow-* token, or a Tailwind shadow-* utility in any theme \u2014 depth is tonal.",
-      "Don't reach for an animation library; page transitions, the disclosure, and the skeleton are native Astro plus Tailwind core.",
+      "Don't reach for an animation library; page transitions, the disclosure, and the route loader are native Astro plus Tailwind core.",
       "Don't animate prose, a disclosure, or any other reading element in from opacity 0 \u2014 first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned, both 180ms: the whole-page ClientRouter cross-fade and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.",
       "Don't size a title-block or reading-surface column track by its content \u2014 an `auto` track is how a 150px disclosure reflows a whole page.",
       "Don't move only one cap of the reading column: the track and the measure bind independently and the measure is the one that shows.",

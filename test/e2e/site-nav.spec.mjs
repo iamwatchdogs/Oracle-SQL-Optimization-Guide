@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { ms, SITE_NAV, SITE_NAV_SUMMARY } from './support/disclosure.mjs';
+import { waitForDisclosureOpen } from './support/disclosure-settle.mjs';
 import { DESKTOP, MOBILE } from './support/viewports.mjs';
 
 /**
@@ -116,6 +117,14 @@ test.describe('site nav — mobile, menu open', () => {
     const details = page.locator(SITE_NAV);
     await page.locator(SITE_NAV_SUMMARY).click();
     await expect(details).toHaveAttribute('open', '');
+    /*
+     * Waited, not sampled. The row is `grid-template-rows: 0fr → 1fr` over 280ms
+     * with a 40ms delay in each direction, so the panel is legitimately still 0px
+     * on the frames right after the `open` attribute lands. A single read there
+     * passes or fails on where the sample falls, and the close below already
+     * polls for exactly this reason.
+     */
+    await waitForDisclosureOpen(details);
     expect((await panelBox(page)).height).toBeGreaterThan(0);
 
     await page.locator(SITE_NAV_SUMMARY).click();

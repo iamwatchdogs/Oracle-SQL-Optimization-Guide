@@ -114,15 +114,4 @@ describe('the hero marks its own scope in the templates', () => {
     expect(block).toMatch(/<section\s[^>]*class="[^"]*\bhero-composition\b[^"]*"/u);
     expect(block).toMatch(/aria-labelledby="book-title"/u);
   });
-
-  test("the loader's hero copy carries it too", () => {
-    /*
-     * The skeleton's whole claim is that it is a copy of the page's opening. A copy
-     * whose display bar was 15% taller than the title it is standing in front of,
-     * under a reader's larger text size, is a lie — and the mapping tests that
-     * compare the two only run at the default scale.
-     */
-    const block = read('../../src/components/RouteSkeleton.astro');
-    expect(block).toMatch(/data-skeleton-shape="home"[^>]*hero-composition/u);
-  });
 });

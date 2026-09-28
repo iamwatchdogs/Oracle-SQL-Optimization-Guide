@@ -65,7 +65,7 @@ test('the 8s cap cancels a navigation that never reaches page load', () => {
   /*
    * Astro's default route loader has no timeout and no try/catch, so a stalled
    * connection leaves the transition promise unsettled and `astro:page-load`
-   * is never dispatched. Without a cap the skeleton, its `role="status"` live
+   * is never dispatched. Without a cap the loader, its `role="status"` live
    * region and `aria-busy` on `<main>` stay up with no code path back.
    */
   timer.advanceTo(MAX_VISIBLE_MS);
