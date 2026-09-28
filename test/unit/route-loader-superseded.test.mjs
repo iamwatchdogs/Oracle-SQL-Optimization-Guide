@@ -8,7 +8,7 @@
  * RESOLVES with `defaultPrevented === true` — which is the path
  * `wrapRouteLoader` reports as a cancel.
  *
- * With an unscoped cancel, A's exit therefore settled B: the skeleton hid, the
+ * With an unscoped cancel, A's exit therefore settled B: the loader hid, the
  * reveal timers cleared, and `prepared` — the only input to the focus handoff —
  * went false. Measured in Chromium with a 300ms gap between two clicks, the
  * second navigation showed no loader at all and left `document.activeElement` on

@@ -19,7 +19,7 @@ import {
  * never ran — focus stayed on the outgoing body after every navigation. The
  * handler therefore calls `beforeSwap()`, which settles the visuals only.
  */
-test('beforeSwap hides the skeleton but preserves the focus-handoff flag', () => {
+test('beforeSwap hides the loader but preserves the focus-handoff flag', () => {
   const { controller, loader, main, message, timer } = createHarness();
 
   controller.beforePreparation();

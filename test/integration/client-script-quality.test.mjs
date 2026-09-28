@@ -238,15 +238,13 @@ test('a noindex page emits the robots meta and a normal page does not', async ()
  * assertions close that gap by checking the two halves against each other.
  */
 test('every route-loader querySelector resolves against a shipped template', async () => {
-  const [controller, skeleton, page, notFound] = await Promise.all([
+  const [controller, layout, page, notFound] = await Promise.all([
     readSource('../../src/lib/route-loader.mjs'),
-    /* The loader's markup is `RouteSkeleton.astro`'s, not the layout's — the
-       layout renders the component. */
-    readSource('../../src/components/RouteSkeleton.astro'),
+    readSource('../../src/layouts/BaseLayout.astro'),
     readSource('../../src/pages/[...slug].astro'),
     readSource('../../src/pages/404.astro'),
   ]);
-  const templates = [skeleton, page, notFound].join('\n');
+  const templates = [layout, page, notFound].join('\n');
   const selectors = [
     ...new Set(
       [...controller.matchAll(/querySelector\?\.\('([^']+)'\)/gu)].map(([, selector]) => selector),
@@ -281,16 +279,16 @@ test('every route-loader querySelector resolves against a shipped template', asy
   expect(page).toMatch(/<main\b[\s\S]{0,200}id="main"/u);
 });
 
-test('the loader attribute the controller writes is the one the skeleton reveals on', async () => {
-  const [controller, skeleton] = await Promise.all([
+test('the loader attribute the controller writes is the one the markup reveals on', async () => {
+  const [controller, layout] = await Promise.all([
     readSource('../../src/lib/route-loader.mjs'),
-    readSource('../../src/components/RouteSkeleton.astro'),
+    readSource('../../src/layouts/BaseLayout.astro'),
   ]);
-  const loader = skeleton.match(/<div\s+id="route-loader"[\s\S]*?>/u)?.[0] ?? '';
+  const loader = layout.match(/<div\s+id="route-loader"[\s\S]*?>/u)?.[0] ?? '';
 
   expect(controller).toContain(`setAttribute?.('data-visible'`);
   /* The reveal is an attribute selector, so a JS-only write can never show the
-   * skeleton even when the state machine is right. The skeleton is decorative, so
+   * loader even when the state machine is right. The loader is decorative, so
    * a viewport-wide click blocker mid-navigation is worse than missing feedback. */
   expect(loader).toContain('data-visible="false"');
   expect(loader).toContain('data-[visible=true]:opacity-100');

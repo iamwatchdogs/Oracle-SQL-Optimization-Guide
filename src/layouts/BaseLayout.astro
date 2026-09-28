@@ -1,7 +1,6 @@
 ---
 import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
-import RouteSkeleton from '../components/RouteSkeleton.astro';
 import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
 import '../styles/global.css';
 
@@ -470,7 +469,33 @@ const isArticle = Astro.url.pathname !== '/';
 
     <slot />
 
-    <RouteSkeleton />
+    <div
+      id="route-loader"
+      data-route-loader
+      transition:persist="route-loader"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      data-visible="false"
+      class="pointer-events-none fixed inset-x-0 top-20 z-50 mx-auto w-shell opacity-0 transition-opacity duration-[180ms] data-[visible=true]:opacity-100"
+    >
+      <span data-route-loader-message class="sr-only"></span>
+      {/*
+        `bg-rule-strong`, not `bg-paper-raised`. The container has no background of
+        its own, so the bars sat on the paper ground — `#141417` on `#0c0c0e`,
+        1.06:1. A loading state nobody can see is not a loading state: after the
+        180ms gate the loader faded in to three bars the eye could not resolve,
+        and `animate-pulse` made the dip in contrast worse. `--rule-strong` is the
+        strongest hairline already in the vocabulary, reads at 1.73:1 in dark and
+        1.92:1 in light, and keeps the loader subordinate to the content it sits
+        over rather than competing with it.
+      */}
+      <div aria-hidden="true" class="space-y-3">
+        <span class="block h-3 w-full animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
+        <span class="block h-3 w-11/12 animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
+        <span class="block h-3 w-8/12 animate-pulse rounded-ui bg-rule-strong motion-reduce:animate-none"></span>
+      </div>
+    </div>
 
     <script>
       import { createRouteLoaderController, wrapRouteLoader } from '../lib/route-loader.mjs';
@@ -478,7 +503,7 @@ const isArticle = Astro.url.pathname !== '/';
       if (!Object.prototype.hasOwnProperty.call(document, 'routeLoaderInitialized')) {
         const controller = createRouteLoaderController({ document, window });
         document.addEventListener('astro:before-preparation', (event) => {
-          controller.beforePreparation(event.signal, event.to);
+          controller.beforePreparation(event.signal);
           event.loader = wrapRouteLoader(
             event.loader,
             /* Signal-scoped. This path also fires when a navigation is
@@ -494,7 +519,7 @@ const isArticle = Astro.url.pathname !== '/';
            by pageLoad, an abort, or defaultPrevented — but if a future Astro
            release settles a navigation through some other path, the loader must
            not be left on screen with a permanently announcing live region.
-           `beforeSwap` hides the skeleton WITHOUT discarding the "a navigation
+           `beforeSwap` hides the loader WITHOUT discarding the "a navigation
            was prepared" flag that `pageLoad` needs for the focus handoff. */
         document.addEventListener('astro:before-swap', () => controller.beforeSwap());
         /* Astro announces the new title from an `aria-live="assertive"` node it

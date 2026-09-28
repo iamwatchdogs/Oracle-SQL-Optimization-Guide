@@ -19,7 +19,7 @@ test('loader visibility is written as an attribute, never as a JS property', () 
   /*
    * `data-[visible=true]:opacity-100` is an attribute selector. The retired
    * `loader.dataset` branch could never satisfy it, and writing to a plain
-   * object's `dataset` produced no attribute at all — the skeleton stayed at
+   * object's `dataset` produced no attribute at all — the loader stayed at
    * `opacity-0` for the whole navigation.
    *
    * Asserted against comment-stripped source: the file carries a note naming
@@ -59,9 +59,7 @@ test('the reveal cap and the reveal gate are cleared by the same call', () => {
 
 test('BaseLayout wraps the loader only after setting pending state', () => {
   const source = layoutSource();
-  /* The destination rides along, so the skeleton can be shaped for the page being
-     loaded before the fetch resolves. */
-  const preparation = 'controller.beforePreparation(event.signal, event.to);';
+  const preparation = 'controller.beforePreparation(event.signal);';
   const wrapping = 'event.loader = wrapRouteLoader(';
   const prevented = '() => event.defaultPrevented';
 

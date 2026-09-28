@@ -3,11 +3,11 @@
  * about navigation state.
  *
  * Two timers are armed per navigation and share one `clear()`:
- *   - the 180ms reveal gate, which shows the skeleton and publishes the live
+ *   - the 180ms reveal gate, which shows the loader and publishes the live
  *     message, and
  *   - an 8000ms hard cap, because Astro's default route loader has no timeout —
  *     a fetch that stalls but never closes leaves the transition promise
- *     unsettled, so `astro:page-load` never fires and the skeleton would stay up
+ *     unsettled, so `astro:page-load` never fires and the loader would stay up
  *     with a permanently announcing `role="status"` region and no code path back.
  *
  * `getTimerFunctions` resolves a timer source in a fixed order — an explicit

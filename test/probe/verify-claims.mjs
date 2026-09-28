@@ -284,7 +284,7 @@ async function page(route, viewport, theme = 'dark') {
   await p.close();
 }
 
-/* ---- K. scrollbar + skeleton bar contrast ---------------------- */
+/* ---- K. scrollbar + loader bar contrast ---------------------- */
 {
   const p = await page('/', { width: 1440, height: 900 });
   const r = await p.evaluate(() => {
@@ -302,7 +302,7 @@ async function page(route, viewport, theme = 'dark') {
       caretOnHtml: getComputedStyle(document.documentElement).caretColor,
     };
   });
-  log('K. scrollbar-color declared; skeleton bar measurable', true, JSON.stringify(r));
+  log('K. scrollbar-color declared; loader bar measurable', true, JSON.stringify(r));
   await p.close();
 }
 

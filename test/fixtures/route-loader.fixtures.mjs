@@ -120,7 +120,7 @@ function createClock() {
  * attribute selector. A `dataset` read would pass against a fake that never
  * wrote the attribute at all, which is exactly the regression the retired
  * `loader.dataset` branch caused: writing to a plain object's `dataset`
- * produced no attribute, so the skeleton stayed at `opacity-0` all navigation.
+ * produced no attribute, so the loader stayed at `opacity-0` all navigation.
  */
 export const visibleAttribute = (element) => element.attributes.get('data-visible') ?? null;
 

@@ -24,7 +24,7 @@ test.describe('route loader — presentation', () => {
  * The loader must be QUIESCENT while it is hidden.
  *
  * The loader is `transition:persist`, so it is in the DOM from the first paint and
- * survives every client navigation. Its three skeleton bars carry `animate-pulse`,
+ * survives every client navigation. Its three bars carry `animate-pulse`,
  * whose iteration count is `Infinity` — so before this was fixed, three infinite
  * 2s animations composited on every page forever, animating a loader that was
  * `opacity: 0` and would not be shown again. Measured on the built site before the
@@ -56,7 +56,7 @@ test.describe('route loader — rest', () => {
     expect(atRest, 'the hidden loader is still animating').toEqual([]);
 
     // And the pause must not be permanent: revealing it has to bring the
-    // skeleton back, or a slow navigation would show a frozen placeholder.
+    // loader back, or a slow navigation would show a frozen placeholder.
     await page.evaluate(() => {
       document.querySelector('[data-route-loader]').dataset.visible = 'true';
     });

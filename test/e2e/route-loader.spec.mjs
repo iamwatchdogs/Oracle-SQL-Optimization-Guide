@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { LOADER } from './support/route-loader.mjs';
 
 /**
- * Route loader (the skeleton loading state).
+ * Route loader (the loading state).
  *
  * This is the feature most at risk of being *wired but unverified*: it is
  * exercised only against a hand-rolled fake DOM in unit tests, and its unit
@@ -19,7 +19,7 @@ import { LOADER } from './support/route-loader.mjs';
  *
  * CPU throttling was the previous approach and it is not deterministic: the
  * static server plus the browser disk cache let a warm second hop complete in
- * under 180ms, so the skeleton legitimately never appeared and the test failed
+ * under 180ms, so the loader legitimately never appeared and the test failed
  * for a reason that had nothing to do with the loader. Delaying the RESPONSE
  * targets the thing the gate actually measures. It is also engine-agnostic, so
  * these tests no longer need a chromium-only skip.
