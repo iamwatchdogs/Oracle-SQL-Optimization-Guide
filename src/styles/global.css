@@ -1388,48 +1388,90 @@ details[data-disclosure-closing] .disclosure-icon {
  * dissolve with no moment where either page was settled. The complaint was that it
  * did not feel like a transition at all.
  *
- * So the two halves are now SEQUENTIAL, which is what a page change actually is:
+ * So the two halves were made SEQUENTIAL, which is what a page change actually is:
  *
  *   out    180ms  accelerating  — the old page leaves rather than thins
  *   in     260ms  settling      — starts 140ms in, so the last 40ms of the fade-out
  *                                  overlaps the first of the fade-in
  *
- * That 40ms overlap is the part that matters. A gap with nothing on screen reads as
- * a flash and a stutter; a 40ms one reads as a dissolve, and the reader gets the
- * moment of the old page being gone that a `180ms → 180ms` cross-fade never gave
- * them. Total 400ms, against 180ms before — slower on the clock and calmer on the
- * screen, which are not the same measurement.
+ * That read is right and it is what this keeps. What the sequence got wrong is a
+ * property of the COMPOSITING, not the timing.
  *
- * These rules are unlayered, which is the whole mechanism: unlayered
- * declarations outrank every `@layer`, Astro's included, and they outrank the UA
- * stylesheet besides.
+ * The UA puts two animations on `::view-transition-old/new(root)`: the fade, and
+ * `-ua-mix-blend-mode-plus-lighter`. `fade()` bakes `plus-lighter` into both of its
+ * own keyframes as well, so the two snapshots are ADDED together rather than one
+ * being drawn over the other. Addition is only correct while the two opacities sum
+ * to 1 — that is the invariant the CSSWG wrote it for, and a symmetric cross-fade
+ * satisfies it. A SEQUENCE cannot: for the whole 140ms before the fade-in starts,
+ * the old page is at some fraction and the new is at zero, and the sum is under 1.
+ * Under-exposed frames show the paper through, and this paper is `#0c0c0e`.
+ * (vtbag.dev, "Flickering during Cross-Fade Animations?": with a dark background
+ * plus-lighter does not merely fail to help, it goes the other way — the combined
+ * image renders darker than either snapshot. w3c/csswg-drafts#9276 is still open on
+ * fixing this for `prefers-color-scheme: dark`, so it will not be fixed for us.)
  *
- * Longhands, not the `animation` shorthand, because the UA puts TWO animations on
- * `::view-transition-old/new(root)`: the fade and a `mix-blend-mode` one
- * (`-ua-mix-blend-mode-plus-lighter`) that is what stops the cross-dissolve going
- * dark in the middle. A shorthand would replace both and take the blending with it.
- * The longhands retime whatever the UA authored and leave its name alone.
+ * So the sequence stays and the blend goes:
  *
- * Geometry keeps the project's exponential ease-out over 260ms, so the title's
- * movement spans most of the swap rather than snapping at the end of the fade-out.
- * The fades are asymmetric on purpose: accelerating out, settling in.
+ *   old    230ms  opacity 1 → 0, 50ms in,  on TOP  — the page being removed
+ *   new     none                             opaque, UNDERNEATH
+ *
+ * The new page carries no animation at all, which is the whole trick. It is a fully
+ * opaque snapshot sitting beneath the old one from the first frame, so the old page
+ * is not fading toward nothing — it is being uncovered. The composite is a
+ * draw of the old over an opaque new, so it can never be darker than the new page
+ * itself: there is no alpha hole and no additive flare, and the dip was only ever
+ * an artifact of trying to fade two pages through the background at once. This is
+ * the same shape Vercel's `react-view-transitions` recipe and vtbag's Starlight
+ * integration both arrived at from the other direction — do not animate the old
+ * image — and it is a genuine exit-then-enter: the old page leaves, and the new one
+ * is revealed rather than dissolved up from zero.
+ *
+ * `z-index` does the paint-order flip, because the two snapshots are siblings inside
+ * `::view-transition-image-pair` and default to tree order, which paints the new one
+ * on top. Both are set explicitly so the order is stated rather than inherited.
+ *
+ * The `animation` SHORTHAND replaces the two UA animations instead of retiming them,
+ * which is the opposite of what this block used to do and is the reason the keyframes
+ * are spelled out: the shorthand has to kill `-ua-mix-blend-mode-plus-lighter` too,
+ * and a longhand cannot reach a second animation on the same element. `mix-blend-mode:
+ * normal` inside the keyframes is the belt to that braces — the property is stated,
+ * not merely un-animated, so a UA that applies it at a different specificity still
+ * loses.
+ *
+ * Geometry keeps the project's exponential ease-out over 230ms so the title's
+ * movement spans the swap rather than snapping at the end of the fade-out. 280ms
+ * total, down from 400ms: above roughly 300ms a transition starts costing the focus
+ * move and the route announcement, which is an accessibility bill and not polish.
+ *
+ * These rules are unlayered, which is the whole mechanism: unlayered declarations
+ * outrank every `@layer`, Astro's included, and they outrank the UA stylesheet
+ * besides.
  */
 ::view-transition-group(*) {
-  animation-duration: 260ms;
+  animation-duration: 230ms;
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 ::view-transition-old(*) {
-  animation-duration: 180ms;
-  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
-  animation-fill-mode: both;
+  z-index: 2;
+  animation: 230ms cubic-bezier(0.4, 0, 0.6, 1) 50ms both page-lift;
 }
 
 ::view-transition-new(*) {
-  animation-duration: 260ms;
-  animation-delay: 140ms;
-  animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
-  animation-fill-mode: both;
+  z-index: 1;
+  animation: none;
+}
+
+@keyframes page-lift {
+  from {
+    opacity: 1;
+    mix-blend-mode: normal;
+  }
+
+  to {
+    opacity: 0;
+    mix-blend-mode: normal;
+  }
 }
 
 /*
@@ -1489,11 +1531,20 @@ html:not([data-title-entrance]) .rise {
   /*
    * The view-transition pseudo-elements, which `*` does not reach.
    *
-   * This is not a completeness fix. The route swap is now 180ms out and 260ms in
-   * after a 140ms delay — 400ms in total — and a reader who has asked for reduced
-   * motion would otherwise get LONGER than before, because `*` never matched
-   * `::view-transition-old/new` and the retiming rules above applied untouched. A
-   * reader opting out of motion has to actually get less of it.
+   * This block is redundant on the native path and load-bearing on the fallback
+   * one, and it is worth being honest about which is which. `<ClientRouter />`
+   * ships its own `@media (prefers-reduced-motion)` rule that sets
+   * `animation: none !important` on the same three selectors, so a reduced-motion
+   * reader on a view-transition browser already gets nothing — the `!important`
+   * outranks the unlayered retiming above, and has done since Astro 3.6.
+   *
+   * What Astro's rule does NOT cover is `fallback="animate"`. Without native view
+   * transitions the router drives the same visual through
+   * `[data-astro-transition-scope]` elements on the live DOM rather than through
+   * these pseudos, and those are the selectors above it does name — but only for the
+   * pseudos half. Authoring it here as well means the two paths cannot drift, and
+   * means a browser that loses native view transitions later does not silently gain
+   * 280ms of motion for the readers who asked for none.
    */
   ::view-transition-group(*),
   ::view-transition-old(*),

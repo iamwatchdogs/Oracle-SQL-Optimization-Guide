@@ -1,19 +1,30 @@
 /*
- * Route transition choreography, and what used to desynchronise it.
+ * Route transition choreography, and the compositing bug that was hiding in it.
  *
- * Measured before the first fix, with `document.getAnimations()` during a swap:
+ * Two failures were measured here, on the built site, with `document.getAnimations()`
+ * during a swap.
  *
- *   ::view-transition-group(root)        250ms  linear
- *   ::view-transition-group(page-title)  250ms  linear
- *   ::view-transition-old/new(page-title) 180ms  cubic-bezier(.76,0,.24,1)
+ * The first was a desynchronisation. The UA contributed its own
+ * `::view-transition-group(*)` geometry animation at 250ms linear, while
+ * `fade({ duration: '0.18s' })` faded the snapshots at 180ms on an eased curve — so
+ * the shared `page-title` snapshot was still moving and scaling on a linear track
+ * 70ms after the page it belonged to had finished arriving. Underneath that, the home
+ * page's title-block entrance (500ms, up to a 240ms stagger, finishing at 740ms)
+ * replayed on every client navigation, because the router re-creates that markup.
  *
- * So the shared `page-title` snapshot was moved and scaled on the UA's 250ms
- * linear curve while the page it belonged to cross-faded on a 180ms eased one — a
- * 70ms tail of title still in flight over a page that had already arrived. And
- * underneath that, the home page's title-block entrance (500ms with up to a 240ms
- * stagger, finishing at 740ms) replayed on every client navigation, so a reader
- * watched the abstract and the metadata margin drift into place long after the
- * page had already changed.
+ * The second was a dark dip, and it was invisible in every one of those measurements,
+ * because it is a property of how the two snapshots composite rather than of either
+ * one's timing. `fade()` bakes `mix-blend-mode: plus-lighter` into both keyframes, and
+ * the UA adds a second `-ua-mix-blend-mode-plus-lighter` animation on top. Addition is
+ * only correct while the two opacities sum to 1. Making the fade sequential — out
+ * 180ms, then in 260ms after a 140ms delay — broke that invariant for the whole
+ * 140ms, the frames were under-exposed, and the paper showed through them. The paper is
+ * `#0c0c0e`, so the middle of every chapter change dimmed the page and brought it back.
+ *
+ * The fix keeps the sequential read and changes the compositing. The new page carries
+ * no animation at all: it is a fully opaque snapshot UNDERNEATH the old one, and the
+ * old page is uncovered rather than faded toward nothing. These tests assert that
+ * structure, because the dip cannot be observed from timings at all.
  */
 
 import { expect, test } from '@playwright/test';
@@ -22,21 +33,21 @@ import { DESKTOP_VIEWPORT } from './support/toc.mjs';
 /*
  * The choreography, as constants rather than as prose.
  *
- * Geometry 260ms on the project's ease-out: a title that arrives fast and settles
- *            reads as one motion, and it spans most of the swap rather than
- *            snapping at the end of the fade-out.
- * OUT       180ms accelerating: the old page leaves rather than thinning.
- * IN        260ms settling, starting 140ms in.
- * OVERLAP   40ms: the last of the fade-out against the first of the fade-in. A gap
- *            reads as a flash and a stutter; this much reads as a dissolve.
+ * GEOMETRY  230ms on the project's ease-out: a title that arrives fast and settles
+ *           reads as one motion, and it spans the swap rather than snapping at the
+ *           end of the fade-out.
+ * OUT       230ms, 50ms in: a beat where the old page is simply still there, then the
+ *           removal, then the new page is revealed underneath it.
+ * NEW       no animation. This is the load-bearing value in the file.
+ * TOTAL     280ms. Above roughly 300ms a transition starts delaying the focus move
+ *           and the route announcement, which is an accessibility cost.
  */
 const GEOMETRY_CURVE = 'cubic-bezier(0.22, 1, 0.36, 1)';
-const OUT_CURVE = 'cubic-bezier(0.4, 0, 1, 1)';
-const IN_CURVE = 'cubic-bezier(0, 0, 0.2, 1)';
-const GEOMETRY_MS = 260;
-const OUT_MS = 180;
-const IN_MS = 260;
-const IN_DELAY_MS = 140;
+const LIFT_CURVE = 'cubic-bezier(0.4, 0, 0.6, 1)';
+const GEOMETRY_MS = 230;
+const OUT_MS = 230;
+const OUT_DELAY_MS = 50;
+const TOTAL_MS = OUT_DELAY_MS + OUT_MS;
 
 const installViewTransitionRecorder = (page) =>
   page.evaluate(() => {
@@ -57,15 +68,18 @@ const installViewTransitionRecorder = (page) =>
         if (keyframes.length === 0) {
           continue;
         }
-        const easings = keyframes.map((keyframe) => keyframe.easing);
+        const timing = animation.effect.getTiming();
         seen.add(
-          [
+          JSON.stringify({
             pseudo,
-            animation.animationName,
-            animation.effect.getTiming().duration,
-            animation.effect.getTiming().delay,
-            ...easings,
-          ].join('|'),
+            name: animation.animationName,
+            duration: timing.duration,
+            delay: timing.delay,
+            easings: [...new Set(keyframes.map((keyframe) => keyframe.easing))],
+            /* Opacity endpoints, which is where the compositing guarantee lives: a
+               fade that ENDS at 0 fully clears, revealing whatever is under it. */
+            opacity: keyframes.map((keyframe) => keyframe.opacity),
+          }),
         );
       }
     };
@@ -75,7 +89,7 @@ const installViewTransitionRecorder = (page) =>
 const readViewTransitionRecorder = (page) =>
   page.evaluate(() => {
     clearInterval(globalThis.viewTransitionTraceId);
-    return [...globalThis.viewTransitionTrace];
+    return [...globalThis.viewTransitionTrace].map((entry) => JSON.parse(entry));
   });
 
 const navigateTo = (page, prefix) =>
@@ -99,10 +113,10 @@ const risingCount = (page) =>
       document.getAnimations().filter((animation) => animation.animationName === 'rise-in').length,
   );
 
-const splitAnimations = (entries, prefix) =>
-  entries.filter((entry) => entry.startsWith(prefix)).map((entry) => entry.split('|'));
+const byPseudo = (entries, fragment) => entries.filter((entry) => entry.pseudo.includes(fragment));
 
-async function runsOneDurationAndOneCurvePerAxis({ page }) {
+/** One swap's worth of recorded animations, sampled on a settled page. */
+async function recordOneSwap(page) {
   await page.setViewportSize(DESKTOP_VIEWPORT);
   await page.goto('/');
   await page.waitForTimeout(700);
@@ -112,102 +126,71 @@ async function runsOneDurationAndOneCurvePerAxis({ page }) {
   await installViewTransitionRecorder(page);
   await navigateTo(page, '/00-preface/');
   await page.waitForTimeout(1500);
-  const animations = await readViewTransitionRecorder(page);
-
-  const groups = splitAnimations(animations, '::view-transition-group');
-  const outs = splitAnimations(animations, '::view-transition-old');
-  const ins = splitAnimations(animations, '::view-transition-new');
-  /* `-ua-mix-blend-mode-plus-lighter` animates `mix-blend-mode`, not opacity. It
-     rides the same timing as the fade it shares an element with, which is why the
-     longhands in `global.css` retime it too. */
-  const blends = [...outs, ...ins].filter((entry) => entry[1].includes('-ua-mix-blend-mode-'));
-  const opacities = [...outs, ...ins].filter((entry) => !entry[1].includes('-ua-mix-blend-mode-'));
-
-  expect(groups.length).toBeGreaterThan(0);
-  expect(outs.length).toBeGreaterThan(0);
-  expect(ins.length).toBeGreaterThan(0);
-
-  for (const [, , duration, delay, ...easings] of groups) {
-    expect(duration).toBe(String(GEOMETRY_MS));
-    expect(delay).toBe('0');
-    expect(new Set(easings)).toEqual(new Set([GEOMETRY_CURVE]));
-  }
-  for (const [, , duration, delay, ...easings] of opacities.filter(
-    (e) => e[1].includes('old') || e[3] === '0',
-  )) {
-    expect(duration).toBe(String(OUT_MS));
-    expect(delay).toBe('0');
-    expect(new Set(easings)).toEqual(new Set([OUT_CURVE]));
-  }
-  for (const [, , duration, delay, ...easings] of ins) {
-    expect(duration).toBe(String(IN_MS));
-    expect(delay).toBe(String(IN_DELAY_MS));
-    expect(new Set(easings)).toEqual(new Set([IN_CURVE]));
-  }
-  /* Every one of them, blending included, is inside the 400ms the swap claims. */
-  for (const entry of [...groups, ...outs, ...ins]) {
-    const [, , duration, delay] = entry;
-    expect(Number(delay) + Number(duration)).toBeLessThanOrEqual(GEOMETRY_MS + IN_DELAY_MS + IN_MS);
-  }
-  expect(blends.length).toBeGreaterThan(0);
+  return readViewTransitionRecorder(page);
 }
 
 /*
- * The two halves overlap, and by a little.
- *
- * This is the property that separates a dissolve from a flash. The old page is gone
- * at 180ms and the new one starts at 140ms, so there are 40ms where both are
- * partly on screen: long enough to read as one dissolve, short enough that the
- * reader never sees an empty page. A cross-fade with no delay — the previous
- * design — had zero overlap and no moment where either page was settled, which is
- * what "it does not feel like a transition" was.
+ * One duration and one curve per axis, and the whole swap inside 280ms.
  */
-async function overlapsTheTwoHalvesInsteadOfGappingThem({ page }) {
-  await page.setViewportSize(DESKTOP_VIEWPORT);
-  await page.goto('/');
-  await page.waitForTimeout(700);
-  await parkTheScroll(page);
-  await page.waitForTimeout(300);
+async function runsOneDurationAndOneCurvePerAxis({ page }) {
+  const animations = await recordOneSwap(page);
 
-  await installViewTransitionRecorder(page);
-  await navigateTo(page, '/00-preface/');
-  await page.waitForTimeout(1500);
-  const animations = await readViewTransitionRecorder(page);
+  const groups = byPseudo(animations, '::view-transition-group');
+  const olds = byPseudo(animations, '::view-transition-old');
 
-  /*
-   * Measured, not asserted from the constants above.
-   *
-   * The first version of this computed the overlap from the test's own numbers,
-   * which is a tautology: it would have passed with no stylesheet at all. The
-   * interesting question is what the BROWSER ran, so the two endpoints come out of
-   * the recorder.
-   */
-  const oldest = splitAnimations(animations, '::view-transition-old')
-    .filter((entry) => !entry[1].includes('-ua-mix-blend-mode-'))
-    .map((entry) => Number(entry[2]) + Number(entry[3]))
-    .toSorted((a, b) => a - b);
-  const earliestNew = splitAnimations(animations, '::view-transition-new')
-    .filter((entry) => !entry[1].includes('-ua-mix-blend-mode-'))
-    .map((entry) => Number(entry[3]))
-    .toSorted((a, b) => a - b);
+  expect(groups.length).toBeGreaterThan(0);
+  expect(olds.length).toBeGreaterThan(0);
 
-  expect(oldest.length).toBeGreaterThan(0);
-  expect(earliestNew.length).toBeGreaterThan(0);
+  for (const group of groups) {
+    expect(group.duration).toBe(GEOMETRY_MS);
+    expect(group.delay).toBe(0);
+    expect(group.easings).toEqual([GEOMETRY_CURVE]);
+  }
+  for (const old of olds) {
+    expect(old.duration).toBe(OUT_MS);
+    expect(old.delay).toBe(OUT_DELAY_MS);
+    expect(old.easings).toEqual([LIFT_CURVE]);
+  }
+  /* Every animation the swap ran, geometry included, fits in the budget it claims. */
+  for (const entry of animations) {
+    expect(entry.delay + entry.duration).toBeLessThanOrEqual(TOTAL_MS);
+  }
+}
 
-  /* The fade-out is over by the time the fade-in starts, or has not — a gap is a
-     flash, and a cross-fade the reader never sees is the thing being replaced. */
-  const overlap = Math.max(...oldest) - Math.min(...earliestNew);
-  expect(overlap).toBeGreaterThan(0);
-  /* Not so much that both pages are on screen together for most of the swap. */
-  expect(overlap).toBeLessThanOrEqual(OUT_MS / 2);
+/*
+ * The compositing guarantee, and the whole reason the dip is gone.
+ *
+ * Two things have to be true at once, and neither is visible in a duration:
+ *
+ *   1. the new page animates NOTHING, so it is opaque from the first frame. It is a
+ *      filled page sitting underneath, not a page fading up from zero — which is
+ *      what made the 140ms hole in the previous sequence.
+ *   2. nothing composites additively. `plus-lighter` adds the two opacities, which is
+ *      only right while they sum to 1; sequenced, they do not, and on this paper the
+ *      under-exposed frames render darker than either page. The `animation` shorthand
+ *      on the old page kills the UA's `-ua-mix-blend-mode-plus-lighter` alongside its
+ *      fade, so there must be no such animation left in the tree.
+ *
+ * Then the old page's own fade has to END at zero opacity, or it never finishes
+ * uncovering the page under it.
+ */
+async function keepsTheNewPageOpaqueUnderneathInsteadOfFadingBothThroughThePaper({ page }) {
+  const animations = await recordOneSwap(page);
+
+  const news = byPseudo(animations, '::view-transition-new');
+  const olds = byPseudo(animations, '::view-transition-old');
+  const blends = animations.filter((entry) => entry.name.includes('-ua-mix-blend-mode-'));
+
+  expect(news).toEqual([]);
+  expect(blends).toEqual([]);
+  for (const old of olds) {
+    expect(old.opacity.at(0)).toBe('1');
+    expect(old.opacity.at(-1)).toBe('0');
+  }
 }
 
 /*
  * Reduced motion means less of it, not the same motion with a longer clock.
- *
- * The retiming rules target view-transition pseudo-elements, which `*` does not
- * reach, so without an explicit override a reader who has asked for reduced motion
- * gets 400ms — longer than the 180ms they had before the sequence was introduced.
  */
 async function givesAReducedMotionReaderNoTransitionAtAll({ page }) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -221,7 +204,7 @@ async function givesAReducedMotionReaderNoTransitionAtAll({ page }) {
   await page.waitForTimeout(900);
   const animations = await readViewTransitionRecorder(page);
 
-  expect(animations.filter((entry) => entry.startsWith('::view-transition'))).toEqual([]);
+  expect(animations).toEqual([]);
 }
 
 async function playsTheEntranceOncePerDocument({ page }) {
@@ -246,11 +229,11 @@ async function playsTheEntranceOncePerDocument({ page }) {
 }
 
 test.describe('the route swap', () => {
+  test('runs one duration and one curve per axis, inside 280ms', runsOneDurationAndOneCurvePerAxis);
   test(
-    'runs every animation on one duration and one curve per axis',
-    runsOneDurationAndOneCurvePerAxis,
+    'keeps the new page opaque underneath instead of fading both through the paper',
+    keepsTheNewPageOpaqueUnderneathInsteadOfFadingBothThroughThePaper,
   );
-  test('overlaps the two halves instead of gapping them', overlapsTheTwoHalvesInsteadOfGappingThem);
   test(
     'gives a reduced-motion reader no transition at all',
     givesAReducedMotionReaderNoTransitionAtAll,

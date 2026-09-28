@@ -79,8 +79,8 @@
       },
       {
         "name": "route-fade",
-        "value": "out 180ms cubic-bezier(0.4,0,1,1); in 260ms cubic-bezier(0,0,0.2,1) after a 140ms delay; view-transition groups 260ms cubic-bezier(0.22,1,0.36,1)",
-        "purpose": "Sanctioned opacity #1: the whole-page route fade. Out then in rather than a symmetric cross-fade, so the reader gets the moment the old page is gone; the 40ms overlap is a dissolve, not a flash. 400ms total. Retimed with longhands, because the UA's mix-blend-mode animation shares those pseudo-elements and a shorthand would take the anti-dip blending with it."
+        "value": "old: opacity 1 \u2192 0, 230ms cubic-bezier(0.4,0,0.6,1) after a 50ms beat, z-index 2; new: animation none, z-index 1; view-transition groups 230ms cubic-bezier(0.22,1,0.36,1)",
+        "purpose": "Sanctioned opacity #1: the whole-page route fade. The new page animates nothing \u2014 it is an opaque snapshot UNDERNEATH \u2014 and the old page is uncovered rather than faded toward nothing, so the composite is a draw over an opaque fill and can never be darker than the page itself. That is the fix for a dip: fade() bakes mix-blend-mode: plus-lighter into both keyframes, addition is only correct while the two opacities sum to 1, and a sequenced fade breaks that for its whole delay, so on this #0c0c0e paper the frames rendered under-exposed and the page dimmed in the middle. The animation shorthand, not longhands, because the UA's -ua-mix-blend-mode-plus-lighter is a second animation on the same pseudo-element and a longhand cannot reach it. 280ms total, under the ~300ms where a transition starts costing the focus move and the route announcement."
       },
       {
         "name": "disclosure",
@@ -212,7 +212,7 @@
       "Don't introduce a second solid accent button or a hero-metric card grid.",
       "Don't add a box-shadow, a --shadow-* token, or a Tailwind shadow-* utility in any theme \u2014 depth is tonal.",
       "Don't reach for an animation library; page transitions, the disclosure, and the route loader are native Astro plus Tailwind core.",
-      "Don't animate prose, a disclosure, or any other reading element in from opacity 0 \u2014 first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned, both 180ms: the whole-page ClientRouter cross-fade and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.",
+      "Don't animate prose, a disclosure, or any other reading element in from opacity 0 \u2014 first paint is the resting state and in-page motion is transform-only. Only two opacity transitions are sanctioned: the whole-page ClientRouter route swap and the persistent loader state reveal. Both are navigation or state feedback, never content entrance.",
       "Don't size a title-block or reading-surface column track by its content \u2014 an `auto` track is how a 150px disclosure reflows a whole page.",
       "Don't move only one cap of the reading column: the track and the measure bind independently and the measure is the one that shows.",
       "Don't scale part of the type ramp \u2014 every absolute `--type-*` step multiplies by `--type-scale`, and the two `em`-relative steps must not.",

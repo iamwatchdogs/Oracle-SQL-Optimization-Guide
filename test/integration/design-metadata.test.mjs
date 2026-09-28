@@ -80,17 +80,22 @@ test('motion names exactly two sanctioned opacity transitions, and only one is 1
   expect(motionSection).not.toMatch(/one opacity exception|single opacity exception/iu);
 });
 
-test('the route fade is documented as a sequence with an overlap, not a cross-fade', () => {
-  expect(motionSection).toMatch(/fade OUT, then fade IN/iu);
-  /* out, in, delay, geometry, overlap. Each one is a number a reader of this file
-     would otherwise have to take on trust. */
-  expect(motionSection).toMatch(/out 180ms/iu);
-  expect(motionSection).toMatch(/in 260ms/iu);
-  expect(motionSection).toMatch(/140ms\*\* delay/iu);
-  expect(motionSection).toMatch(/260ms\*\*/u);
-  expect(motionSection).toMatch(/40ms overlap/iu);
-  /* The longhand rule, and why it is not a style preference. */
-  expect(motionSection).toMatch(/mix-blend-mode/iu);
+test('the route fade is documented as uncovering the new page, not cross-fading', () => {
+  expect(motionSection).toMatch(/uncovered, not faded through the paper/iu);
+  /* out, delay, geometry, and the one value that carries the whole mechanism. Each
+     is a number a reader of this file would otherwise have to take on trust. */
+  expect(motionSection).toMatch(/out 230ms/iu);
+  expect(motionSection).toMatch(/\*\*50ms\*\* beat/iu);
+  expect(motionSection).toMatch(/230ms\*\*/u);
+  expect(motionSection).toMatch(/\*\*280ms\*\*/iu);
+  /* The compositing rule, and why it is not a style preference: plus-lighter adds
+     the two opacities, which is only correct while they sum to 1, and a sequence
+     cannot hold that. On this paper the broken frames render darker. */
+  expect(motionSection).toMatch(/plus-lighter/iu);
+  expect(motionSection).toMatch(/#0c0c0e/u);
+  /* Shorthand, not longhands: the UA's blend animation is a SECOND animation on the
+     same pseudo-element, and a longhand cannot reach it. */
+  expect(motionSection).toMatch(/shorthand/iu);
   /* Reduced motion has to be less motion, not the same motion on a longer clock. */
   expect(motionSection).toMatch(/prefers-reduced-motion/iu);
 });
@@ -190,7 +195,7 @@ test('both sanctioned opacity bullets stay in Motion', () => {
 
   expect(first).toBeDefined();
   expect(first).toMatch(/no element on a page may fade in from `opacity: 0`/iu);
-  expect(first).toMatch(/400ms/iu);
+  expect(first).toMatch(/280ms/iu);
   expect(second).toBeDefined();
   expect(second).toMatch(/state feedback/iu);
   expect(second).toMatch(/duration-\[180ms\]/u);
@@ -218,18 +223,21 @@ test('design metadata motion mirrors the documented motion values', () => {
   expect(rise.value).toMatch(/500ms/u);
   expect(rise.value).toMatch(/translateY\(10px\)/u);
   expect(rise.purpose).toMatch(/transform-only/u);
-  expect(route.value).toMatch(/out 180ms/u);
-  expect(route.value).toMatch(/in 260ms/u);
-  expect(route.value).toMatch(/140ms delay/u);
+  expect(route.value).toMatch(/opacity 1 → 0, 230ms/u);
+  expect(route.value).toMatch(/50ms beat/u);
+  expect(route.value).toMatch(/z-index 2/u);
   /* The geometry curve is written without spaces after the commas here, unlike
      everywhere else in this project — matching how the other `design.json` values
      are spelled, so a reader comparing the two does not think it is a different
      curve. */
-  expect(route.value).toMatch(/view-transition groups 260ms cubic-bezier\(0\.22,1,0\.36,1\)/u);
+  expect(route.value).toMatch(/view-transition groups 230ms cubic-bezier\(0\.22,1,0\.36,1\)/u);
   expect(route.purpose).toMatch(/opacity #1/iu);
-  expect(route.purpose).toMatch(/out then in/iu);
-  expect(route.purpose).toMatch(/40ms overlap/iu);
-  expect(route.purpose).toMatch(/longhands/iu);
+  /* The metadata has to name the mechanism, or it reads as a generic page fade and
+     the next person to touch this reaches for the cross-fade that caused the dip. */
+  expect(route.purpose).toMatch(/opaque snapshot UNDERNEATH/iu);
+  expect(route.purpose).toMatch(/plus-lighter/iu);
+  expect(route.purpose).toMatch(/animation shorthand, not longhands/iu);
+  expect(route.value).toMatch(/new: animation none/u);
   expect(disclosure.value).toMatch(/280ms/u);
   expect(loader.value).toMatch(/180ms/u);
   expect(loader.purpose).toMatch(/opacity #2/iu);
@@ -258,8 +266,9 @@ test('design metadata donts mirror the documented opacity contract', () => {
 
   expect(opacityDont).toMatch(/ClientRouter/u);
   expect(opacityDont).toMatch(/loader state reveal/u);
-  expect(opacityDont).toMatch(/both 180ms/u);
-  expect(opacityDont).toMatch(/never content entrance/u);
+  /* The two are no longer the same length, so the Don't cannot claim they are. */
+  expect(opacityDont).not.toMatch(/both 180ms/iu);
+  expect(opacityDont).toMatch(/never content entrance/iu);
 });
 
 test('the flat elevation contract and shadow vocabulary stay intact', () => {
