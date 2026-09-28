@@ -45,9 +45,9 @@ function pressState(documentRef, selector, attribute, isActive) {
     const next = String(isActive(control));
     /* Same reason as `applyAttribute`: nine aria writes a navigation for values
        that are already correct is nine attribute mutations to process. */
-    // oxlint-disable-next-line unicorn/prefer-dom-node-dataset -- see setLoaderVisibility in route-loader.mjs
+    // oxlint-disable-next-line unicorn/prefer-dom-node-dataset -- the attribute is written, not the property
     if (control.getAttribute?.(attribute) !== next) {
-      // oxlint-disable-next-line unicorn/prefer-dom-node-dataset -- see setLoaderVisibility in route-loader.mjs
+      // oxlint-disable-next-line unicorn/prefer-dom-node-dataset -- the attribute is written, not the property
       control.setAttribute?.(attribute, next);
     }
   }

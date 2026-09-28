@@ -366,7 +366,6 @@ const AUDIT = ({ touchMin }) => {
       ['.primary-control', 'primary button'],
       ['#theme-toggle', 'theme toggle'],
       ['footer', 'footer rule'],
-      ['#route-loader', 'route loader'],
     ];
     for (const [selector, label] of named) {
       for (const element of document.querySelectorAll(selector)) {

@@ -468,33 +468,6 @@ html[data-reading-measure='75'] {
   overflow-y: hidden;
 }
 
-/*
- * The route loader's bars run at REST, forever.
- *
- * The loader is `transition:persist`, so it survives every client navigation and
- * is in the DOM from the first paint onward. It is also `opacity: 0` and
- * `pointer-events: none` while idle, which hides the fact that three infinite 2s
- * `pulse` animations are still compositing on every page for a loader that will
- * not be shown again. Measured with `document.getAnimations()` on the built
- * site: three running `pulse` animations with `iterations: Infinity`, still
- * running 6s after load.
- *
- * Two costs. The compositor stays busy for an invisible element, and the page is
- * never quiescent — anything that waits for motion to stop waits forever, which is
- * how this was found: a Playwright actionability check timing out on a summary
- * that had not moved in six seconds.
- *
- * `animation-play-state: paused` is free while hidden and resumes with the reveal,
- * because the reveal is driven by the same attribute and the animation is still in
- * its first iteration when it un-pauses.
- *
- * Unlayered for the same reason as the viewport caps below: this has to beat the
- * `animate-pulse` utility's own `animation` shorthand, which lives in `utilities`.
- */
-[data-route-loader]:not([data-visible='true']) [aria-hidden='true'] * {
-  animation-play-state: paused;
-}
-
 @utility nav-overlay-viewport {
   max-height: calc(100vh - 6rem);
 }

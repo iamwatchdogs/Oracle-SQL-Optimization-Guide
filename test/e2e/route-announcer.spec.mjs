@@ -4,17 +4,17 @@ import { navigateTo } from './support/navigation.mjs';
 /*
  * Astro's route announcer, and the shell's cleanup of it.
  *
- * Split out of `route-loader.spec.mjs` because the loader's own behaviour is
- * asserted against a held response and a real swap, while this is three
- * sequential navigations with a DOM count between them. They share the
- * `navigateTo` helper and nothing else.
+ * Its own file because the assertion is three sequential navigations with a DOM
+ * count between them, which is a different shape from the focus-handoff spec it
+ * used to share a file with. The two share the `navigateTo` helper and nothing
+ * else.
  */
 
 /*
  * Astro appends an `aria-live="assertive"` announcer to <body> on every completed
- * navigation and never removes it. The loader already moves focus to `main`, so
- * the announcer is a duplicate announcement and an unbounded DOM leak across a
- * 37-page linear read.
+ * navigation and never removes it. The focus handoff already moves focus to
+ * `main`, so the announcer is a duplicate announcement and an unbounded DOM leak
+ * across a 37-page linear read.
  *
  * The invariant under test is "does not accumulate", so what is asserted is that
  * no navigation ever leaves a SECOND announcer behind — not that the count is
@@ -37,7 +37,7 @@ test.describe('route announcer', () => {
    * pathname would time out — which is what happened on the `mobile-chromium`
    * project. Running this at a width where the click is unambiguous tests the
    * thing it is actually about. Viewport coverage lives in the layout and
-   * route-loader specs.
+   * route-focus specs.
    */
   test.use({ viewport: { width: 1280, height: 900 } });
 

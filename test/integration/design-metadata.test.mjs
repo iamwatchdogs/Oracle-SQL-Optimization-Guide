@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
-import { LOADER_DELAY, LOADER_MAX_VISIBLE_MS } from '../../src/lib/route-loader-timer.mjs';
 
 const readRepoFile = (relativePath) =>
   readFile(new URL(`../../${relativePath}`, import.meta.url), 'utf8');
@@ -44,7 +43,6 @@ const dontList = listItems(designMarkdown, "Do's and Don'ts").filter((line) =>
   line.startsWith("- **Don't**"),
 );
 const baseLayout = await readRepoFile('src/layouts/BaseLayout.astro');
-const loaderSurface = baseLayout;
 
 /*
  * Template source with its comments stripped.
@@ -55,28 +53,20 @@ const loaderSurface = baseLayout;
 const markup = (source) =>
   source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/^\s*\/\/.*$/gmu, '');
 
-const routeLoaderMarkup = () => {
-  const start = baseLayout.indexOf('data-route-loader');
-
-  expect(start).toBeGreaterThan(-1);
-  return baseLayout.slice(start, baseLayout.indexOf('</div>', start));
-};
-
-test('motion names exactly two sanctioned opacity transitions, and only one is 180ms', () => {
+test('motion names exactly one sanctioned opacity transition, the route fade', () => {
   /*
-   * This asserted "both 180ms" for as long as both were. They are not any more: the
-   * route fade is now 400ms of out-then-in, because a symmetric 180ms cross-dissolve
-   * never gave the reader a moment when either page was settled. The loader reveal
-   * is still 180ms and still is a plain in-out toggle.
+   * This said "two" while there were two. The route loader's reveal was the second
+   * and it is gone, along with the loader, so the whole-page route fade is now the
+   * only opacity transition this design system sanctions anywhere.
    *
-   * The count is the part that must not drift. Everything else here is the sequence.
+   * The count is the part that must not drift. A second sanctioned opacity is a
+   * permission slip, and the check that would have caught it is this one.
    */
-  expect(motionSection).toMatch(/exactly two sanctioned opacity transitions/iu);
-  expect(motionSection).toMatch(/only the second is 180ms/iu);
+  expect(motionSection).toMatch(/exactly one sanctioned opacity transition/iu);
   expect(motionSection).toMatch(/whole-page route fade/iu);
-  expect(motionSection).toMatch(/loader state reveal/iu);
+  expect(motionSection).not.toMatch(/loader state reveal/iu);
   expect(motionSection).toMatch(/no prose, disclosure, or reading element may fade in/iu);
-  expect(motionSection).toMatch(/navigation or state feedback/iu);
+  expect(motionSection).toMatch(/navigation/iu);
   expect(motionSection).not.toMatch(/one opacity exception|single opacity exception/iu);
 });
 
@@ -100,56 +90,12 @@ test('the route fade is documented as uncovering the new page, not cross-fading'
   expect(motionSection).toMatch(/prefers-reduced-motion/iu);
 });
 
-test('the shipped route loader reveals at 180ms, not 150ms', () => {
-  const loader = routeLoaderMarkup();
-
-  expect(loader).toContain('transition-opacity duration-[180ms]');
-  expect(loader).not.toMatch(/transition-opacity duration-150\b/u);
-  expect(loader).toMatch(/opacity-0[\s\S]{0,400}?data-\[visible=true\]:opacity-100/u);
-});
-
-test('the shipped reveal duration matches the shipped loader delay', () => {
-  /*
-   * The constants are IMPORTED, not parsed out of the source text.
-   *
-   * The previous version ran `/export const LOADER_DELAY = (\d+);/` against the
-   * file. That couples the test to the literal spelling of an export: rename the
-   * constant, or reformat the declaration, and the regex quietly stops matching
-   * and `Number(undefined)` becomes `NaN` — at which point the assertion either
-   * fails for a formatting reason or, worse, is loosened to accommodate it. The
-   * values are the contract; importing them tests the contract.
-   *
-   * Only the CSS duration still has to be read from the markup, because it lives
-   * in a Tailwind arbitrary value rather than in JavaScript.
-   */
-  const duration = Number(
-    /transition-opacity duration-\[(\d+)ms\]/u.exec(routeLoaderMarkup())?.[1],
-  );
-
-  expect(LOADER_DELAY).toBe(180);
-  expect(duration).toBe(180);
-  expect(duration).toBe(LOADER_DELAY);
-  // The cap must outlast the reveal by a wide margin or it would hide the
-  // loader before it ever appeared.
-  expect(LOADER_MAX_VISIBLE_MS).toBeGreaterThan(LOADER_DELAY * 10);
-});
-
-test('the loader is the only shipped opacity transition in the layout', () => {
-  const others = loaderSurface.replace(routeLoaderMarkup(), '');
-
-  expect(others).not.toMatch(/transition-opacity/u);
-  expect(loaderSurface.match(/transition-opacity/gu)).toHaveLength(1);
-});
-
-test('both sanctioned opacity transitions ship at the same 180ms duration', async () => {
-  const layoutDuration = Number(
-    /transition-opacity duration-\[(\d+)ms\]/u.exec(routeLoaderMarkup())?.[1],
-  );
+test('the route fade ships at 180ms on every template that declares one', async () => {
   /*
    * The cross-fade is read from the ROUTE TEMPLATES, not the layout.
    *
-   * DESIGN.md sanctions exactly two opacity transitions, and the cross-fade is
-   * the whole-document one the `<ClientRouter>` swap performs on the swapped
+   * DESIGN.md sanctions exactly one opacity transition, and it is the
+   * whole-document one the `<ClientRouter>` swap performs on the swapped
    * content. It used to be declared on four sibling elements — two `<main>`
    * branches and the `<header>` — which meant the persistent header chrome
    * dissolved and re-materialised on every navigation (content entrance on
@@ -166,7 +112,6 @@ test('both sanctioned opacity transitions ship at the same 180ms duration', asyn
     .flatMap((source) => [...source.matchAll(/fade\(\{ duration: '([\d.]+)s' \}\)/gu)])
     .map(([, seconds]) => Math.round(Number(seconds) * 1000));
 
-  expect(layoutDuration).toBe(180);
   expect(routeFades).toHaveLength(3);
   for (const duration of routeFades) {
     expect(duration).toBe(180);
@@ -189,16 +134,15 @@ test('in-page entrance motion stays transform-only', () => {
   expect(entrance).toMatch(/500ms/u);
 });
 
-test('both sanctioned opacity bullets stay in Motion', () => {
+test('the one sanctioned opacity bullet stays in Motion', () => {
   const first = bulletWith(motionLines, 'sanctioned opacity #1');
-  const second = bulletWith(motionLines, 'sanctioned opacity #2');
 
   expect(first).toBeDefined();
   expect(first).toMatch(/no element on a page may fade in from `opacity: 0`/iu);
   expect(first).toMatch(/280ms/iu);
-  expect(second).toBeDefined();
-  expect(second).toMatch(/state feedback/iu);
-  expect(second).toMatch(/duration-\[180ms\]/u);
+  /* The loader used to be bullet #2. If a second sanctioned opacity reappears in
+     the metadata, this catches the number drifting before the prose does. */
+  expect(bulletWith(motionLines, 'sanctioned opacity #2')).toBeUndefined();
 });
 
 test("the Don't list keeps both sanctioned opacity transitions consistent", () => {
@@ -206,8 +150,7 @@ test("the Don't list keeps both sanctioned opacity transitions consistent", () =
 
   expect(opacityDont).toBeDefined();
   expect(opacityDont).toMatch(/ClientRouter/u);
-  expect(opacityDont).toMatch(/loader state reveal/u);
-  /* The two are no longer the same length, so the Don't cannot claim they are. */
+  expect(opacityDont).not.toMatch(/loader state reveal/iu);
   expect(opacityDont).not.toMatch(/both 180ms/iu);
   expect(opacityDont).toMatch(/never content entrance/iu);
 });
@@ -217,7 +160,6 @@ test('design metadata motion mirrors the documented motion values', () => {
   const rise = motion.find((entry) => entry.name === 'rise-in');
   const route = motion.find((entry) => entry.name === 'route-fade');
   const disclosure = motion.find((entry) => entry.name === 'disclosure');
-  const loader = motion.find((entry) => entry.name === 'loader-reveal');
   const rail = motion.find((entry) => entry.name === 'rail-collapse');
 
   expect(rise.value).toMatch(/500ms/u);
@@ -239,9 +181,6 @@ test('design metadata motion mirrors the documented motion values', () => {
   expect(route.purpose).toMatch(/animation shorthand, not longhands/iu);
   expect(route.value).toMatch(/new: animation none/u);
   expect(disclosure.value).toMatch(/280ms/u);
-  expect(loader.value).toMatch(/180ms/u);
-  expect(loader.purpose).toMatch(/opacity #2/iu);
-  expect(loader.purpose).toMatch(/never content entrance/iu);
   /* The rail's control is one control that moves, and the metadata has to say so —
      an "edge tab" in the motion table is a description of a control that no longer
      exists. */
@@ -254,19 +193,15 @@ test('exactly two metadata motion entries are opacity-bearing', () => {
     /opacity/iu.test(entry.purpose),
   );
 
-  expect(opacityEntries).toHaveLength(2);
-  expect(opacityEntries.map((entry) => entry.name).toSorted()).toEqual([
-    'loader-reveal',
-    'route-fade',
-  ]);
+  expect(opacityEntries).toHaveLength(1);
+  expect(opacityEntries.map((entry) => entry.name)).toEqual(['route-fade']);
 });
 
 test('design metadata donts mirror the documented opacity contract', () => {
   const opacityDont = designMetadata.narrative.donts.find((line) => line.includes('opacity'));
 
   expect(opacityDont).toMatch(/ClientRouter/u);
-  expect(opacityDont).toMatch(/loader state reveal/u);
-  /* The two are no longer the same length, so the Don't cannot claim they are. */
+  expect(opacityDont).not.toMatch(/loader state reveal/iu);
   expect(opacityDont).not.toMatch(/both 180ms/iu);
   expect(opacityDont).toMatch(/never content entrance/iu);
 });

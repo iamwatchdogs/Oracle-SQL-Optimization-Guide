@@ -82,15 +82,15 @@ test('keeps the persistent guard and a uniquely labelled TOC landmark per viewpo
 });
 
 test('templates ship no markup hook that no client script reads', async () => {
-  const [layout, toc, disclosure, readingToc, routeLoader, theme] = await Promise.all([
+  const [layout, toc, disclosure, readingToc, routeFocus, theme] = await Promise.all([
     readSource('../../src/layouts/BaseLayout.astro'),
     readSource('../../src/components/ReadingToc.astro'),
     readSource('../../src/lib/disclosure-controller.mjs'),
     readSource('../../src/lib/reading-toc-controller.mjs'),
-    readSource('../../src/lib/route-loader.mjs'),
+    readSource('../../src/lib/route-focus.mjs'),
     readSource('../../src/lib/theme-controller.mjs'),
   ]);
-  const clientScripts = [disclosure, readingToc, routeLoader, theme].join('\n');
+  const clientScripts = [disclosure, readingToc, routeFocus, theme].join('\n');
 
   expect(clientScripts).not.toContain('site-nav-overlay');
   expect(layout).not.toContain('site-nav-overlay');
@@ -232,14 +232,17 @@ test('a noindex page emits the robots meta and a normal page does not', async ()
 });
 
 /*
- * The route-loader unit spec cannot catch a wiring regression: its fake
- * document hard-codes the answer for every selector the controller asks for, so
- * renaming an attribute in the layout or the controller still passes. These
- * assertions close that gap by checking the two halves against each other.
+ * The focus handoff's one selector, checked against the templates that render it.
+ *
+ * This started as a five-selector assertion covering the route loader and its two
+ * announcement nodes. Those are gone, and the assertion is worth keeping for the
+ * selector that survived: a unit spec's fake document hard-codes the answer, so
+ * renaming `id="main"` in a template would leave the unit test green and break the
+ * handoff for real. Checking the two halves against each other is what catches it.
  */
-test('every route-loader querySelector resolves against a shipped template', async () => {
+test('the focus handoff targets a main that every page actually renders', async () => {
   const [controller, layout, page, notFound] = await Promise.all([
-    readSource('../../src/lib/route-loader.mjs'),
+    readSource('../../src/lib/route-focus.mjs'),
     readSource('../../src/layouts/BaseLayout.astro'),
     readSource('../../src/pages/[...slug].astro'),
     readSource('../../src/pages/404.astro'),
@@ -251,48 +254,13 @@ test('every route-loader querySelector resolves against a shipped template', asy
     ),
   ];
 
-  expect(selectors.toSorted()).toEqual([
-    '#route-loader',
-    '[data-route-loader-message]',
-    '[data-route-loader]',
-    'main',
-    'main#main',
-  ]);
+  /* One selector, because there is one thing to focus. Pinning the exact set is the
+     point: a second `??` fallback would mean the preferred half is load-bearing,
+     and this would catch its removal. */
+  expect(selectors).toEqual(['main#main']);
 
-  const anchors = {
-    'main#main': 'id="main"',
-    main: '<main',
-    '[data-route-loader]': 'data-route-loader',
-    '#route-loader': 'id="route-loader"',
-    '[data-route-loader-message]': 'data-route-loader-message',
-  };
-
-  for (const selector of selectors) {
-    /* Both halves of every `a ?? b` pair must exist; a rename of the preferred
-     * half still resolves through its fallback. */
-    for (const half of selector.split(',').map((part) => part.trim())) {
-      expect(templates).toContain(anchors[half]);
-    }
-  }
-
-  /* `<main>` carries the id the controller prefers. */
+  expect(templates).toContain('<main');
+  /* Every page that can be arrived at by a client navigation renders the id. */
   expect(page).toMatch(/<main\b[\s\S]{0,200}id="main"/u);
-});
-
-test('the loader attribute the controller writes is the one the markup reveals on', async () => {
-  const [controller, layout] = await Promise.all([
-    readSource('../../src/lib/route-loader.mjs'),
-    readSource('../../src/layouts/BaseLayout.astro'),
-  ]);
-  const loader = layout.match(/<div\s+id="route-loader"[\s\S]*?>/u)?.[0] ?? '';
-
-  expect(controller).toContain(`setAttribute?.('data-visible'`);
-  /* The reveal is an attribute selector, so a JS-only write can never show the
-   * loader even when the state machine is right. The loader is decorative, so
-   * a viewport-wide click blocker mid-navigation is worse than missing feedback. */
-  expect(loader).toContain('data-visible="false"');
-  expect(loader).toContain('data-[visible=true]:opacity-100');
-  expect(loader).toContain('transition-opacity');
-  expect(loader).toContain('opacity-0');
-  expect(loader).toContain('pointer-events-none');
+  expect(notFound).toMatch(/<main\b[\s\S]{0,200}id="main"/u);
 });
