@@ -1,4 +1,5 @@
 import { createTimerController, getTimerFunctions } from './route-loader-timer.mjs';
+import { DEFAULT_SKELETON, skeletonForPath } from './route-skeleton.mjs';
 
 const LOADING_MESSAGE = 'Loading requested page';
 
@@ -12,6 +13,28 @@ function getLoader(documentRef) {
     documentRef?.querySelector?.('#route-loader') ??
     null
   );
+}
+
+/*
+ * Which page's skeleton to draw.
+ *
+ * The destination is on the `astro:before-preparation` event as `event.to`, which
+ * is the whole reason the skeleton can be specific: the router dispatches the
+ * event with the URL resolved before it starts the fetch, so there is a moment
+ * where the loader knows where it is going and the page it is going to has not
+ * arrived yet. That is the only moment a loading state exists to cover.
+ *
+ * `newDocument` cannot be used for this. It is the OUTGOING document at that
+ * event — Astro passes `window.document` in — and the fetched document only
+ * replaces it once the loader has already resolved.
+ */
+function applySkeleton(loader, to) {
+  const shape = skeletonForPath(to?.pathname) ?? DEFAULT_SKELETON;
+  // oxlint-disable-next-line unicorn/prefer-dom-node-dataset -- see setLoaderVisibility below
+  if (loader?.getAttribute?.('data-skeleton') !== shape) {
+    // oxlint-disable-next-line unicorn/prefer-dom-node-dataset -- see setLoaderVisibility below
+    loader?.setAttribute?.('data-skeleton', shape);
+  }
 }
 
 function getLoaderMessage(documentRef) {
@@ -54,6 +77,12 @@ function createLoaderState(documentRef) {
     show() {
       setLoaderVisibility(getLoader(documentRef), true);
       setLoaderMessage(documentRef, LOADING_MESSAGE);
+    },
+    shapeFor(to) {
+      const loader = getLoader(documentRef);
+      applySkeleton(loader, to);
+      // oxlint-disable-next-line unicorn/prefer-dom-node-dataset -- see setLoaderVisibility below
+      return loader?.getAttribute?.('data-skeleton') ?? DEFAULT_SKELETON;
     },
   };
 }
@@ -167,7 +196,7 @@ function createNavigationState(documentRef, timer, loader, busy) {
     state.prepared = false;
   };
 
-  const beforePreparation = (signal) => {
+  const beforePreparation = (signal, to) => {
     cancel();
     if (signal?.aborted) {
       return;
@@ -175,6 +204,10 @@ function createNavigationState(documentRef, timer, loader, busy) {
     state.pending = true;
     state.prepared = true;
     state.activeSignal = signal;
+    /* Before the reveal gates, not inside them: the shape has to be right on the
+       first frame the loader is visible, and a reader who changes their mind
+       mid-flight has to get the skeleton for the page they are now going to. */
+    loader.shapeFor(to);
     armAbortWatchdog(state, signal, settleVisuals);
     armRevealGates(state, { signal, timer, documentRef, loader, busy, cancel: settleVisuals });
   };

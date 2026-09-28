@@ -40,7 +40,55 @@ test('the theme toggle keeps a 44x44 hit target and its running-head type', asyn
 
   expect(toggle).toContain('min-h-11');
   expect(toggle).toContain('min-w-11');
-  expect(toggle).toContain('font-sans text-ui font-medium leading-none text-ink');
+  expect(toggle).toContain('font-sans text-ui font-medium leading-none');
+});
+
+test('the three header triggers share one resting treatment', async () => {
+  /*
+   * The theme toggle used to carry `text-ink` while the two dropdowns beside it
+   * carried `text-ink-muted`, and all three painted a permanent `--control-edge`
+   * box in a header that already has a hairline under it. The complaint was that
+   * the least important thing on the page was the loudest, and it was true twice
+   * over: three boxes, and one of the three louder in ink than its neighbours.
+   *
+   * The previous test pinned `text-ink` on the toggle while its name claimed to be
+   * about type, so it held the loudness in place without meaning to. This asserts
+   * the property that was actually wanted — the three agree — which is stronger
+   * than one control's colour and cannot be satisfied by editing one string.
+   */
+  const layout = await readSource('../../src/layouts/BaseLayout.astro');
+  /*
+   * The two ids live on the `<details>`, not the `<summary>`, so the triggers are
+   * found by the label inside them: "Contents" and "Reading". Both are read as
+   * accessible names by the site's own tests, so neither can be renamed out from
+   * under this one.
+   */
+  const summaryWith = (needle) =>
+    matchesOf(layout, /<summary\b[\s\S]*?<\/summary>/gu).find((summary) =>
+      summary.includes(needle),
+    );
+  const triggers = [
+    summaryWith('>Contents<'),
+    summaryWith('>Reading<'),
+    elementWith(layout, 'button', 'id="theme-toggle"'),
+  ];
+
+  for (const trigger of triggers) {
+    expect(trigger).toBeDefined();
+    /* No box at rest, and the box returns for every state that needs one. */
+    expect(trigger).toContain('border-transparent');
+    expect(trigger).toContain('hover:border-control-edge');
+    expect(trigger).toContain('focus-visible:border-control-edge');
+    expect(trigger).toContain('text-ink-muted');
+    /* The 44px floor survives, and it comes from the min-height rather than the
+       padding the border used to sit inside. */
+    expect(trigger).toContain('min-h-11');
+  }
+
+  /* Both dropdowns additionally draw the edge when they are open. */
+  for (const trigger of triggers.slice(0, 2)) {
+    expect(trigger).toContain('group-open:border-control-edge');
+  }
 });
 
 test('breadcrumb home, the full key, and book home each carry a 24x24 hit target', async () => {
@@ -127,7 +175,23 @@ test('the four hit-target anchors are the ones the reader navigates by', async (
         .trim(),
     );
 
-  expect(labelled).toEqual(['Home', '{item.title}', 'Full key', '← Book home']);
+  /*
+   * The breadcrumb separator is now INSIDE its anchor rather than a sibling of it,
+   * so the anchor's text begins with the `/`. A label is an `inline-block`, which is
+   * atomic, so a sibling separator could be left alone on the line above a title too
+   * long for the space left on its line — and at the measure cap that was happening
+   * to "Appendix Sources - How Every Claim Is Checked" on a laptop.
+   *
+   * So the expected label carries the `/`, and the next assertion is the one that
+   * matters about it: the separator is `aria-hidden`, so it is decoration inside a
+   * link and never becomes part of the link's accessible name. What the reader
+   * navigates by is still the title.
+   */
+  expect(labelled).toEqual(['Home', '/ {item.title}', 'Full key', '← Book home']);
+
+  const breadcrumbAnchor = page.match(/<a\s+href=\{item\.href\}[\s\S]*?<\/a>/u)?.[0] ?? '';
+  expect(breadcrumbAnchor).toMatch(/aria-hidden="true"/u);
+  expect(breadcrumbAnchor).toMatch(/\{item\.title\}/u);
 });
 
 test('the TOC number span keeps its layout width without a hit-target utility', async () => {

@@ -57,13 +57,45 @@ const gradeItems: GradeItem[] =
 
 const showGrades = gradeItems.length > 0;
 const gradeChipClass =
-  'inline-flex items-center rounded-ui border border-current bg-zone-chip-bg px-[0.4rem] py-1 font-mono text-chip font-semibold tracking-[0.06em] uppercase leading-none tabular-nums whitespace-nowrap align-middle data-[zone=a]:text-zone-a data-[zone=b]:text-zone-b data-[zone=c]:text-zone-c data-[zone=d]:text-zone-d';
+  'inline-flex items-center rounded-ui border border-current bg-zone-chip-bg px-[0.4rem] py-[0.15rem] font-mono text-chip font-semibold tracking-[0.06em] uppercase leading-none tabular-nums whitespace-nowrap align-middle data-[zone=a]:text-zone-a data-[zone=b]:text-zone-b data-[zone=c]:text-zone-c data-[zone=d]:text-zone-d';
 const sectionWord = contributions.length === 1 ? 'section' : 'sections';
 ---
 
-<section class="border-y border-rule-strong py-title-block" aria-labelledby="book-title">
+{/*
+  `hero-composition` opts this section out of the reader's text scale. It is the
+  display title, the abstract, the primary control and the metadata margin, sized
+  as one arrangement rather than as four text blocks, so the type size that moves
+  the prose would move the arrangement instead of the reading. The section BELOW
+  this one — the contributions list, a separate `<section>` — is left in the scale,
+  because it is a list a reader scans and its rows are text.
+*/}
+<section
+  class="hero-composition border-y border-rule-strong py-title-block"
+  aria-labelledby="book-title"
+>
   <div class="mx-auto w-shell">
-    <div class="grid lg:grid-cols-[1fr_auto] gap-8 lg:gap-16 items-start">
+    {/*
+      A FIXED metadata margin, not a content-sized one.
+
+      This was `lg:grid-cols-[1fr_auto]`, and the `auto` track resolved to the
+      aside's own max-content width. The evidence key's panel is 150.14px wider
+      at its widest than the summary that closes it, so opening the disclosure
+      handed those 150px to the `1fr` column: the display title lost a line and
+      80.62px of height, the aside's own top slid 219px up out from under the
+      pointer, and everything below the title block moved 123.25px down. The
+      horizontal flip landed in a single frame (2ms) and, on close, 283ms AFTER
+      the panel animation had visibly finished — the `content-visibility …
+      allow-discrete` transition in `global.css` keeps the panel laid out for a
+      second 280ms, so the 150px snapped back long after the reader thought the
+      disclosure was shut.
+
+      A track measured in `rem` cannot move, so none of it can. The width is
+      chosen to hold the summary's closed-state max-content (403.67px of text plus
+      28.8px of padding) inside 27.5rem, which lands the closed state within 3px
+      of where it was and leaves 291px of slack below it for the panel to open
+      into.
+    */}
+    <div class="grid lg:grid-cols-[minmax(0,1fr)_var(--width-title-meta)] gap-8 lg:gap-16 items-start">
       <div class="min-w-0">
         <h1
           id="book-title"
@@ -86,10 +118,10 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
       </div>
 
       <aside
-        class="rise rise-4 pt-2 lg:self-end lg:border-l lg:border-rule lg:pl-8 lg:pt-0 lg:pb-1 lg:text-right"
+        class="rise rise-4 pt-2 lg:border-l lg:border-rule lg:pl-8 lg:pb-1 lg:text-right"
         aria-label="Publication metadata"
       >
-        <dl class="meta space-y-2">
+        <dl class="meta space-y-1.5">
           {meta.map((row) => (
             <div class="lg:text-right">
               <dt class="sr-only">
@@ -136,10 +168,39 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
             </summary>
             <div class="disclosure-flow">
               <div class="disclosure-content-inner disclosure-flow-inner">
-                <dl class="mt-0 grid gap-[0.55rem]">
+                {/*
+                  The panel opens into the slack below the title column, so its
+                  height is a real budget rather than a free-for-all: the whole
+                  panel has to fit the 291px the `1fr` column has to spare, or
+                  the contributions list below gets pushed down the page. Tight
+                  leading, a tighter row gap and a narrower ordinal column are
+                  what buy the ~60px of headroom that keeps the page still.
+                */}
+                {/*
+                  `leading-none` on the `<dt>` is load-bearing, and it was worth
+                  82px of the panel's height.
+
+                  `.disclosure-content-inner` sets `line-height: var(--body-leading)`
+                  for prose. The `<dt>` carries only a grade chip and never
+                  overrides it, so its strut is 18px × 1.65 = 29.7px, and
+                  `items-baseline` on the row aligns the two cells on that strut
+                  rather than on the chip or the description beside it. Measured:
+                  every one of the seven single-line rows came out 29.7px tall —
+                  11px over the 17.8px chip it was supposed to be sized by, 7
+                  times, in a panel that only has 225px of slack to open into.
+                */}
+                {/*
+                  The rows are a list to be read, not a table to be scanned, and
+                  `gap-[0.3rem]` made them one: seven rows on a 24.7px pitch, the
+                  description hard against its chip, and the two closing paragraphs
+                  crowded into the last row. The row gap is 0.6rem and the column
+                  gap 0.8rem, which is what "space between them" costs in a panel
+                  this narrow.
+                */}
+                <dl class="mt-0 grid gap-[0.6rem]">
                   {gradeItems.map((grade) => (
-                    <div class="grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-[0.65rem]">
-                      <dt class="m-0">
+                    <div class="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-[0.8rem]">
+                      <dt class="m-0 leading-none">
                         <span class={gradeChipClass} data-zone={grade.zone}>
                           {grade.label}
                         </span>
@@ -148,11 +209,11 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
                     </div>
                   ))}
                 </dl>
-                <p class="mt-[0.85rem] font-mono text-mono leading-[1.45] text-ink-faint">
+                <p class="mt-[0.9rem] font-mono text-mono leading-[1.4] text-ink-faint">
                   <strong class="text-ink">PROVEN</strong> = 2 agreeing sources, or 1 A1/A2/B1
                   source + a repeatable rerun.
                 </p>
-                <p class="mt-[0.85rem] flex gap-[0.45rem] font-mono text-mono leading-[1.45] text-ink-faint">
+                <p class="mt-[0.75rem] flex gap-[0.45rem] font-mono text-mono leading-[1.4] text-ink-faint">
                   <a href="/00-preface/">How grades work</a>
                   <span aria-hidden="true">·</span>
                   <a href="/07-appendix-sources/">Source lookup</a>

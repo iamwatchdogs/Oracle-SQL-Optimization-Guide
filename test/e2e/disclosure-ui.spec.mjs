@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   EVIDENCE_KEY,
   SHIPPED_DISCLOSURES,
+  SITE_NAV,
   SITE_NAV_SUMMARY,
   px,
   summaryMarker,
@@ -45,9 +46,14 @@ function declareShippedDisclosureIsStyledTests() {
           borderTopColor: s.borderTopColor,
         };
       });
-      // The framed variant supplies 1px hairlines. The old site-nav had none
-      // because it was never matched by the `.prose details` rules.
-      if (disclosure.selector !== 'header details') {
+      /*
+       * The framed variant supplies 1px hairlines. The two header dropdowns have
+       * none, and not by accident: they are not `.disclosure`, they are panels
+       * that draw their OWN border when they are open, and a rule keyed on one
+       * element's selector stopped being a statement about dropdowns the moment
+       * the second one shipped.
+       */
+      if (!disclosure.dropdown) {
         expect(px(frame.borderTop)).toBe(1);
         expect(px(frame.borderBottom)).toBe(1);
       }
@@ -68,14 +74,14 @@ test.describe('shipped disclosures — the component applies to real markup', ()
   test('every summary suppresses the native disclosure marker', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     // Each disclosure has to be measured on its own route, and every hop is a
-    // real navigation of the one `page`, so the three probes stay in order and
-    // are never run concurrently.
-    const [siteNav, evidenceKey, mobileToc] = SHIPPED_DISCLOSURES;
-    const seen = [
-      `${siteNav.name}=${await summaryMarker(page, siteNav)}`,
-      `${evidenceKey.name}=${await summaryMarker(page, evidenceKey)}`,
-      `${mobileToc.name}=${await summaryMarker(page, mobileToc)}`,
-    ];
+    // real navigation of the one `page`, so the probes stay in order and are
+    // never run concurrently. The list is walked rather than destructured: the
+    // header now ships two disclosures, and a positional destructure silently
+    // dropped the fourth the day the reading preferences landed.
+    const seen = [];
+    for (const disclosure of SHIPPED_DISCLOSURES) {
+      seen.push(`${disclosure.name}=${await summaryMarker(page, disclosure)}`);
+    }
     expect(seen).toEqual(SHIPPED_DISCLOSURES.map((d) => `${d.name}=none`));
   });
 
@@ -188,7 +194,7 @@ async function evidenceKeyOpensOnClientSideNavigation({ page }) {
 async function siteNavOpensAndCloses({ page }) {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/01-proven-techniques/01-measure-first/');
-  const nav = page.locator('header details');
+  const nav = page.locator(SITE_NAV);
   await expect(nav).not.toHaveAttribute('open', /.*/u);
 
   await page.locator(SITE_NAV_SUMMARY).click();
@@ -204,7 +210,7 @@ async function siteNavOpensAndCloses({ page }) {
 async function siteNavWorksFromTheKeyboard({ page }) {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
-  const nav = page.locator('header details');
+  const nav = page.locator(SITE_NAV);
   await page.locator(SITE_NAV_SUMMARY).focus();
   await page.keyboard.press('Enter');
   await expect(nav).toHaveAttribute('open', '');

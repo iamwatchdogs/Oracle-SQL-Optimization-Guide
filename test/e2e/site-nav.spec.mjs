@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ms, SITE_NAV_SUMMARY } from './support/disclosure.mjs';
+import { ms, SITE_NAV, SITE_NAV_SUMMARY } from './support/disclosure.mjs';
 import { DESKTOP, MOBILE } from './support/viewports.mjs';
 
 /**
@@ -31,7 +31,7 @@ import { DESKTOP, MOBILE } from './support/viewports.mjs';
 
 const ROUTE = '/02-papers-behind-recipes/02-oracles-own-papers/';
 
-const PANEL = 'header details > div';
+const PANEL = `${SITE_NAV} > div`;
 
 const panelBox = (page) =>
   page.locator(PANEL).evaluate((el) => {
@@ -100,7 +100,7 @@ test.describe('site nav — mobile, menu open', () => {
   test('is a full-width in-flow panel with a viewport gutter', async ({ page }) => {
     await page.goto('/');
     await page.locator(SITE_NAV_SUMMARY).click();
-    await expect(page.locator('header details')).toHaveAttribute('open', '');
+    await expect(page.locator(SITE_NAV)).toHaveAttribute('open', '');
 
     const box = await panelBox(page);
     // `static`, not `fixed` or `absolute`: nothing positioned from inside a
@@ -113,7 +113,7 @@ test.describe('site nav — mobile, menu open', () => {
 
   test('closes on a second activation and the panel collapses', async ({ page }) => {
     await page.goto('/');
-    const details = page.locator('header details');
+    const details = page.locator(SITE_NAV);
     await page.locator(SITE_NAV_SUMMARY).click();
     await expect(details).toHaveAttribute('open', '');
     expect((await panelBox(page)).height).toBeGreaterThan(0);
@@ -126,7 +126,7 @@ test.describe('site nav — mobile, menu open', () => {
 
   test('closes from the keyboard', async ({ page }) => {
     await page.goto('/');
-    const details = page.locator('header details');
+    const details = page.locator(SITE_NAV);
     await page.locator(SITE_NAV_SUMMARY).focus();
     await page.keyboard.press('Enter');
     await expect(details).toHaveAttribute('open', '');
@@ -187,7 +187,7 @@ test.describe('site nav — desktop dropdown', () => {
     await page.locator(SITE_NAV_SUMMARY).click();
     // A transform on any ancestor would re-establish a containing block and
     // silently re-break the geometry above.
-    const transforms = await page.locator('header details > div').evaluate((panel) => {
+    const transforms = await page.locator(PANEL).evaluate((panel) => {
       const found = [];
       for (let el = panel; el && el !== document.body; el = el.parentElement) {
         const value = getComputedStyle(el).transform;
@@ -217,7 +217,7 @@ test.describe('site nav — disclosure motion', () => {
     await page.goto('/');
     await page.locator(SITE_NAV_SUMMARY).click();
     const duration = await page
-      .locator('header details .disclosure-flow')
+      .locator(`${SITE_NAV} .disclosure-flow`)
       .evaluate((el) => getComputedStyle(el).transitionDuration);
     expect(ms(duration)).toBe(280);
   });
@@ -226,7 +226,7 @@ test.describe('site nav — disclosure motion', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     const duration = await page
-      .locator('header details .disclosure-flow')
+      .locator(`${SITE_NAV} .disclosure-flow`)
       .evaluate((el) => getComputedStyle(el).transitionDuration);
     expect(ms(duration)).toBe(0);
   });

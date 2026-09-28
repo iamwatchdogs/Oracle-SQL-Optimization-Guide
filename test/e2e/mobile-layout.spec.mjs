@@ -177,7 +177,7 @@ async function showsMobileTocNotRail({ page }) {
 
 async function anchorsTheSiteNavPanel({ page }) {
   await page.goto('/');
-  await page.locator('header details > summary').click();
+  await page.locator('header #site-nav > summary').click();
   const panel = page.locator('header nav[aria-label="Book sections"]');
   await expect(panel).toBeVisible();
   const box = await panel.boundingBox();
@@ -188,7 +188,7 @@ async function anchorsTheSiteNavPanel({ page }) {
 
 async function capsTheSiteNavPanel({ page }) {
   await page.goto('/');
-  await page.locator('header details > summary').click();
+  await page.locator('header #site-nav > summary').click();
   const metrics = await page.locator('header nav[aria-label="Book sections"]').evaluate((el) => ({
     maxHeight: getComputedStyle(el).maxHeight,
     overflowY: getComputedStyle(el).overflowY,

@@ -3,6 +3,7 @@ import { type CollectionEntry, getCollection, render } from 'astro:content';
 import { fade } from 'astro:transitions';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ReadingToc from '../components/ReadingToc.astro';
+import ReadingTocToggle from '../components/ReadingTocToggle.astro';
 import PrevNext from '../components/PrevNext.astro';
 import HomeTitleBlock from '../components/HomeTitleBlock.astro';
 
@@ -100,7 +101,7 @@ const tocHeadings = headings
 const description = entry.data.description;
 const proseClass = [
   'max-w-measure',
-  '[&>*+*:not(h2):not(h3):not(details):not(p:has(>strong:only-child)):not(pre):not(.expressive-code)]:mt-prose-sibling',
+  '[&>*+*:not(h2):not(h3):not(h4):not(details):not(p:has(>strong:only-child)):not(pre):not(.expressive-code)]:mt-prose-sibling',
   'min-w-0',
   'font-serif',
   'text-body',
@@ -144,7 +145,7 @@ const proseClass = [
   'prose-a:hover:decoration-accent',
   'prose-strong:font-bold',
   'prose-strong:text-ink',
-  'prose-blockquote:my-4',
+  'prose-blockquote:mb-prose-sibling',
   'prose-blockquote:font-normal',
   'prose-blockquote:rounded-ui',
   'prose-blockquote:border',
@@ -223,10 +224,17 @@ const proseClass = [
         {/* `minmax(0,1fr)` on BOTH tracks is load-bearing. A bare `1fr` (or the
             single implicit column below `lg`) resolves its automatic minimum
             size to the article's min-content width, so one wide markdown table
-            pushed the whole document to 914px inside a 390px viewport. */}
-        <div class="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)] gap-6 lg:gap-12 items-start">
+            pushed the whole document to 914px inside a 390px viewport.
+
+            The first track is `--width-toc-rail` rather than a literal `280px`,
+            because it is also the thing the reader collapses. The controller sets
+            `data-reading-toc="collapsed"` on `<html>` and `global.css` closes the
+            track and the gutter together; the reading column is already
+            `flex justify-center` inside the second track, so it re-centres with
+            no rule of its own. */}
+        <div class="toc-rail-grid grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--width-toc-rail)_minmax(0,1fr)] gap-6 lg:gap-12 items-start">
           {/* Margin apparatus — sticky section TOC (first on mobile for wayfinding) */}
-          <div class="order-1 min-w-0">
+          <div class="toc-rail-cell order-1 min-w-0">
             {tocHeadings.length > 0 && <ReadingToc headings={tocHeadings} label="Sections" />}
           </div>
 
@@ -237,27 +245,74 @@ const proseClass = [
             transition:animate={fade({ duration: '0.18s' })}
             class="order-2 flex min-w-0 justify-center pb-16 focus:outline-none"
           >
-            <div class="w-full min-w-0 max-w-reading">
+            <div class="reading-column w-full min-w-0 max-w-reading">
               {/*
-                The separator lives in its own `shrink-0` span INSIDE each item, and
-                the label is free to wrap.
+                Three alignment defects lived here, and all three are about the
+                LAST crumb rather than about the separator.
 
-                The first attempt at this put `whitespace-nowrap` on every crumb to
-                stop a break falling between the separator and its label. That fixed
-                the break and introduced a worse defect: a section title is not short
-                — "Papers Behind the Recipes - Read the Claims Carefully" is 467px
-                of unbreakable run in a 346px box at 390px, which widened the whole
-                document by 122px. No width, min-width or truncation setting on the
-                flex item can absorb that.
+                **One.** Its label carried `display: block`, so the separator was
+                left alone at the end of flex line 1 and the title dropped to line
+                2. That is exactly what the note above says must never happen, and
+                it was happening: a 41.4px row for a 21.4px label, the `/` sitting
+                on a line of its own. `inline-block` keeps the title on the
+                separator's line box and still gives it the formatting context that
+                `truncate` needs — `overflow` does nothing on a plain inline box, so
+                the previous `block` was there to make truncation work at all.
 
-                The rule that actually holds is narrower: a separator must never be
-                separated from the label it belongs to. Keeping them in the same
-                flex item guarantees it by construction, and `shrink-0` keeps the
-                separator whole, so the only legal breaks are the spaces INSIDE the
-                label. The last crumb truncates instead of wrapping, because a
-                current-page title is the one segment a reader does not need in full.
+                **Two.** It was the only element in the trail off the mono register:
+                Source Serif at Tailwind's unscaled `text-sm`, 14px, `normal-case`.
+                So the separator sat on one line box — mono, `--type-mono`,
+                leading 1.65, which moves with the reader's text size — and the
+                title on another — serif, a raw default that does not. Two boxes, two
+                families, two leadings, and a gap between them that grew from 1.45px
+                at the default size to 5.74px at 120%. DESIGN.md specifies one
+                register for the whole trail: mono, uppercase, meta. The "you are
+                here" signal is now `--ink` against the trail's `--ink-faint`, plus
+                `aria-current`, rather than a change of typeface and case. That
+                restores one line box for the whole trail, which is the alignment.
+
+                **Three.** The separator has to live INSIDE the label, not beside it.
+                The note this replaced said the invariant held "by construction",
+                because separator and label share a flex item. They do share one —
+                and the label is an `inline-block`, which is an ATOMIC inline-level
+                box. An atomic box cannot be split across lines, so a label too long
+                for the space left on the current line moves to the next line whole,
+                and the separator is left alone at the head of the line above it. One
+                flex item does not prevent that; being in the same inline formatting
+                context does not either, because the break happens between the two
+                atomic boxes. The separator is therefore the label's own first
+                child, so the two cannot come apart: the label wraps internally and
+                the `/` is on its first line with the first words of the title.
+                Capping the trail at the measure is what made this reachable at all —
+                at 46rem the long titles still fitted after the separator, and at
+                70ch "Appendix Sources - How Every Claim Is Checked" did not.
+
+                **Four.** The trail is a child of the reading COLUMN, so it was
+                capped at `--width-reading-track` (46rem) while the h1 and the prose
+                below it are capped at `--measure` (70ch) — 70px wider, and growing
+                to ~101px and ~119px at the other two measure steps. Its left edge
+                matched and its right edge did not, so a long title truncated at an x
+                nothing else on the page ever reached. `max-w-measure` puts the whole
+                reading surface on one right edge, which is the invariant the pager
+                and the h2 rules already keep.
+              */}{' '}
+              {/*
+                `font-serif` is not a typo and it changes nothing you can see: the
+                `ol` below sets `.meta`, so no glyph on this trail is drawn in the
+                body face.
+
+                It is here for `ch`. `--measure` is `70ch`, and `ch` resolves against
+                the element's OWN font. `@layer base` puts `nav { font-family:
+                var(--font-sans) }` on every nav in the project, so this one measured
+                70 characters of Inter — 794.88px — while the `h1` and the prose under
+                it, in a `font-serif` article, measured 70 characters of Source Serif
+                — 666.54px. The cap was 128px too loose and the 46rem parent won it,
+                so `max-w-measure` on the trail did nothing at all: it stayed at the
+                track's 736px, 70px wider than the text it sits above. Declaring the
+                body face on the nav puts both `ch` measurements in the same font,
+                which is what makes one cap mean the same width in both places.
               */}
-              <nav aria-label="Breadcrumb" class="mb-6">
+              <nav aria-label="Breadcrumb" class="mb-6 max-w-measure font-serif">
                 <ol class="meta m-0 flex list-none flex-wrap items-baseline gap-x-1 gap-y-1 p-0">
                   <li class="min-w-0">
                     <a
@@ -271,11 +326,14 @@ const proseClass = [
                     const isLast = i === breadcrumbItems.length - 1;
                     return (
                       <li class="min-w-0">
-                        <span aria-hidden="true" class="mr-1 select-none">
-                          /
-                        </span>
                         {isLast ? (
-                          <span class="block min-w-0 truncate font-serif text-sm tracking-normal text-ink-muted normal-case">
+                          <span
+                            aria-current="page"
+                            class="inline-block max-w-full truncate text-ink"
+                          >
+                            <span aria-hidden="true" class="mr-1 select-none">
+                              /
+                            </span>
                             {item.title}
                           </span>
                         ) : (
@@ -283,6 +341,9 @@ const proseClass = [
                             href={item.href}
                             class="inline-block min-h-6 min-w-6 no-underline transition-colors hover:text-accent"
                           >
+                            <span aria-hidden="true" class="mr-1 select-none">
+                              /
+                            </span>
                             {item.title}
                           </a>
                         )}
@@ -291,7 +352,6 @@ const proseClass = [
                   })}
                 </ol>
               </nav>
-
               <article class={`prose ${proseClass}`}>
                 <header class="mb-8 border-b border-rule-strong pb-6">
                   <h1
@@ -326,14 +386,13 @@ const proseClass = [
 
                 <Content />
               </article>
-
               {/*
                 The pager and the return link sit on the SAME measure as the prose.
 
-                The article's `68ch` measure is 89px narrower than the 46rem reading
+                The article's `70ch` measure is 70px narrower than the 46rem reading
                 track it sits in, so anything sized to the track broke the page's
                 single right edge in two: prose, h2 rules, the takeaway and the
-                title block all ended at one x while the pager ran 89px past it.
+                title block all ended at one x while the pager ran 70px past it.
                 Two right edges on one page reads as a mistake even when both are
                 individually correct.
 
@@ -341,7 +400,7 @@ const proseClass = [
                 is load-bearing rather than incidental: `ch` resolves against the
                 element's OWN font. The article is 18px Source Serif; `<nav>` is
                 Inter by the base layer's `nav { font-family: var(--font-sans) }`.
-                Putting `max-w-measure` on the pager itself gave it a 68ch of
+                Putting `max-w-measure` on the pager itself gave it a 70ch of
                 Inter — 14% narrower than the prose it was supposed to align with —
                 and it overhung by exactly that much. A plain wrapper inherits the
                 body font, so its `ch` is the same `ch` the article's is.
@@ -360,7 +419,6 @@ const proseClass = [
                   }
                 />
               </div>
-
               <p class="meta mt-8">
                 <a
                   href="/"
@@ -373,6 +431,18 @@ const proseClass = [
           </main>
         </div>
       </div>
+
+      {/*
+        The rail's control, outside the grid and outside the rail.
+
+        It is `position: fixed`, so where it sits in the flow is a formality — but it
+        has to be a formality and not a lie. Inside the rail's cell it was a fixed
+        element inside an `overflow: hidden` box that collapses to zero width: still
+        painted, but clipped away from the tools, and a control whose position is
+        decided by its ancestor's clipping is not a page-level control. Here it just
+        follows the grid.
+      */}
+      {tocHeadings.length > 0 && <ReadingTocToggle label="Sections" expanded={true} />}
     </>
   )}
 

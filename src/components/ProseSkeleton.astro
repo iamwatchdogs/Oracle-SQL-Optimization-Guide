@@ -1,0 +1,34 @@
+---
+/*
+ * Prose stand-ins.
+ *
+ * `paragraphs` is a list of paragraphs, each a list of line widths as
+ * percentages, so the gaps between paragraphs are the real ones: within a
+ * paragraph the rows touch, because a real line box is `1lh` and the container's
+ * leading is `1lh` too, and between paragraphs the container's own
+ * `mt-prose-sibling` applies — the same margin the prose stylesheet puts between
+ * sibling blocks, from the same token.
+ *
+ * A row is `h-[1lh]` inside a `text-body leading-body` context, which is what
+ * `.prose` resolves to, so a row here is 29.7px at the default type scale and
+ * scales with the reader's own text size. No row carries a height of its own.
+ */
+
+import LineBar from './LineBar.astro';
+
+interface Props {
+  paragraphs: number[][];
+}
+
+const { paragraphs } = Astro.props;
+---
+
+<div class="text-body leading-body">
+  {paragraphs.map((lines, index) => (
+    <div class={index === 0 ? undefined : 'mt-prose-sibling'}>
+      {lines.map((width) => (
+        <LineBar width={`${width}%`} />
+      ))}
+    </div>
+  ))}
+</div>

@@ -14,8 +14,8 @@
 import { expect, test } from '@playwright/test';
 import { FIRST_PAGE } from './support/pages.mjs';
 import { MOBILE, TABLET, WIDE } from './support/viewports.mjs';
+import { breadcrumbShape } from './support/breadcrumb.mjs';
 import {
-  breadcrumbShape,
   escapingOverflow,
   forEachRoute,
   homeCentres,
@@ -186,7 +186,7 @@ test.describe('reading surface — mobile reading', () => {
     expect(summary.height, 'a three-line summary band').toBeLessThan(60);
   });
 
-  test('the breadcrumb never leads a line with a separator', async ({ page }) => {
+  test('no crumb is wider than the column or strands its separator', async ({ page }) => {
     await page.goto(LONG_CRUMB);
 
     const crumb = await breadcrumbShape(page);
@@ -202,8 +202,8 @@ test.describe('reading surface — mobile reading', () => {
     for (const item of crumb.items) {
       expect(item.overflows, `"${item.text}" is wider than the column`).toBe(false);
     }
-    /* The separator shares a flex item with its label, so it can never be
-     * stranded at the head of a line on its own. The root crumb has none. */
+    /* The separator is INSIDE its label, so the pair is one atomic box and the two
+     * cannot come apart. The root crumb has no separator. */
     for (const item of crumb.items) {
       if (item.separatorStranded !== null) {
         expect(item.separatorStranded, `"${item.text}" stranded its separator`).toBe(false);

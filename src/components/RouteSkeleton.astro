@@ -1,0 +1,333 @@
+---
+/*
+ * The route loader's skeleton.
+ *
+ * A skeleton is a claim: "this is the shape of what is coming." The two versions
+ * this replaces both broke the claim.
+ *
+ * The first was three 12px hairlines across the full shell at `top-20` — 372px
+ * to the left of the article and directly over the running head, lining up with
+ * no element on the page it was replacing. The second kept the same three bars
+ * and sized them in `lh` of the title token, which turned them into 30px–43px
+ * slabs. It did not make the navigation any slower; it made the loading state
+ * impossible to miss, and a reader who watches a large grey shape arrive and
+ * leave waits for it. Perceived speed is mostly this.
+ *
+ * So the skeleton is now a copy of the page's own opening, not a drawing of it.
+ * Same shells, same tracks, same containers, same classes — with the text swapped
+ * for bars. Not one row carries a hand-tuned height: each is `1lh` inside a
+ * context that already declares the real font and leading, so it IS the real
+ * element's line box, at any viewport, at any of the reader's text scales, and if
+ * a type token changes tomorrow.
+ *
+ * Nor is anything positioned by a measured constant. The reading pages' chain —
+ * `pt-4`, the running head, the mobile TOC row, the breadcrumb — is rebuilt out
+ * of the page's own classes, so the skeleton lands on the breadcrumb because the
+ * breadcrumb is there. The first version used a hand-measured `top: 9.25rem` and
+ * a second `13.65rem` on mobile, and neither was right at a viewport between the
+ * two they were measured at. The home hero is the one case whose top padding is
+ * fluid, and it is applied as the same `py-title-block` class the hero uses.
+ *
+ * The hero is also the one page that is NOT in the reading surface: it spans the
+ * full shell with its own two tracks and no rail. An earlier draft put its shape
+ * inside the reading column like the other two, which put the display title
+ * 372px to the right of where the real one lands — so the two branches here are
+ * siblings under the frame, exactly as they are in `[...slug].astro`.
+ *
+ * Three shapes, because there are three page types and the destination is known
+ * from the link before the fetch starts: `route-loader.mjs` maps `event.to` onto
+ * `data-skeleton` at `astro:before-preparation`. Asking the incoming document is
+ * not an option — at that event `event.newDocument` is the OUTGOING document, and
+ * the fetched one only exists after the loader has resolved, which is after the
+ * moment a loading state exists to cover.
+ */
+
+import BreadcrumbSkeleton from './BreadcrumbSkeleton.astro';
+import LineBar from './LineBar.astro';
+import ProseSkeleton from './ProseSkeleton.astro';
+import { SKELETON_BAR as bar, SKELETON_BAR_INLINE as barInline } from '../lib/route-skeleton.mjs';
+---
+
+<style>
+  /*
+   * Three shapes, one loader, and exactly one of them on screen.
+   *
+   * `route-loader.mjs` knows the destination before the fetch starts and writes it
+   * to one attribute on this element's root. Everything below follows from that one
+   * string, which is why the shapes are all in the DOM: swapping `data-skeleton`
+   * is the whole update, and a navigation costs one attribute write rather than a
+   * walk over three subtrees.
+   *
+   * The hero is the awkward one, because it is not a variant of the reading
+   * surface — it has no running head, no breadcrumb, no rail, and its own two
+   * tracks. So it cannot simply be the third option: with `data-skeleton="home"`
+   * the two reading branches go away entirely rather than being swapped out.
+   */
+  [data-skeleton-shape='notebook'],
+  [data-skeleton-shape='section'],
+  [data-skeleton-shape='home'] {
+    display: none;
+  }
+
+  [data-skeleton='notebook'] [data-skeleton-shape='notebook'],
+  [data-skeleton='section'] [data-skeleton-shape='section'],
+  [data-skeleton='home'] [data-skeleton-shape='home'] {
+    display: block;
+  }
+
+  [data-skeleton='home'] .route-skeleton-apparatus,
+  [data-skeleton='home'] .route-skeleton-reading {
+    display: none;
+  }
+
+  /*
+   * `display: none` rather than `visibility: hidden` and rather than not rendering
+   * the branch, because the two idle shapes are still in the document either way,
+   * and this is the only difference a reader can see. It is also what the geometry
+   * tests read: `checkVisibility()` on a shape whose ancestor is `display: none`
+   * returns false, which is what lets `skeleton-mapping.spec.mjs` assert that
+   * exactly one of the three is on screen instead of asserting the other two are
+   * absent — a distinction that only matters if something later decides to keep
+   * them in the DOM.
+   */
+</style>
+
+{/*
+  Hit testing is deliberately never re-enabled. The loader is a decorative
+  `aria-hidden` skeleton plus an `sr-only` status message — nothing in it is
+  interactive, so a visible-state variant that restores pointer events only makes
+  a viewport-wide, z-50 click blocker sit over the content mid-navigation.
+
+  That variant's class name is spelled out nowhere in this file, and that is not
+  an accident. `src/**` is a declared Tailwind source and Tailwind's scanner does
+  not skip comments, so writing the utility name here — even inside a comment
+  explaining why it must not be used — emits a real rule at (0,2,0) specificity,
+  which beats the base `pointer-events-none` at (0,1,0). The class was
+  reintroduced exactly this way once and the loader silently became a click
+  blocker again while every test stayed green.
+  `test/integration/client-script-quality.test.mjs` compiles the sheet and asserts
+  the utility is absent, so the next occurrence fails the build.
+*/}
+<div
+  id="route-loader"
+  data-route-loader
+  data-skeleton="notebook"
+  transition:persist="route-loader"
+  role="status"
+  aria-live="polite"
+  aria-atomic="true"
+  data-visible="false"
+  class="pointer-events-none fixed inset-x-0 top-12 bottom-0 z-50 opacity-0 transition-opacity duration-[180ms] data-[visible=true]:opacity-100"
+>
+  <span data-route-loader-message class="sr-only"></span>
+
+  <div aria-hidden="true" class="route-skeleton h-full bg-paper">
+    <div class="route-skeleton-frame">
+      {/* ---------------------------------------------------------- */}
+
+      {/*
+        The reading pages' own top chain, in a shell of its own — the page has two
+        sibling `w-shell` wrappers, and collapsing them into one is what would put
+        the running head 16px out from under the reading surface.
+      */}
+      <div class="route-skeleton-apparatus mx-auto w-shell pt-4">
+        <div class="running-head flex items-center justify-between gap-3">
+          {/*
+            The bars are wrapped in bare spans, and that is the whole trick. The
+            real running head is a flex row of two text spans, so its height is
+            their line box — 11px of type on the body's 1.65 leading, 18.15px.
+            Bars alone are 11px tall, which put every reading row 7px above where
+            it belongs; a bar inside a span inherits the same font and leading, so
+            the span is the same 18.15px the real one is and the row lands on the
+            reading surface by itself.
+          */}
+          <span class="shrink-0">
+            <span class={`${barInline} h-[0.6875rem] w-28`}></span>
+          </span>
+          <span class="min-w-0 shrink-0">
+            <span class={`${barInline} h-[0.6875rem] w-36`}></span>
+          </span>
+        </div>
+      </div>
+
+      {/*
+        `toc-rail-grid` is the page's own class, deliberately. An earlier draft
+        carried a private `lg:grid-cols-[var(--width-toc-rail)_minmax(0,1fr)]`,
+        which ignored `data-reading-toc` completely: with the rail shut the real
+        article moves 120px left and the skeleton stayed put, 120px to the right
+        of the text it was standing in for. Sharing the class means the reader's
+        rail closes this grid too, on the same transition.
+
+        `order-1`/`order-2` and the gap are the page's as well, which is what puts
+        the mobile TOC stand-in above the breadcrumb on a phone and out of the way
+        on a desktop.
+      */}
+      <div class="route-skeleton-reading toc-rail-grid mx-auto w-shell grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[var(--width-toc-rail)_minmax(0,1fr)] lg:gap-12">
+        <div class="toc-rail-cell order-1 min-w-0">
+          <div class="flex min-h-11 items-center gap-2 lg:hidden">
+            <span class={`${bar} h-[0.875rem] w-5 shrink-0`}></span>
+            <span class={`${bar} h-[0.875rem] w-24`}></span>
+          </div>
+        </div>
+
+        <div class="order-2 flex min-w-0 justify-center">
+          <div class="reading-column w-full min-w-0 max-w-reading">
+            <div data-skeleton-shape="notebook">
+              <BreadcrumbSkeleton />
+
+              {/* The breadcrumb is a child of the READING COLUMN on the real page,
+                 not of the article, so it is 70px wider than the prose. Capping
+                 the shape at the measure narrowed the crumb row to 577px. */}
+              <div class="max-w-measure">
+                <div class="mb-8 border-b border-rule-strong pb-6" data-skeleton-row="header">
+                  <div
+                    class="m-0 font-serif text-title font-semibold leading-tight tracking-[-0.025em]"
+                    data-skeleton-row="title"
+                  >
+                    <LineBar width="80%" />
+                  </div>
+                  <div class="mt-3 mb-0 max-w-[55ch] font-sans text-ui leading-relaxed">
+                    <LineBar width="100%" />
+                    <LineBar width="75%" />
+                  </div>
+                  <div class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-[0.45rem] border-t border-rule pt-3 text-left">
+                    <div class="running-head">
+                      <span class={`${bar} h-[0.6875rem] w-20`}></span>
+                    </div>
+                    <div class="m-0 font-mono text-mono leading-[1.45]">
+                      <LineBar width="18rem" />
+                    </div>
+                  </div>
+                </div>
+
+                <ProseSkeleton paragraphs={[[100, 96, 62]]} />
+
+                {/*
+                The code frame is the one element whose height a skeleton cannot
+                know: it is however many lines the block happens to have, which is
+                a property of the page being loaded rather than of its type. So it
+                is drawn at the right width and on the right ground — the measure,
+                `--paper-raised`, a hairline, mono rows on the mono leading — and
+                left to be roughly the right height. A number here would be the
+                same mistake as the bars, wearing a different hat.
+              */}
+                <div
+                  class="mt-prose-sibling overflow-hidden rounded-ui border border-rule bg-paper-raised p-4 font-mono text-mono leading-[1.5]"
+                  data-skeleton-row="code"
+                >
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <LineBar width={`${[92, 74, 86, 58, 68][index]}%`} ratio={0.6} />
+                  ))}
+                </div>
+
+                <ProseSkeleton paragraphs={[[100, 88], [72]]} />
+              </div>
+            </div>
+
+            <div data-skeleton-shape="section">
+              <BreadcrumbSkeleton />
+
+              {/* The breadcrumb is a child of the READING COLUMN on the real page,
+                 not of the article, so it is 70px wider than the prose. Capping
+                 the shape at the measure narrowed the crumb row to 577px. */}
+              <div class="max-w-measure">
+                <div class="mb-8 border-b border-rule-strong pb-6" data-skeleton-row="header">
+                  <div
+                    class="m-0 font-serif text-title font-semibold leading-tight tracking-[-0.025em]"
+                    data-skeleton-row="title"
+                  >
+                    <LineBar width="55%" />
+                    <LineBar width="35%" />
+                  </div>
+                  <div class="mt-3 mb-0 max-w-[55ch] font-sans text-ui leading-relaxed">
+                    <LineBar width="100%" />
+                    <LineBar width="66%" />
+                  </div>
+                  <div class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-[0.45rem] border-t border-rule pt-3 text-left">
+                    <div class="running-head">
+                      <span class={`${bar} h-[0.6875rem] w-20`}></span>
+                    </div>
+                    <div class="m-0 font-mono text-mono leading-[1.45]">
+                      <LineBar width="16rem" />
+                    </div>
+                  </div>
+                </div>
+
+                {/*
+                A section index is its title and then the notebooks under it, so
+                that is what this is: numbered rows, each a title line over a
+                stand-in for its summary, separated by the list's own hairlines.
+              */}
+                <div class="m-0 list-none p-0" data-skeleton-row="list">
+                  {[88, 96, 84, 100, 92].map((width, index) => (
+                    <div class="border-t border-rule py-5 first:border-t-0 first:pt-0">
+                      <div class="flex items-baseline gap-3">
+                        <span class={`${bar} h-[0.6875rem] w-6 shrink-0`} />
+                        <span class={`${bar} h-[1.375rem] w-[${width}%] shrink-0`} />
+                      </div>
+                      <span class={`${bar} mt-3 ml-9 h-[0.875rem] w-[${width - 18}%]`} />
+                      {index === 0 && <span class={`${bar} mt-2 ml-9 h-[0.875rem] w-[56%]`} />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------------- */}
+
+      {/*
+        The hero, as its own top-level branch. `<section class="py-title-block">`
+        with a `w-shell` inside it is literally `HomeTitleBlock.astro`'s outermost
+        markup, including the rules above and below it, and the same two tracks:
+        a fluid `1fr` and the fixed `--width-title-meta`. So the metadata margin
+        starts at the x it will start at once the page lands, and the display
+        title is capped at the measure exactly as the real one is.
+      */}
+      <div
+        data-skeleton-shape="home"
+        class="route-skeleton-home hero-composition border-y border-rule-strong py-title-block"
+      >
+        <div class="mx-auto w-shell">
+          <div
+            class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-title-meta)] lg:gap-16"
+            data-skeleton-row="hero-grid"
+          >
+            <div class="min-w-0">
+              <div
+                class="mb-5 font-serif text-display font-bold leading-[1.05] tracking-[-0.03em]"
+                data-skeleton-row="title"
+              >
+                <LineBar width="100%" />
+                <LineBar width="91%" />
+                <LineBar width="80%" />
+              </div>
+              <div class="mb-8 max-w-[42ch] font-sans text-abstract leading-[1.6]">
+                <LineBar width="100%" />
+                <LineBar width="100%" />
+                <LineBar width="60%" />
+              </div>
+              <span class="primary-control inline-flex items-center gap-2 leading-none">
+                <span class={`${bar} h-[0.75rem] w-24`}></span>
+              </span>
+            </div>
+
+            <div
+              class="pt-2 lg:border-l lg:border-rule lg:pl-8 lg:pt-0 lg:text-right"
+              data-skeleton-row="aside"
+            >
+              <span class={`${bar} ml-auto h-[0.875rem] w-40 max-w-full`}></span>
+              <span class={`${bar} mt-2 ml-auto h-[0.875rem] w-28 max-w-full`}></span>
+              <span class={`${bar} mt-5 ml-auto h-[1.5rem] w-full`}></span>
+              <span class={`${bar} mt-2 ml-auto h-[0.875rem] w-full`}></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------------- */}
+    </div>
+  </div>
+</div>

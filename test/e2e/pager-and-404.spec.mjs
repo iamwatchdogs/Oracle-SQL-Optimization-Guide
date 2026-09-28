@@ -163,13 +163,32 @@ async function rendersNoBreadcrumbOnTheHomePage({ page }) {
 
 async function hidesSeparatorSlashesFromAT({ page }) {
   await page.goto(FIRST_PAGE);
+  /*
+   * A descendant selector, not `li >`. The separator is now the LABEL's own first
+   * child rather than its sibling: a label is an `inline-block`, which is atomic, so
+   * a sibling separator was left alone on the line above a title too long for the
+   * space left on its line. That matters for the intermediate crumbs, which are
+   * links — an `aria-hidden` `/` INSIDE a link is still decoration and still excluded
+   * from the link's accessible name, which is what the assertions below check, and
+   * which a `li >` selector would have stopped being able to check at all.
+   */
   const hidden = await page
-    .locator('nav[aria-label="Breadcrumb"] li > span[aria-hidden="true"]')
+    .locator('nav[aria-label="Breadcrumb"] li span[aria-hidden="true"]')
     .evaluateAll((nodes) => nodes.map((node) => node.textContent?.trim()));
   expect(hidden.length).toBeGreaterThan(0);
   for (const glyph of hidden) {
     expect(glyph).toBe('/');
   }
+
+  /*
+   * Every crumb link carries one of those hidden separators, which is what keeps the
+   * `/` out of its accessible name. Asserted structurally rather than on
+   * `textContent`, which cannot answer the question: it includes `aria-hidden` text,
+   * so it would read `/ Appendix Sources` whether or not the glyph is hidden.
+   */
+  const links = await page.locator('nav[aria-label="Breadcrumb"] li a').count();
+  expect(links).toBeGreaterThan(0);
+  expect(hidden.length).toBe(links);
 }
 
 test.describe('page shell', () => {
@@ -222,7 +241,7 @@ async function keepsTheContentsNameStable({ page }) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(FIRST_PAGE);
     return page
-      .locator('header details > summary')
+      .locator('header #site-nav > summary')
       .evaluate((el) => (el.textContent ?? '').replaceAll(/\s+/gu, ' ').trim());
   };
   // The section counter was inside the accessible name, so the same control

@@ -177,8 +177,10 @@ test('the mobile site-nav panel joins the header flow instead of overlaying the 
    * and the disclosure is `static` too so the full-width row owns the layout.
    */
   expect(layout).not.toContain('prose');
-  expect(layout).toMatch(/class="[^"]*max-\[48rem\]:static[^"]*disclosure-flow"/u);
-  expect(layout).toMatch(/<details class="[^"]*max-\[48rem\]:static/u);
+  /* `<details\b[^>]*class="`, not `<details class="`: the shorter form coupled
+     the assertion to attribute ORDER, which Prettier decides. */
+  expect(layout).toMatch(/<details\b[^>]*class="[^"]*max-\[48rem\]:static[^"]*"/u);
+  expect(layout).toMatch(/<div\b[^>]*class="[^"]*max-\[48rem\]:static[^"]*disclosure-flow/u);
   expect(layout).not.toMatch(/max-\[48rem\]:fixed/u);
 
   // Nothing may translate or transform the panel: a transform would additionally
