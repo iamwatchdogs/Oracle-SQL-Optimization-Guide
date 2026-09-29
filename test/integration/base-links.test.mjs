@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { unified } from '@astrojs/markdown-remark';
 import { rehypeBaseLinks } from '../../src/lib/rehype-base-links.mjs';
 import { rehypeDisclosures } from '../../src/lib/rehype-disclosures.mjs';
+import { resolveBase } from '../../src/lib/site.mjs';
 
 /*
  * The deployment prefix reaches the prose through the renderer, not through the
@@ -88,13 +89,15 @@ test('an empty or root-only base prefixes nothing', async () => {
 
 test('an omitted base falls back to the one this build was made for', async () => {
   /*
-   * Not the same as empty: no option means "ask the config", and this suite runs
-   * with the real base in place. Asserted as a shape so the test does not have to
-   * know the repository's name.
+   * Not the same as empty: no option means "ask the config". The expected value is
+   * the configured base rather than a literal, because `SITE_BASE=/` is a
+   * supported build — and an assertion that hard-codes the repository name would
+   * fail the configuration the README documents.
    */
+  const base = resolveBase();
   const code = await renderWith('[a](/x/)', [rehypeBaseLinks]);
 
-  expect(code).toMatch(/href="\/[^/]+\/x\/"/u);
+  expect(code).toBe(`<p><a href="${base}/x/">a</a></p>`);
 });
 
 test('a base written without a leading slash, or with a trailing one, still works', async () => {

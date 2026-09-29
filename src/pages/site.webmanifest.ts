@@ -1,5 +1,11 @@
 import type { APIRoute } from 'astro';
-import { resolveBase, SITE_DESCRIPTION, SITE_LOCALE, SITE_TITLE } from '../lib/site.mjs';
+import {
+  resolveBase,
+  SITE_DESCRIPTION,
+  SITE_LOCALE,
+  SITE_TITLE,
+  THEME_COLOR,
+} from '../lib/site.mjs';
 
 /**
  * The web app manifest.
@@ -18,8 +24,10 @@ import { resolveBase, SITE_DESCRIPTION, SITE_LOCALE, SITE_TITLE } from '../lib/s
  *    rather than a path that only existed when the shortcut was made.
  *
  * It is a route rather than a file in `public/` for the reason robots.txt is: the
- * colours come from the same tokens the rest of the design does, and a hand-kept
- * copy of a hex value is a copy that will be wrong.
+ * icon paths carry the deployment prefix, and `theme_color` is the same constant
+ * the `<meta name="theme-color">` uses rather than a second copy of the hex. The
+ * value is pinned against `--paper` in `global.css` by a test, so a design change
+ * that moves the paper colour fails one test instead of three quiet places.
  */
 export const GET: APIRoute = () => {
   const base = resolveBase();
@@ -41,8 +49,8 @@ export const GET: APIRoute = () => {
         scope: `${base}/`,
         display: 'standalone',
         orientation: 'any',
-        theme_color: '#0c0c0e',
-        background_color: '#0c0c0e',
+        theme_color: THEME_COLOR,
+        background_color: THEME_COLOR,
         categories: ['education', 'books', 'developer'],
         icons: [
           { src: icon('favicon-16x16.png'), sizes: '16x16', type: 'image/png' },

@@ -50,8 +50,17 @@ test('every internal link in the built site carries the deployment prefix', asyn
   const base = resolveBase();
   const pages = await loadPages();
 
-  /* A build with no internal links would pass by having nothing to check. */
-  expect(pages.length).toBeGreaterThan(30);
+  const internal = pages.flatMap(({ file, html }) =>
+    [...attributesOf(html, 'href'), ...attributesOf(html, 'src')]
+      .filter((href) => isInternal(href))
+      .map((href) => `${file} → ${href}`),
+  );
+
+  /* The vacuity guard, before the filtering that makes it vacuous. With no prefix
+     configured, `startsWith('' + '/')` is true for every link and the offender list
+     below is always empty — so the count is what stops the guarantee from going
+     silent in exactly the configuration the README documents. */
+  expect(internal.length).toBeGreaterThan(100);
 
   const offenders = pages.flatMap(({ file, html }) =>
     [...attributesOf(html, 'href'), ...attributesOf(html, 'src')]

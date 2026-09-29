@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
-import { resolveBase } from '../../src/lib/site.mjs';
+import { resolveBase, THEME_COLOR } from '../../src/lib/site.mjs';
 
 const read = (relativePath) => readFile(new URL(relativePath, import.meta.url), 'utf8');
 const readBinary = (name) => readFile(new URL(`../../public/${name}`, import.meta.url));
@@ -50,7 +50,11 @@ test('every icon the head names is a file that will be built', async () => {
   const files = await Promise.all(names.map((name) => readBinary(name)));
   expect(files.every((buffer) => buffer.length > 0)).toBe(true);
 
-  expect(base).toBe('/Oracle-SQL-Optimization-Guide');
+  /* Read from the config rather than written out: `SITE_BASE=/` is a supported
+     build, and a literal here would fail it. What matters is that the head
+     resolves every icon through the base. */
+  expect(code).toContain('withBase');
+  expect(base === '' || base.startsWith('/')).toBe(true);
 });
 
 test('the ICO is requested before the SVG', async () => {
@@ -134,13 +138,20 @@ test('the theme colour agrees with the head and with the dark paper', async () =
 
   const paper = css.match(/^\s*--paper:\s*(#[0-9a-f]{6})\s*;/mu)?.[1];
 
-  expect(paper).toBe('#0c0c0e');
-  expect(head).toContain('<meta name="theme-color" content="#0c0c0e" />');
-  expect(manifest).toContain("theme_color: '#0c0c0e'");
+  /* One constant, and it is the stylesheet's value. A `<meta>` and a JSON
+     document cannot read a custom property at the point they are emitted, so the
+     hex has to be written — writing it once is the part that matters, and this is
+     the assertion that would have caught it being written three times. */
+  expect(THEME_COLOR).toBe(paper);
+  expect(THEME_COLOR).toBe('#0c0c0e');
 
-  /* Two copies of one value is exactly what the generator avoids — but the
-     manifest is a route, not generated output, so the agreement is asserted. */
-  expect(manifest).toContain("background_color: '#0c0c0e'");
+  expect(head).toContain('<meta name="theme-color" content={THEME_COLOR} />');
+  expect(manifest).toContain('theme_color: THEME_COLOR');
+  expect(manifest).toContain('background_color: THEME_COLOR');
+
+  /* The literals must not come back. */
+  expect(head).not.toContain('content="#0c0c0e"');
+  expect(manifest).not.toContain("'#0c0c0e'");
 });
 
 test('the icons are generated from the stylesheet, not hand-painted', async () => {
