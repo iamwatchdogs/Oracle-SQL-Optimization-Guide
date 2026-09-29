@@ -1,0 +1,73 @@
+# Runs the same gate a push runs locally, on every pull request.
+#
+# `lefthook`'s pre-push hook already runs this, and that is the point: the same
+# command, so a green laptop and a green pipeline mean the same thing. A CI
+# workflow that ran a different set of checks would be a second opinion nobody
+# asked for.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# One run per ref. A new push supersedes the run still in flight rather than
+# queueing behind it, which is what you want for a check that only describes the
+# current tip.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only. Nothing here needs a token.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # The version the lockfile was written by, so CI resolves the same
+          # dependency tree a developer does.
+          bun-version: 1.4.2
+
+      - name: Cache dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Lint, format, and type-check
+        run: bun run quality
+
+      - name: Unit and integration tests
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium firefox webkit
+
+      - name: End-to-end tests
+        run: bun run test:e2e
+
+      - name: Upload the Playwright report
+        uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
