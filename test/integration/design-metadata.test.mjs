@@ -146,44 +146,6 @@ test('the route swap names its zones, and names them explicitly', async () => {
   expect(markup(baseLayout)).not.toMatch(/transition:(animate|name|persist)/u);
 });
 
-test('the title is named in CSS and only for a pager hop', async () => {
-  /*
-   * The one zone that is not a template directive.
-   *
-   * A section jump must NOT pair the headings: the home h1 is `text-display` at up
-   * to 6rem and a section h1 is `text-title` at up to 2.5rem, in different parts of
-   * different layouts. Pairing them morphs a 2.4x scale and a ~328px move, which is
-   * the page-assembles-itself artifact. A pager hop is between two pages of the
-   * same shape, so there the pairing is what the cascade hangs from.
-   *
-   * An Astro `transition:name` compiles to a rule that is always on, so the
-   * distinction can only be expressed in CSS, keyed on the navigation kind.
-   */
-  const [slug, global] = await Promise.all([
-    readRepoFile('src/pages/[...slug].astro'),
-    readRepoFile('src/styles/global.css'),
-  ]);
-
-  expect(slug).not.toMatch(/transition:name="(page-)?title"/u);
-
-  /* A custom property, not a literal, keyed on the navigation kind. An ancestor-
-     qualified selector matches here, because this is a real element rather than a
-     view-transition pseudo — but the zone RULES that consume the name must stay bare,
-     which is the defect `route-transition.spec.mjs` pins. */
-  expect(global).toMatch(/\.reading-column h1 \{[^}]*view-transition-name: var\(--zone-title\)/u);
-  expect(global).not.toMatch(/view-transition-name: title/u);
-  /* Exactly one element is named, and the value arrives from the token table. */
-  expect(global.match(/view-transition-name: var\(--zone-title\)/gu)).toHaveLength(1);
-  /* The token is `none` by default and `title` only under the pager kind. */
-  expect(global).toMatch(/--zone-title: none;/u);
-  expect(global).toMatch(/html\[data-nav='pager'\] \{[^}]*--zone-title: title;/u);
-  /* No zone rule is ancestor-qualified: that form silently never applies.
-     Checked against the stylesheet with its comments stripped, because the file
-     documents the failure in prose and the prose names the exact selector. */
-  const rules = global.replaceAll(/\/\*[\s\S]*?\*\//gu, '');
-  expect(rules).not.toMatch(/html\[data-nav='[a-z]+'\] ::view-transition-/u);
-});
-
 test('in-page entrance motion stays transform-only', () => {
   const entrance = bulletWith(motionLines, 'Title-block entrance');
 

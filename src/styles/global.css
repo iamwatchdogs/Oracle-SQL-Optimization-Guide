@@ -145,6 +145,7 @@
   --zone-exit-rail: 45ms;
   --zone-exit-body: 90ms;
   --zone-exit-body-home: 90ms;
+  --zone-exit-title: 0ms;
   --zone-exit-pager-prev: 135ms;
   --zone-exit-pager-next: 180ms;
   --zone-exit-meta: 90ms;
@@ -159,14 +160,13 @@
 
   --zone-in-rh: zone-in;
   --zone-in-rail: zone-in-left;
-  --zone-in-body: zone-in;
+  --zone-in-body: none;
   --zone-in-body-home: zone-in;
   --zone-in-pager-prev: zone-in-left;
   --zone-in-pager-next: zone-in-right;
   --zone-in-meta: zone-in-right;
 
   /* The title is not a zone on a jump, and is the anchor of a pager hop. */
-  --zone-title: none;
   --type-running-head: calc(0.6875rem * var(--type-scale));
   --type-pager: calc(1rem * var(--type-scale));
   --type-contribution: calc(1.125rem * var(--type-scale));
@@ -252,24 +252,19 @@
   --radius-scrollbar: 5px;
 }
 /*
- * The pager variant. Same pieces, same order out, different order in: the title
- * leads, the reading column cascades down out of it, and the rail and the pager
- * cells still come in from their own edges so the divergence survives.
+ * The pager variant.
  *
- * `--zone-title` is what makes the heading a zone at all, and only here. See the
- * note on the title rule below.
+ * The reading column rises into place instead of simply being there, so a next/previous
+ * cell reads as a step along a linear book rather than as a cut. Transform only — see
+ * the note on the incoming halves for why nothing on the arriving side may animate its
+ * opacity.
+ *
+ * The heading is not a zone. It lives inside the reading column, and the column is
+ * painted from the first frame, so a separate title snapshot would be a second copy of
+ * the same pixels sitting on top of the first.
  */
 html[data-nav='pager'] {
-  --zone-enter-title: 490ms;
-  --zone-enter-body: 535ms;
-  --zone-enter-pager-next: 490ms;
-  --zone-enter-pager-prev: 535ms;
-  --zone-enter-rail: 580ms;
-  --zone-enter-rh: 625ms;
-
-  --zone-in-title: zone-in-up;
-  --zone-in-body: zone-in-up;
-  --zone-title: title;
+  --zone-in-body: zone-rise;
 }
 
 /*
@@ -1712,71 +1707,80 @@ details[data-disclosure-closing] .disclosure-icon {
 }
 
 /*
- * Every zone's arrival: opaque immediately, underneath.
+ * Every zone's arrival: PAINTED FROM THE FIRST FRAME, and never animated in opacity.
  *
- * This is the compositing guarantee, and it is why `zone-in*` is an opacity
- * animation rather than the exit being the only thing that animates. A named pseudo
- * with no animation is a filled, opaque snapshot from the first frame, so the old
- * piece is being UNCOVERED rather than faded toward nothing — which is what makes the
- * dead beat read as a dissolve instead of a hole.
+ * This is the fourth and last of the defects, and it is the one that made the whole
+ * feature feel broken rather than merely imperfect.
+ *
+ * The entrance used to fade each zone in at its own delay, which is the obvious way to
+ * write it and is wrong here. The zones leave top-down and arrive bottom-up, so a zone
+ * that leaves first arrives last and is therefore absent for the longest — and those
+ * windows stack in the middle of the swap. At its centre there was a moment when no
+ * zone was painted at all: the reading column, the rail and the running head were all
+ * gone at once and the page was simply not there. Measured on the dev server, 250ms
+ * of an 810ms swap with nothing on screen, and it is why section-to-section read as
+ * "the transition is removed" rather than as a fast swap.
+ *
+ * That is not a timing problem and cannot be tuned away: the gaps coincide because of
+ * the reverse ordering, so every value of every delay produces the same hole.
+ *
+ * A view-transition pseudo with no animation is a filled, opaque snapshot from the
+ * first frame, which is the property the whole design was originally built on and which
+ * this had quietly stopped using. Giving the incoming halves no opacity animation
+ * restores it: the new page is always under the departing pieces, each of which lifts
+ * off it in turn, and the page is uncovered rather than absent. The stagger is still
+ * legible — it is the peel, not the arrival.
+ *
+ * The trade is real and stated plainly: this is "the old page is taken away" rather
+ * than "the new page is built", so the reverse-order reassembly is gone. It was never
+ * visible as reassembly, because the reassembly happened over a blank page.
  */
-::view-transition-new(rh) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rh) both var(--zone-in-rh);
-}
-
-::view-transition-new(rail) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rail) both var(--zone-in-rail);
-}
-
+::view-transition-new(rh),
+::view-transition-new(rail),
 ::view-transition-new(body),
-::view-transition-new(body-home) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-body) both var(--zone-in-body);
-}
-
-::view-transition-new(pager-prev) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-prev) both
-    var(--zone-in-pager-prev);
-}
-
-::view-transition-new(pager-next) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-next) both
-    var(--zone-in-pager-next);
-}
-
+::view-transition-new(body-home),
+::view-transition-new(pager-prev),
+::view-transition-new(pager-next),
 ::view-transition-new(meta) {
   z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-meta) both var(--zone-in-meta);
-}
-
-/* Only a pager hop has a title zone, so only a pager hop animates one. */
-::view-transition-new(title) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-title) both var(--zone-in-title);
 }
 
 /*
- * The title is named through a custom property, and only for a pager hop.
+ * The pager hop is the one variant with something to animate on arrival, and it animates
+ * TRANSFORM only, for the same reason: a transform moves a painted snapshot, it does not
+ * withhold one. The new page rises 36px into place while the old one peels off above it,
+ * which is what makes a pager cell read as a step along a linear book.
  *
- * A pager hop is between two pages of the same shape: both headings are
- * `text-title`, both sit in the same place in the reading column, so the new content
- * can cascade down out of the title and the pairing means something.
- *
- * A section jump is not. Its title can be the 96px `text-display` on the home page
- * and the 40px `text-title` on a section, and those are not two states of one thing —
- * so on a jump the heading is not a zone at all. It dissolves with the rest of the
- * reading column, with no scale morph and no ghost.
- *
- * `var(--zone-title)` rather than a `transition:name` in the template, because a
- * directive compiles to a rule that is always on, and the whole point is that the
- * title is a zone for one variant and not the other.
+ * BARE selector, with the variant arriving through `--zone-in-body` rather than through
+ * a qualified one. `html[data-nav='pager'] ::view-transition-new(body)` does not match
+ * the view-transition pseudo tree at all — the same trap as everywhere else in this
+ * block — and when it was written that way Astro's own `astroFadeIn` won and the reading
+ * column cross-faded on 180ms instead. `none` is a valid animation-name, so the jump
+ * variant resolves to no animation at all and the pseudo is a filled opaque snapshot.
  */
-.reading-column h1 {
-  view-transition-name: var(--zone-title);
+::view-transition-new(body) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) 0ms both var(--zone-in-body);
+}
+
+@keyframes zone-rise {
+  from {
+    transform: translateY(calc(-1 * var(--zone-drop)));
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+::view-transition-old(title) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-title) both zone-out;
+}
+
+::view-transition-new(title) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-title) both var(--zone-in-title);
 }
 
 /*
