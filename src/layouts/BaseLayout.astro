@@ -2,6 +2,7 @@
 import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
 import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
+import { REPO_URL } from '../lib/site.mjs';
 import '../styles/global.css';
 
 interface SectionLink {
@@ -194,7 +195,65 @@ const isArticle = Astro.url.pathname !== '/';
             href="/"
             class="running-head flex min-h-11 shrink-0 items-center no-underline transition-colors hover:text-accent"
           >
-            Oracle SQL <span class="max-[30rem]:hidden">· Notebook</span>
+            Oracle SQL <span class="max-[48rem]:hidden">· Notebook</span>
+          </a>
+
+          {/*
+            The repository link is an `<a>`, not a `<button>`, and that is not a
+            detail. It navigates rather than toggles, so the element is right —
+            but it is also load-bearing: `hit-targets.test.mjs` locates the theme
+            toggle with a NON-GREEDY match that starts at the first `<button` in
+            this file. A fourth control written as a button would capture the
+            markup between itself and `#theme-toggle` and assert the wrong string.
+
+            Its resting treatment is the other three's, verbatim. That is the whole
+            argument that a link out of the world can sit in the top bar without
+            becoming the loudest thing in it: at rest there is no box, the ink is
+            `--ink-muted`, and the accent arrives on approach. Nothing about the
+            resting state announces it — the reader finds it by looking, the way
+            they find `Contents` and `Theme`.
+
+            `no-underline` is explicit because the wordmark needs it too and the
+            header has no blanket anchor reset to inherit.
+
+            Below `30rem` the control takes its own row, which is the only way this
+            link can exist in the header at all. Measured at 390px: the four controls
+            need 416px of a 358px row, and `#reading-prefs` has a 2px margin before
+            its own 320px panel leaves the viewport. A 4th inline control moves that
+            summary 41px left and puts the panel at x=-40 — the reading-prefs buttons
+            fail `keepsHeaderInsideViewport` at -23, not the link that caused it.
+            So below `30rem` this is `basis-full shrink-0` and the header is two
+            rows — both halves are load-bearing. `basis-full` alone is not enough:
+            `flex-shrink` defaults to 1, so the link compresses back onto the first
+            row instead of claiming a line of its own, which squeezed `#reading-prefs`
+            to x=147 at 480px and threw its panel to x=-173. Above the breakpoint the
+            row has the room and this sits inline with the other three.
+
+            That also makes the mobile target better rather than worse: a full-width
+            44px row beats a 34px glyph wedged between three neighbours.
+
+            `aria-label` is absent at rest and wrong to add for the same reason the
+            other three carry none — the voice-control contract wants the accessible
+            name to begin with the visible word. It is here because the word is
+            visible at every width, so "Repo" is a prefix of nothing and needs no
+            label; the name is the text. Nothing here is glyph-only.
+          */}
+          <a
+            href={REPO_URL}
+            aria-label="Repository"
+            class="flex min-h-11 list-none items-center gap-[0.6rem] rounded-ui border border-transparent px-3 py-2 font-sans text-ui font-medium text-ink-muted no-underline transition-colors hover:border-control-edge hover:text-accent focus-visible:border-control-edge focus-visible:text-ink max-[30rem]:gap-0 max-[30rem]:px-[0.55rem]"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              class="shrink-0"
+              aria-hidden="true"
+            >
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+            <span class="max-[30rem]:hidden">Repo</span>
           </a>
 
           {/*
@@ -244,7 +303,7 @@ const isArticle = Astro.url.pathname !== '/';
                 {/* Decorative: the accessible name of this button must not change
                     with viewport width (WCAG 2.5.3, Label in Name). */}
                 <span
-                  class="font-mono text-chip whitespace-nowrap text-ink-faint max-[30rem]:hidden"
+                  class="font-mono text-chip whitespace-nowrap text-ink-faint max-[48rem]:hidden"
                   aria-hidden="true"
                 >
                   {sectionPosition

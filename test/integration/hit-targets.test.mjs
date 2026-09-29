@@ -18,6 +18,16 @@ const elementWith = (source, tag, needle) => {
 
 const matchesOf = (source, pattern) => (source ?? '').match(pattern) ?? [];
 
+/*
+ * `elementWith` is non-greedy from the FIRST tag of its kind, which is right for
+ * finding a uniquely-identified control and wrong for finding a labelled one: a
+ * `>Repo<` needle would match from the header's wordmark anchor all the way to
+ * the repository link and assert against the markup in between. This enumerates
+ * the anchors and picks the one that actually contains the text.
+ */
+const anchorWith = (source, needle) =>
+  matchesOf(source, /<a\b[\s\S]*?<\/a>/gu).find((anchor) => anchor.includes(needle));
+
 const compiledScale = async () => {
   const stylesheet = parseCompiledStylesheet(await compiled);
   const declaration = (selector, property) =>
@@ -43,26 +53,33 @@ test('the theme toggle keeps a 44x44 hit target and its running-head type', asyn
   expect(toggle).toContain('font-sans text-ui font-medium leading-none');
 });
 
-test('the three header triggers share one resting treatment', async () => {
-  /*
-   * The theme toggle used to carry `text-ink` while the two dropdowns beside it
-   * carried `text-ink-muted`, and all three painted a permanent `--control-edge`
-   * box in a header that already has a hairline under it. The complaint was that
-   * the least important thing on the page was the loudest, and it was true twice
-   * over: three boxes, and one of the three louder in ink than its neighbours.
-   *
-   * The previous test pinned `text-ink` on the toggle while its name claimed to be
-   * about type, so it held the loudness in place without meaning to. This asserts
-   * the property that was actually wanted — the three agree — which is stronger
-   * than one control's colour and cannot be satisfied by editing one string.
-   */
+/*
+ * The theme toggle used to carry `text-ink` while the two dropdowns beside it
+ * carried `text-ink-muted`, and all three painted a permanent `--control-edge` box
+ * in a header that already has a hairline under it. The complaint was that the
+ * least important thing on the page was the loudest, and it was true twice over:
+ * three boxes, and one of the three louder in ink than its neighbours.
+ *
+ * The previous test pinned `text-ink` on the toggle while its name claimed to be
+ * about type, so it held the loudness in place without meaning to. This asserts the
+ * property that was actually wanted — the triggers agree — which is stronger than
+ * one control's colour and cannot be satisfied by editing one string.
+ *
+ * The repository link is in the set for the same reason. A link that leaves the
+ * world is the most natural candidate for a filled button in a header, and the
+ * resting treatment is the only thing standing between that impulse and a fourth
+ * 3.23:1 box. It is asserted here so the choice is a property, not a preference.
+ *
+ * The two dropdown ids live on the `<details>`, not the `<summary>`, so those
+ * triggers are found by the label inside them: "Contents" and "Reading". Both are
+ * read as accessible names by the site's own tests, so neither can be renamed out
+ * from under this one. The repository link is matched by enumerating anchors
+ * rather than through `elementWith`, which is non-greedy from the FIRST `<a` in
+ * the file — that is the wordmark, and a `>Repo<` needle would capture everything
+ * between the two.
+ */
+test('the four header triggers share one resting treatment', async () => {
   const layout = await readSource('../../src/layouts/BaseLayout.astro');
-  /*
-   * The two ids live on the `<details>`, not the `<summary>`, so the triggers are
-   * found by the label inside them: "Contents" and "Reading". Both are read as
-   * accessible names by the site's own tests, so neither can be renamed out from
-   * under this one.
-   */
   const summaryWith = (needle) =>
     matchesOf(layout, /<summary\b[\s\S]*?<\/summary>/gu).find((summary) =>
       summary.includes(needle),
@@ -70,6 +87,7 @@ test('the three header triggers share one resting treatment', async () => {
   const triggers = [
     summaryWith('>Contents<'),
     summaryWith('>Reading<'),
+    anchorWith(layout, '>Repo<'),
     elementWith(layout, 'button', 'id="theme-toggle"'),
   ];
 
@@ -89,6 +107,45 @@ test('the three header triggers share one resting treatment', async () => {
   for (const trigger of triggers.slice(0, 2)) {
     expect(trigger).toContain('group-open:border-control-edge');
   }
+});
+
+test('the repository link is a single anchor the chrome and the colophon share', async () => {
+  /*
+   * The URL lives in one literal and is asserted from two files, because the
+   * header trigger and the footer colophon are two renderings of one fact. A test
+   * that only watched the layout would let the footer drift onto a different
+   * remote; one that only watched the footer would let the header do the same.
+   */
+  const site = await readSource('../../src/lib/site.mjs');
+  const layout = await readSource('../../src/layouts/BaseLayout.astro');
+  const footer = await readSource('../../src/components/SiteFooter.astro');
+  const literal = site.match(/export const REPO_URL = '([^']+)'/u)?.[1] ?? '';
+
+  expect(literal).toMatch(/^https:\/\//u);
+  /*
+   * A tripwire, and the one test here that is red on purpose until the real
+   * remote lands in `src/lib/site.mjs`. Shipping a link to `github.com/OWNER/REPO`
+   * is worse than shipping no link at all, because it looks finished.
+   */
+  expect(
+    literal,
+    'REPO_URL is still the placeholder — replace it in src/lib/site.mjs with the real remote',
+  ).not.toContain('OWNER');
+
+  /* Both render it from the shared constant rather than repeating a URL. */
+  expect(layout).toContain('href={REPO_URL}');
+  expect(footer).toContain('href={REPO_URL}');
+
+  /*
+   * Single-tab, like all 338 external links already in the corpus. A new-tab
+   * control in the top bar would be the only one on the site, and it would work
+   * against the audit posture the book is built on.
+   */
+  expect(layout).not.toContain('target="_blank"');
+  expect(footer).not.toContain('target="_blank"');
+
+  /* The mark is decoration: the link is named by its visible word. */
+  expect(anchorWith(layout, '>Repo<')).toContain('aria-hidden="true"');
 });
 
 test('breadcrumb home, the full key, and book home each carry a 24x24 hit target', async () => {

@@ -5,6 +5,7 @@ import ReadingToc from '../components/ReadingToc.astro';
 import ReadingTocToggle from '../components/ReadingTocToggle.astro';
 import PrevNext from '../components/PrevNext.astro';
 import HomeTitleBlock from '../components/HomeTitleBlock.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 
 type Props = {
   entry: CollectionEntry<'notebook'>;
@@ -545,10 +546,5 @@ const proseClass = [
     </>
   )}
 
-  <footer class="mt-auto border-t border-rule">
-    <div class="mx-auto flex w-shell flex-wrap items-center justify-between gap-4 py-8">
-      <p class="meta m-0">Oracle SQL Optimization · Evidence-graded notebook</p>
-      <p class="meta m-0">Compiled 2026-09-22 · No live DB</p>
-    </div>
-  </footer>
+  <SiteFooter />
 </BaseLayout>
