@@ -75,8 +75,21 @@ export const SITE_TITLE = 'Oracle SQL Optimization for Junior Devs';
 export const SITE_DESCRIPTION =
   'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.';
 
-/** BCP 47 tag for `hreflang` and `og:locale`. The book is English, no region. */
+/** BCP 47 tag for `og:locale` and the manifest's `lang`. The book is English. */
 export const SITE_LOCALE = 'en';
+
+/**
+ * The colour a browser paints its own chrome in: the manifest's `theme_color`,
+ * the manifest's `background_color`, and `<meta name="theme-color">`.
+ *
+ * It is `--paper` from the dark default in `global.css`, written down here
+ * because a manifest is JSON and a `<meta>` is a string literal — neither can read
+ * a custom property at the point it is emitted. One constant rather than three
+ * literals, and `icons.test.mjs` pins it against the stylesheet, so a theme
+ * change that moves the paper colour fails one test rather than three silent
+ * places.
+ */
+export const THEME_COLOR = '#0c0c0e';
 
 /**
  * The day this edition of the book was compiled.

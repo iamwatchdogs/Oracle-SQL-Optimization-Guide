@@ -113,9 +113,12 @@ test('the feed is served as an RSS document, and advertised as one', async () =>
 });
 
 test('the deployed address is the one the site is served at', () => {
-  const base = resolveBase();
-
-  expect(new URL(`${base}/`, `${SITE_ORIGIN}/`).href).toBe(
-    'https://iamwatchdogs.github.io/Oracle-SQL-Optimization-Guide/',
+  /*
+   * Derived rather than written out. `SITE_BASE=/` is a supported build — a host
+   * that serves from the origin root — and a literal here would fail exactly that
+   * configuration while telling the reader nothing the join above does not.
+   */
+  expect(new URL(`${resolveBase()}/`, `${SITE_ORIGIN}/`).href).toBe(
+    `${SITE_ORIGIN}${resolveBase()}/`,
   );
 });

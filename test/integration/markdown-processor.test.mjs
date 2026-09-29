@@ -1,11 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
 import { unified } from '@astrojs/markdown-remark';
+import { rehypeBaseLinks } from '../../src/lib/rehype-base-links.mjs';
 import {
   markdownProcessor,
   rehypePlugins,
   remarkPlugins,
 } from '../../src/lib/markdown-processor.mjs';
+import { resolveBase } from '../../src/lib/site.mjs';
 
 const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.url), 'utf8');
 
@@ -269,6 +271,9 @@ test('the production chain is what applies the deployment prefix', async () => {
   const code = (await (await markdownProcessor.createRenderer({})).render('[a](/04-recipes/)', {}))
     .code;
 
-  expect(code).toMatch(/href="\/[^/]+\/04-recipes\/"/u);
-  expect(rehypePlugins).toHaveLength(5);
+  /* The exact link, whatever the prefix is. `SITE_BASE=/` is a supported build, and
+     what is being checked is that the production chain rewrote the link at all —
+     true both with and without a prefix. */
+  expect(code).toBe(`<p><a href="${resolveBase()}/04-recipes/">a</a></p>`);
+  expect(rehypePlugins).toContain(rehypeBaseLinks);
 });
