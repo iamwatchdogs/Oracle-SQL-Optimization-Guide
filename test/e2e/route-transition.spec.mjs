@@ -98,71 +98,77 @@ test.describe('a section jump', () => {
 test.describe('a section jump, reversed', () => {
   test.use({ viewport: DESKTOP_VIEWPORT });
 
-  test('arrives in the reverse of the order it left', async ({ page }) => {
+  test('leaves the page in order, so it peels apart rather than vanishing', async ({ page }) => {
     const entries = await recordSwap(page, () => navigateTo(page, PROOF));
-    const arrival = EXIT_ORDER.map((zone) => Math.min(...delays(entries, 'new', zone)));
-    const reversed = arrival.every((value, index) => index === 0 || value < arrival[index - 1]);
-
-    expect(
-      reversed,
-      `entrance is not reversed: ${EXIT_ORDER.map((z, i) => `${z}@${arrival[i]}`).join(' ')}`,
-    ).toBe(true);
-  });
-
-  test('waits for the exit to finish before it begins', async ({ page }) => {
-    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
-    /* Read the per-piece duration from the page. It used to be pinned at 190ms here,
-       which meant every retime of the choreography quietly stopped this test from
-       checking the dead beat and kept passing anyway. */
     const { duration } = await readTravel(page);
 
-    const lastExit = Math.max(
-      ...EXIT_ORDER.flatMap((zone) =>
-        half(entries, 'old', zone).map((entry) => entry.delay + duration),
-      ),
-    );
-    const firstArrival = Math.min(...EXIT_ORDER.flatMap((zone) => delays(entries, 'new', zone)));
+    /*
+     * The order is entirely in the departure.
+     *
+     * There is no reverse-order arrival to assert any more, and that is the point: the
+     * arriving halves are painted from the first frame, because a staggered arrival
+     * leaves the middle of the swap unpainted. The stagger you see is the old pieces
+     * leaving one at a time, and for that to read as a page coming apart rather than a
+     * page switching off, they have to leave in order and overlap each other.
+     */
+    const start = EXIT_ORDER.map((zone) => Math.min(...delays(entries, 'old', zone)));
+    const ascending = start.every((value, index) => index === 0 || value > start[index - 1]);
+    expect(ascending, `exit is not top-to-bottom: ${start.join(', ')}`).toBe(true);
 
-    /* The dead beat. A reader gets a moment where the old page is simply gone,
-       rather than one dissolve running through the other's midpoint. */
-    expect(firstArrival).toBeGreaterThan(lastExit);
+    /* Consecutive pieces overlap, so there is always something still leaving. */
+    for (let i = 1; i < EXIT_ORDER.length; i += 1) {
+      const previousEnds = start[i - 1] + duration;
+      expect(start[i], `${EXIT_ORDER[i]} starts after ${EXIT_ORDER[i - 1]} has gone`).toBeLessThan(
+        previousEnds,
+      );
+    }
   });
 });
 
 test.describe('a pager hop', () => {
   test.use({ viewport: DESKTOP_VIEWPORT });
 
-  test('is anchored on the title, and the column follows it down', async ({ page }) => {
+  test('rises into place, transform only', async ({ page }) => {
     const entries = await recordSwap(page, () => pressNext(page));
     const { drop } = await readTravel(page);
+    const body = half(entries, 'new', 'body');
 
-    for (const entry of [...half(entries, 'new', 'title'), ...half(entries, 'new', 'body')]) {
-      expect(entry.name, 'the pager arrival is not anchored from above').toBe('zone-in-up');
+    expect(body, 'the pager hop no longer animates the reading column').not.toEqual([]);
+    for (const entry of body) {
+      expect(entry.name).toBe('zone-rise');
       expect(entry.axis).toBe('Y');
       expect(entry.travel).toBe(String(-drop));
+      /* A transform moves a painted snapshot; it must not withhold one. */
+      expect(entry.delay).toBe(0);
     }
-    expect(Math.min(...delays(entries, 'new', 'title'))).toBeLessThan(
-      Math.min(...delays(entries, 'new', 'body')),
-    );
   });
 
-  test('still diverges at its edges', async ({ page }) => {
+  test('the jump does not move the arriving column', async ({ page }) => {
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+
+    /* On a jump the arriving page is simply there. The difference between the two
+       variants is the departure, and the pager's rise — not the arrival timing. */
+    for (const entry of half(entries, 'new', 'body')) {
+      expect(entry.name).not.toBe('zone-rise');
+      expect(entry.delay).toBe(0);
+    }
+  });
+
+  test('still peels apart at its edges', async ({ page }) => {
     const entries = await recordSwap(page, () => pressNext(page));
     const { travel } = await readTravel(page);
 
-    expectDividedEdges(entries, 'new', travel);
+    /* The divergence is entirely in the departure now, and it is the departure that
+       made a pager hop feel like a step. */
+    expectDividedEdges(entries, 'old', travel);
   });
 
-  test('is not the same animation as a jump', async ({ page }) => {
-    /* The regression this pins: `data-nav` is deleted by the router on
-       `astro:after-swap`, so a pager hop silently ran the jump choreography. The
-       two differ only in the title zone and the body's entrance, which is exactly
-       what collapses them into one indistinguishable trace. */
+  test('is a different navigation from a jump', async ({ page }) => {
     const pager = await recordSwap(page, () => pressNext(page));
     const jump = await recordSwap(page, () => navigateTo(page, PROOF));
 
-    expect(half(pager, 'new', 'title')).not.toEqual([]);
-    expect(half(jump, 'new', 'title')).toEqual([]);
-    expect(delays(pager, 'new', 'body')).not.toEqual(delays(jump, 'new', 'body'));
+    expect(half(pager, 'new', 'body').map((e) => e.name)).not.toEqual(
+      half(jump, 'new', 'body').map((e) => e.name),
+    );
   });
 });
