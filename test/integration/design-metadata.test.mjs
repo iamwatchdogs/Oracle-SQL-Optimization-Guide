@@ -70,15 +70,20 @@ test('motion names exactly one sanctioned opacity transition, the route swap', (
   expect(motionSection).not.toMatch(/one opacity exception|single opacity exception/iu);
 });
 
-test('the route swap is documented as uncovering the new page, not cross-fading', () => {
-  expect(motionSection).toMatch(/uncovered, not faded through the paper/iu);
-  /* The exit and entrance windows matter as much as the per-zone duration: the
-     reverse order and the dead beat are the effect, and both are invisible in a
-     settled screenshot. */
-  expect(motionSection).toMatch(/190ms/iu);
+test('the route swap is documented as two ladders and a pause', () => {
+  /* The reverse order and the dead beat are the effect, and neither is visible in a
+     settled screenshot — so the prose has to carry them. */
+  expect(motionSection).toMatch(/dead beat/iu);
+  expect(motionSection).toMatch(/reverse/iu);
+  /* Per-zone duration, stagger, and the pause between the two windows. */
+  expect(motionSection).toMatch(/240ms/iu);
   expect(motionSection).toMatch(/45ms/iu);
   expect(motionSection).toMatch(/70ms/iu);
-  expect(motionSection).toMatch(/810ms/iu);
+  expect(motionSection).toMatch(/910ms/iu);
+  /* The departure and the arrival as two distinct windows, because a single number for
+     the whole swap is the shape that hid the arrival last time this drifted. */
+  expect(motionSection).toMatch(/0.?420ms/iu);
+  expect(motionSection).toMatch(/490.?910ms/iu);
   /* Both variants, and what selects between them. */
   expect(motionSection).toMatch(/`jump`/iu);
   expect(motionSection).toMatch(/`pager`/iu);
@@ -88,8 +93,8 @@ test('the route swap is documented as uncovering the new page, not cross-fading'
     expect(motionSection, `zone ${zone} is undocumented`).toContain(zone);
   }
   /* The compositing rule, and why it is not a style preference: plus-lighter adds
-     the two opacities, which is only correct while they sum to 1, and a sequence
-     cannot hold that. On this paper the broken frames render darker. */
+     the two opacities, which is only correct while they sum to 1. In the dead beat they
+     sum to ZERO, so those frames render as bare paper on this #0c0c0e ground. */
   expect(motionSection).toMatch(/plus-lighter/iu);
   expect(motionSection).toMatch(/#0c0c0e/u);
   /* Shorthand, not longhands: the UA's blend animation is a SECOND animation on the
@@ -162,7 +167,7 @@ test('the one sanctioned opacity bullet stays in Motion', () => {
   expect(first).toMatch(/no element on a page may fade in from `opacity: 0`/iu);
   /* The per-zone duration, not a whole-swap total: the zones are what animate, and a
      single number for the whole page is the shape the old design had. */
-  expect(first).toMatch(/190ms/iu);
+  expect(first).toMatch(/240ms/iu);
   expect(first).toMatch(/45ms/iu);
   /* The loader used to be bullet #2. If a second sanctioned opacity reappears in
      the metadata, this catches the number drifting before the prose does. */
@@ -190,29 +195,32 @@ test('design metadata motion mirrors the documented motion values', () => {
   expect(rise.value).toMatch(/500ms/u);
   expect(rise.value).toMatch(/translateY\(10px\)/u);
   expect(rise.purpose).toMatch(/transform-only/u);
-  /* The stagger, per zone, with the exit and the reversed entrance both spelled out
+  /* The stagger, per zone, with the departure and the reversed arrival both spelled out
      in the order they run. A single number for the whole page is the shape the old
      design had, and it is exactly the shape that hid the reverse-order arrival. */
-  expect(jump.value).toMatch(/190ms/u);
+  expect(jump.value).toMatch(/240ms/u);
   expect(jump.value).toMatch(/0\/45\/90\/135\/180ms/u);
-  expect(jump.value).toMatch(/530\/575\/440\/485\/620ms/u);
+  expect(jump.value).toMatch(/490\/535\/580\/625\/670ms/u);
+  expect(jump.value).toMatch(/70ms dead beat/iu);
   expect(jump.value).toMatch(/z-index 2/u);
   expect(jump.value).toMatch(/groups animation none/u);
-  /* The pager's point is the title arriving first and the column following it down. */
-  expect(pager.value).toMatch(/title 440ms and body 485ms/u);
+  /* The pager differs in exactly one thing: the centre rises instead of holding still. */
+  expect(pager.value).toMatch(/zone-in-up/iu);
   expect(pager.value).toMatch(/translateY\(-36px\)/u);
+  /* And it is the same ladder and the same pause, or it is a second design. */
+  expect(pager.value).toMatch(/490\/535\/580\/625\/670ms/u);
   for (const route of [jump, pager]) {
     expect(route.purpose).toMatch(/opacity #1/iu);
   }
   /* The compositing rationale lives once, on the jump entry: one mechanism shared by
      both variants, and the swap's first entry is where a reader will look for it. */
-  expect(jump.purpose).toMatch(/opaque snapshot UNDERNEATH/iu);
+  expect(jump.purpose).toMatch(/sum to ZERO/iu);
   expect(jump.purpose).toMatch(/plus-lighter/iu);
   expect(jump.purpose).toMatch(/animation shorthand, not longhands/iu);
   /* The two traps that cost the most time, recorded where a reader will find them. */
   expect(jump.purpose).toMatch(/reapplies the incoming document's <html> attributes/u);
   expect(jump.purpose).toMatch(/BARE/u);
-  expect(jump.purpose).toMatch(/810ms/u);
+  expect(jump.purpose).toMatch(/910ms/u);
   expect(pager.value).toMatch(/data-nav='pager'/u);
   expect(disclosure.value).toMatch(/280ms/u);
   /* The rail's control is one control that moves, and the metadata has to say so —
