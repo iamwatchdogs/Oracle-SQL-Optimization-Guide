@@ -34,12 +34,33 @@ export const SITE_ORIGIN = 'https://iamwatchdogs.github.io';
 /**
  * The path GitHub Pages mounts this repository at.
  *
- * This is the default, not the law: `astro.config.mjs` lets `SITE_BASE`
- * override it, so a future deploy target that serves from the origin root
- * (Cloudflare Pages, Netlify, a custom domain) can build these same sources
- * without editing anything here. Build for the root by setting `SITE_BASE=/`.
+ * This is the default, not the law. `resolveBase()` lets `SITE_BASE` override
+ * it, so a future deploy target that serves from the origin root — Cloudflare
+ * Pages, Netlify, a custom domain — can build these same sources with
+ * `SITE_BASE=/` and no edit anywhere. Everything that needs the prefix goes
+ * through that one function rather than reading this constant, because the
+ * config and the markdown pipeline both have to agree on it and two copies of
+ * the rule would be free to disagree.
  */
 export const SITE_BASE = '/Oracle-SQL-Optimization-Guide';
+
+/**
+ * The prefix this build is being made for, as the deployment spells it.
+ *
+ * The trailing slash is stripped because every call site joins onto a path that
+ * already begins with one: `/` + base + `/04-recipes/` has to be
+ * `/Oracle-…/04-recipes/`, not `/Oracle-…//04-recipes/`. An empty or `/` base
+ * normalises to an empty string, which is what "served from the root" means.
+ */
+export const resolveBase = () => normaliseBase(process.env['SITE_BASE'] ?? SITE_BASE);
+
+const normaliseBase = (base) => {
+  const trimmed = base.trim().replace(/\/+$/u, '');
+  if (trimmed === '') {
+    return '';
+  }
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+};
 
 /** The name of the work. Also the one title `BaseLayout` renders unabbreviated. */
 export const SITE_TITLE = 'Oracle SQL Optimization for Junior Devs';
@@ -74,4 +95,21 @@ export const withBase = (path) => {
     return path;
   }
   return path === base || path.startsWith(`${base}/`) ? path : `${base}${path}`;
+};
+
+/**
+ * The inverse of `withBase`: turn a deployed pathname back into the route the
+ * book is written against, so `/Oracle-…/04-recipes/` reads as `/04-recipes/`.
+ *
+ * Needed because the one value that decides what page you are on is not written
+ * by hand. `Astro.url.pathname` already carries the prefix the build used, so
+ * comparing it against a route written without one silently fails — which is
+ * exactly how the section list lost its active state once `base` was set.
+ */
+export const withoutBase = (path) => {
+  const base = import.meta.env.BASE_URL.replace(/\/$/u, '');
+  if (base === '' || !path.startsWith(base)) {
+    return path;
+  }
+  return path.slice(base.length) || '/';
 };

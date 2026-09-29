@@ -1,10 +1,24 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { resolveBase } from '../../src/lib/site.mjs';
 
 const here = import.meta.dirname;
 const dist = path.resolve(here, '../../dist');
 const port = Number(process.argv[2] ?? 4322);
+
+/*
+ * The path prefix the build was made for, passed in by Playwright.
+ *
+ * Astro writes a flat `dist/` even when `base` is set — a GitHub Pages artifact
+ * is served whole at `/<repo>/` — but every href it generates points at that
+ * prefix. So the server has to mount `dist` under it, or the stylesheet 404s and
+ * every computed-style assertion in the suite silently falls back to UA defaults.
+ *
+ * Read from `astro.config.mjs` rather than passed as a literal so the harness
+ * cannot quietly test a different deployment than the one being built.
+ */
+const mount = (await resolveBase()).replace(/\/$/u, '');
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -27,7 +41,24 @@ const TYPES = {
 const contentType = (file) => TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
 
 const resolveFile = async (urlPath) => {
-  const decoded = decodeURIComponent(urlPath.split('?')[0].split('#')[0]);
+  let decoded = decodeURIComponent(urlPath.split('?')[0].split('#')[0]);
+
+  /*
+   * Both the mounted path and the bare one reach the same file.
+   *
+   * The deployed site exists only at the mount, so this leniency is not
+   * fidelity — it is what lets the suite drive the site by the routes the book is
+   * written in, `/00-preface/`, rather than restating the repository name in 144
+   * `page.goto` calls. The cost is that a link missing its prefix would resolve
+   * here instead of 404ing, so the guarantee is held somewhere it cannot be
+   * argued with: `internal-links.spec.mjs` reads the built HTML and asserts every
+   * internal link carries the prefix. That check inspects the artifact itself, so
+   * it survives any change to this server.
+   */
+  if (mount !== '' && (decoded === mount || decoded.startsWith(`${mount}/`))) {
+    decoded = decoded.slice(mount.length) || '/';
+  }
+
   const base = path.join(dist, path.normalize(decoded).replace(/^(\.\.[/\\])+/u, ''));
   if (!base.startsWith(dist)) {
     return null;

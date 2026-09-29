@@ -5,6 +5,8 @@
  * contributions, solid "Begin at Preface", mono tabular metadata
  * with zone-ramp grade chips (A1–D).
  */
+import { withBase } from '../lib/site.mjs';
+
 interface Contribution {
   href: string;
   title: string;
@@ -109,7 +111,7 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
         </p>
 
         <div class="rise rise-3">
-          <a href="/00-preface/" class="primary-control leading-none">
+          <a href={withBase('/00-preface/')} class="primary-control leading-none">
             Begin at Preface
             <span aria-hidden="true">→</span>
           </a>
@@ -223,9 +225,9 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
                   source + a repeatable rerun.
                 </p>
                 <p class="mt-[0.75rem] flex gap-[0.45rem] font-mono text-mono leading-[1.4] text-ink-faint">
-                  <a href="/00-preface/">How grades work</a>
+                  <a href={withBase('/00-preface/')}>How grades work</a>
                   <span aria-hidden="true">·</span>
-                  <a href="/07-appendix-sources/">Source lookup</a>
+                  <a href={withBase('/07-appendix-sources/')}>Source lookup</a>
                 </p>
               </div>
             </div>

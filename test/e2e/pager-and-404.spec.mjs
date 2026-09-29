@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { accessibleNames } from './support/accessible-name.mjs';
 import { FIRST_PAGE } from './support/pages.mjs';
+import { deployed } from './support/deployed.mjs';
 
 /**
  * Prev/next pager, breadcrumb and the shared page shell.
@@ -38,7 +39,7 @@ async function linksBackToTheBookHome({ page }) {
   await page.goto(FIRST_PAGE);
   const prev = page.locator('nav[aria-label="Book navigation"] a[rel="prev"]');
   await expect(prev).toHaveCount(1);
-  await expect(prev).toHaveAttribute('href', FIRST_SECTION);
+  await expect(prev).toHaveAttribute('href', deployed(FIRST_SECTION));
 }
 
 async function omitsNextOnTheFinalPage({ page }) {

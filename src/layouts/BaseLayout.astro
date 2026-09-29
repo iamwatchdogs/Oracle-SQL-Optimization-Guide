@@ -2,7 +2,7 @@
 import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
 import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
-import { REPO_URL, SITE_DESCRIPTION, SITE_TITLE } from '../lib/site.mjs';
+import { REPO_URL, SITE_DESCRIPTION, SITE_TITLE, withBase, withoutBase } from '../lib/site.mjs';
 import '../styles/global.css';
 
 interface SectionLink {
@@ -30,6 +30,11 @@ const {
   sectionPosition,
   noindex = false,
 } = Astro.props;
+/*
+ * Bare routes, like every other href in this component: this list is compared
+ * against `currentPath`, which is a bare route too. The prefix is applied once,
+ * where the href is rendered, so the comparison and the link cannot disagree.
+ */
 const fallbackSections: SectionLink[] = [
   { href: '/00-preface/', title: 'Preface' },
   { href: '/01-proven-techniques/', title: 'Proven Techniques' },
@@ -42,7 +47,14 @@ const fallbackSections: SectionLink[] = [
   { href: '/08-bonus-batch-api/', title: 'Bonus: Batch API' },
 ];
 const navigationSections = sections.length > 0 ? sections : fallbackSections;
-const currentPath = Astro.url.pathname;
+
+/*
+ * `Astro.url.pathname` carries the deployment prefix, but every href in this
+ * component and in every caller is written as the bare route. Comparing the two
+ * directly never matches, so the section list quietly stops marking where the
+ * reader is. Both sides are reduced to the route before anything compares them.
+ */
+const currentPath = withoutBase(Astro.url.pathname);
 
 /*
  * The reading-preference steppers, in the order the controls present them.
@@ -66,7 +78,11 @@ const metaDescription = description ?? SITE_DESCRIPTION;
 /* Canonical must never carry a query string or fragment, and must resolve
    against the configured site origin rather than whatever host served the page. */
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).href;
-const isArticle = Astro.url.pathname !== '/';
+
+/* The route, not the deployed pathname: with `base` set, the home page arrives as
+   `/Oracle-…/` rather than `/`, and reading that as an article declared the front
+   page an article to every social card and every crawler. */
+const isArticle = currentPath !== '/';
 ---
 
 <!doctype html>
@@ -188,7 +204,7 @@ const isArticle = Astro.url.pathname !== '/';
             the header was an 18px touch target on a phone.
           */}
           <a
-            href="/"
+            href={withBase('/')}
             class="running-head flex min-h-11 shrink-0 items-center no-underline transition-colors hover:text-accent"
           >
             Oracle SQL <span class="max-[48rem]:hidden">· Notebook</span>
@@ -333,11 +349,18 @@ const isArticle = Astro.url.pathname !== '/';
                     aria-label="Book sections"
                   >
                     {navigationSections.map((section, index) => {
+                      /*
+                       * Both sides reduced to a bare route. `currentPath` is one
+                       * already; the section href may not be, because a caller
+                       * can hand over links that have been through `withBase`
+                       * while the fallback list is written out bare.
+                       */
+                      const sectionPath = withoutBase(section.href);
                       const isActive =
-                        currentPath === section.href || currentPath.startsWith(`${section.href}`);
+                        currentPath === sectionPath || currentPath.startsWith(sectionPath);
                       return (
                         <a
-                          href={section.href}
+                          href={withBase(section.href)}
                           class="group grid min-h-11 grid-cols-[2.25rem_minmax(0,1fr)] items-baseline gap-2 px-[0.65rem] py-[0.55rem] font-sans text-ui leading-[1.35] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-accent data-[active=true]:border-l data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:text-accent"
                           aria-current={isActive ? 'location' : undefined}
                           data-active={isActive ? 'true' : 'false'}

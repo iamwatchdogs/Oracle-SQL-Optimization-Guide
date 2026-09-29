@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import { withBase } from '../lib/site.mjs';
 ---
 
 {/* `noindex` so "This page is not in the notebook." never enters a search
@@ -23,11 +24,11 @@ import SiteFooter from '../components/SiteFooter.astro';
           again.
         </p>
         <div class="flex flex-wrap gap-4">
-          <a href="/" class="primary-control leading-none">
+          <a href={withBase('/')} class="primary-control leading-none">
             Back to home <span aria-hidden="true">→</span>
           </a>
           <a
-            href="/07-appendix-sources/"
+            href={withBase('/07-appendix-sources/')}
             class="inline-flex items-center gap-2 rounded-ui border border-rule-strong bg-transparent px-5 py-3 font-sans text-ui font-medium leading-none text-ink no-underline transition-colors hover:border-accent hover:text-accent"
           >
             Source appendix
