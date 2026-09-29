@@ -168,7 +168,43 @@ const proseClass = [
   sectionPosition={sectionPosition}
 >
   {isHome ? (
-    <>
+    <div transition:name="body-home">
+      {/*
+       * `transition:name="body-home"` is on THIS WRAPPER, and it has to be.
+       *
+       * It used to be on the `<main>` below, which is the home page's prose — and the
+       * prose begins at y=1535, below the fold. Everything a reader actually sees on
+       * arrival lives in the title block and the contributions list, and both are
+       * siblings of `<main>`, not children of it. So 93.0% of the first viewport fell
+       * into `root` instead of into any named zone, and `root` is pinned at opacity 1
+       * (see `global.css`): the home page was painted at full strength from t=0 of the
+       * swap, underneath a section page that was still visibly coming apart. Measured,
+       * the nominal 420→580ms dead beat was entirely occupied by an opaque `new(root)`,
+       * so the page was never blank and the two layouts were interleaved glyph for
+       * glyph. A section page is the mirror image — 80.3% of its viewport is named —
+       * which is why only the section→home direction showed it.
+       *
+       * A section page's `<main>` DOES hold its whole reading column, which is why the
+       * bug was invisible there and why nothing about the ladder's timing was ever at
+       * fault. The zone was on the wrong element.
+       *
+       * The second reason for a separate name is unchanged and still holds: the home
+       * column is 1152px wide at x=64 and a section's is 824px at x=392, so naming both
+       * `body` hands the browser a shared-element group whose job is to morph one box
+       * into the other — which it does over the UA's 250ms geometry animation, sliding
+       * the page 328px sideways and narrowing it by the same amount on the way. Section
+       * to section both boxes are identical and the group has nothing to do. Two names
+       * means two unpaired groups, each of which can only cross-dissolve where it
+       * stands. Measured on the dev server at 1280px:
+       *
+       *   home     1152px wide, x=64
+       *   section   824px wide, x=392
+       *
+       * `meta` stays a separate zone nested inside this one. That is the same structure
+       * as a section page, where the pager cells are named inside the named `<main>`,
+       * and it is what carries the divergence: the margin leaves rightward while the
+       * section's TOC rail leaves leftward.
+       */}
       <HomeTitleBlock
         title={entry.data.title}
         description={
@@ -184,39 +220,12 @@ const proseClass = [
         ]}
       />
 
-      {/*
-       * The home page's reading column is a DIFFERENT ZONE from a section's, on
-       * purpose. They are the same element on every page and that is exactly the
-       * problem: the home `<main>` is 1152px wide at x=64, a section's is 824px at
-       * x=392, so naming both `body` hands the browser a single shared-element group
-       * whose job is to morph one box into the other. It does, over the UA's 250ms
-       * geometry animation, sliding the whole page 328px sideways and narrowing it by
-       * the same amount on the way.
-       *
-       * That is the whole difference between the two directions. Section to section,
-       * both boxes are 824px at x=392, so the group has nothing to do and the swap is
-       * smooth. Home to section and back, it has a very large something to do, and it
-       * is the only thing anyone notices. Measured on the dev server at 1280px:
-       *
-       *   home     1152px wide, x=64
-       *   section   824px wide, x=392
-       *
-       * Two names means two unpaired groups, each of which has nothing to morph and
-       * so can only cross-dissolve where it stands. The reading column arrives and
-       * departs in its own column's coordinates rather than being dragged across the
-       * viewport to meet it.
-       */}
-      <main
-        id="main"
-        tabindex="-1"
-        transition:name="body-home"
-        class="mx-auto w-shell pb-20 focus:outline-none"
-      >
+      <main id="main" tabindex="-1" class="mx-auto w-shell pb-20 focus:outline-none">
         <div class={`mx-auto prose ${proseClass} pt-8`}>
           <Content />
         </div>
       </main>
-    </>
+    </div>
   ) : (
     <>
       <div class="mx-auto w-shell pt-4">
