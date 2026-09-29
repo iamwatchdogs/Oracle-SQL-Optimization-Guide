@@ -117,7 +117,17 @@
    * per piece, 45ms between pieces, 70ms of nothing between the last thing leaving
    * and the first thing arriving.
    */
-  --zone-dur: 190ms;
+  /*
+   * Per-piece duration.
+   *
+   * This was 190ms, and 190ms reads as a cut rather than a change of page: the
+   * pieces are off and the new page is on before the reader has registered that
+   * anything was there, which is the same feeling as a slow network — the page
+   * went somewhere and you were not told. 240ms is the point at which the swap
+   * registers as a movement the reader caused. The stagger is unchanged, so the
+   * shape of the choreography is identical and only its pace moves.
+   */
+  --zone-dur: 240ms;
   --zone-travel: 60px;
   --zone-drop: 36px;
   --zone-out-ease: cubic-bezier(0.4, 0, 1, 1);
@@ -134,20 +144,23 @@
   --zone-exit-rh: 0ms;
   --zone-exit-rail: 45ms;
   --zone-exit-body: 90ms;
+  --zone-exit-body-home: 90ms;
   --zone-exit-pager-prev: 135ms;
   --zone-exit-pager-next: 180ms;
   --zone-exit-meta: 90ms;
 
-  --zone-enter-rh: 620ms;
-  --zone-enter-rail: 575ms;
-  --zone-enter-body: 530ms;
-  --zone-enter-pager-prev: 485ms;
-  --zone-enter-pager-next: 440ms;
-  --zone-enter-meta: 530ms;
+  --zone-enter-rh: 670ms;
+  --zone-enter-rail: 625ms;
+  --zone-enter-body: 580ms;
+  --zone-enter-body-home: 580ms;
+  --zone-enter-pager-prev: 535ms;
+  --zone-enter-pager-next: 490ms;
+  --zone-enter-meta: 580ms;
 
   --zone-in-rh: zone-in;
   --zone-in-rail: zone-in-left;
   --zone-in-body: zone-in;
+  --zone-in-body-home: zone-in;
   --zone-in-pager-prev: zone-in-left;
   --zone-in-pager-next: zone-in-right;
   --zone-in-meta: zone-in-right;
@@ -247,12 +260,12 @@
  * note on the title rule below.
  */
 html[data-nav='pager'] {
-  --zone-enter-title: 440ms;
-  --zone-enter-body: 485ms;
-  --zone-enter-pager-next: 440ms;
-  --zone-enter-pager-prev: 485ms;
-  --zone-enter-rail: 530ms;
-  --zone-enter-rh: 575ms;
+  --zone-enter-title: 490ms;
+  --zone-enter-body: 535ms;
+  --zone-enter-pager-next: 490ms;
+  --zone-enter-pager-prev: 535ms;
+  --zone-enter-rail: 580ms;
+  --zone-enter-rh: 625ms;
 
   --zone-in-title: zone-in-up;
   --zone-in-body: zone-in-up;
@@ -1676,7 +1689,8 @@ details[data-disclosure-closing] .disclosure-icon {
   animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-rail) both zone-out-left;
 }
 
-::view-transition-old(body) {
+::view-transition-old(body),
+::view-transition-old(body-home) {
   z-index: 2;
   animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-body) both zone-out;
 }
@@ -1716,7 +1730,8 @@ details[data-disclosure-closing] .disclosure-icon {
   animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rail) both var(--zone-in-rail);
 }
 
-::view-transition-new(body) {
+::view-transition-new(body),
+::view-transition-new(body-home) {
   z-index: 1;
   animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-body) both var(--zone-in-body);
 }
