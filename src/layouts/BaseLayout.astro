@@ -106,6 +106,7 @@ const siteRoot = new URL(`${resolveBase()}/`, origin).href;
 const socialImage = new URL('og-default.png', `${siteRoot}`).href;
 const sitemapHref = new URL('sitemap-index.xml', siteRoot).href;
 const llmsHref = new URL('llms.txt', siteRoot).href;
+const feedHref = new URL('rss.xml', siteRoot).href;
 ---
 
 <!doctype html>
@@ -179,6 +180,15 @@ const llmsHref = new URL('llms.txt', siteRoot).href;
     */}
     <link rel="sitemap" type="application/xml" href={sitemapHref} />
     <link rel="describedby" type="text/markdown" href={llmsHref} />
+
+    {/* Autodiscovery, so a reader's feed reader finds the book without being
+        told the URL. A link nothing points at is a URL nobody will visit. */}
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={`${SITE_TITLE} — chapters`}
+      href={feedHref}
+    />
     <script
       type="application/ld+json"
       set:html={JSON.stringify({
