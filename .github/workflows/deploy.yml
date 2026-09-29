@@ -1,0 +1,75 @@
+# Publishes the built site to GitHub Pages.
+#
+# `withastro/action` is Astro's documented path, and the reason to use it rather
+# than a hand-rolled install-and-upload is one specific behaviour: it passes
+# `include-hidden-files: true` to the artifact upload. Astro's bundle directory is
+# `_astro`, and a dot-prefixed entry that the upload's internal tar drops takes
+# `.nojekyll` with it — which costs nothing until someone switches Pages back to
+# a branch deploy, at which point Jekyll eats `dist/_astro/` and the site loses
+# its stylesheet entirely.
+#
+# The base path is stated in `env` rather than only in `astro.config.mjs`. The two
+# are the same fact and Astro's own configuration already reads `SITE_BASE`; naming
+# it here as well is what makes a later move to a host that serves from the origin
+# root a one-line change instead of a code change.
+#
+# One-time setup, on the repository:
+#   Settings → Pages → Build and deployment → Source: GitHub Actions
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Lets a deployment be re-run by hand from the Actions tab. Worth having at
+  # least once: Pages deployments are serial, and a half-failed one needs
+  # re-running rather than waiting for the next push.
+  workflow_dispatch:
+
+env:
+  # A GitHub Pages *project* repository is served from
+  # `https://<user>.github.io/<repo>/`, so `base` is the repository name. Without
+  # it every link, every sitemap entry and every absolute URL in the head is built
+  # around the origin root, where nothing is deployed.
+  SITE_BASE: /Oracle-SQL-Optimization-Guide
+
+# Pages deployments are serial by nature — the environment enforces its own lock —
+# so this serialises them explicitly rather than letting two runs race for it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install, build, and upload the site
+        uses: withastro/action@v6
+        with:
+          path: .
+          # The action reads the version from `packageManager` in package.json.
+          # Naming it here too would be a second place to keep it in step.
+          package-manager: bun@1.4.2
+          build-cmd: bun run build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
