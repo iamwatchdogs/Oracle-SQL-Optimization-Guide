@@ -111,9 +111,15 @@ test.describe('a section jump, reversed', () => {
 
   test('waits for the exit to finish before it begins', async ({ page }) => {
     const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+    /* Read the per-piece duration from the page. It used to be pinned at 190ms here,
+       which meant every retime of the choreography quietly stopped this test from
+       checking the dead beat and kept passing anyway. */
+    const { duration } = await readTravel(page);
 
     const lastExit = Math.max(
-      ...EXIT_ORDER.flatMap((zone) => half(entries, 'old', zone).map((entry) => entry.delay + 190)),
+      ...EXIT_ORDER.flatMap((zone) =>
+        half(entries, 'old', zone).map((entry) => entry.delay + duration),
+      ),
     );
     const firstArrival = Math.min(...EXIT_ORDER.flatMap((zone) => delays(entries, 'new', zone)));
 

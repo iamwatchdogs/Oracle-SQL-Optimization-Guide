@@ -17,7 +17,7 @@ export const EXIT_ORDER = ['rh', 'rail', 'body', 'pager-prev', 'pager-next'];
 export const PREFACE = '/00-preface/';
 export const PROOF = '/00-preface/02-how-to-prove-a-win/';
 
-/** The swap is 810ms end to end; this covers the tail with room for a slow machine. */
+/** The swap is ~910ms end to end; this covers the tail with room for a slow machine. */
 export const SETTLE = 1800;
 
 /**
@@ -32,7 +32,7 @@ export const SETTLE = 1800;
  * Two clocks, because one is not enough.
  *
  * A timer alone is unreliable here: this runs alongside the rest of the suite, and
- * on a loaded machine `setInterval` can miss a 190ms zone entirely — which is a
+ * on a loaded machine `setInterval` can miss a zone that is only a few hundred ms long — which is a
  * failure of the test rather than of the feature, and it presented as "the rail zone
  * was not captured". `requestAnimationFrame` is driven by the compositor and is in
  * step with the transition itself, so it is the primary clock; the interval is a
@@ -127,7 +127,11 @@ export const delays = (entries, side, zone) =>
 export const readTravel = (page) =>
   page.evaluate(() => {
     const computed = getComputedStyle(document.documentElement);
+    /* The resolved per-piece duration, in ms. A computed animation duration comes back
+       in seconds ('0.24s'), so it is scaled rather than parsed raw. */
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--zone-dur').trim();
     return {
+      duration: raw.endsWith('ms') ? Number.parseFloat(raw) : Number.parseFloat(raw) * 1000,
       travel: Number.parseFloat(computed.getPropertyValue('--zone-travel')),
       drop: Number.parseFloat(computed.getPropertyValue('--zone-drop')),
     };
