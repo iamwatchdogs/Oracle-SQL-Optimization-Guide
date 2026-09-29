@@ -109,6 +109,51 @@
   --type-mono: calc(var(--type-mono-base) * var(--type-scale));
   --type-chip-base: 0.6875rem;
   --type-chip: calc(var(--type-chip-base) * var(--type-scale));
+
+  /*
+   * Route-transition choreography — the shared vocabulary.
+   *
+   * One duration, one stagger, one dead beat, and the two travel distances. 190ms
+   * per piece, 45ms between pieces, 70ms of nothing between the last thing leaving
+   * and the first thing arriving.
+   */
+  --zone-dur: 190ms;
+  --zone-travel: 60px;
+  --zone-drop: 36px;
+  --zone-out-ease: cubic-bezier(0.4, 0, 1, 1);
+  --zone-in-ease: cubic-bezier(0, 0, 0.2, 1);
+  --zone-beat: 70ms;
+
+  /*
+   * The two variants, as delays and directions. Which one is live is decided by
+   * `data-nav` on `<html>`, written by the `astro:before-preparation` hook in
+   * `BaseLayout.astro`, and it arrives here as an inherited custom property rather
+   * than as a selector — see the note above the zone rules for why that is not a
+   * stylistic preference.
+   */
+  --zone-exit-rh: 0ms;
+  --zone-exit-rail: 45ms;
+  --zone-exit-body: 90ms;
+  --zone-exit-pager-prev: 135ms;
+  --zone-exit-pager-next: 180ms;
+  --zone-exit-meta: 90ms;
+
+  --zone-enter-rh: 620ms;
+  --zone-enter-rail: 575ms;
+  --zone-enter-body: 530ms;
+  --zone-enter-pager-prev: 485ms;
+  --zone-enter-pager-next: 440ms;
+  --zone-enter-meta: 530ms;
+
+  --zone-in-rh: zone-in;
+  --zone-in-rail: zone-in-left;
+  --zone-in-body: zone-in;
+  --zone-in-pager-prev: zone-in-left;
+  --zone-in-pager-next: zone-in-right;
+  --zone-in-meta: zone-in-right;
+
+  /* The title is not a zone on a jump, and is the anchor of a pager hop. */
+  --zone-title: none;
   --type-running-head: calc(0.6875rem * var(--type-scale));
   --type-pager: calc(1rem * var(--type-scale));
   --type-contribution: calc(1.125rem * var(--type-scale));
@@ -192,6 +237,26 @@
   --body-leading: 1.65;
   --tight-leading: 1.2;
   --radius-scrollbar: 5px;
+}
+/*
+ * The pager variant. Same pieces, same order out, different order in: the title
+ * leads, the reading column cascades down out of it, and the rail and the pager
+ * cells still come in from their own edges so the divergence survives.
+ *
+ * `--zone-title` is what makes the heading a zone at all, and only here. See the
+ * note on the title rule below.
+ */
+html[data-nav='pager'] {
+  --zone-enter-title: 440ms;
+  --zone-enter-body: 485ms;
+  --zone-enter-pager-next: 440ms;
+  --zone-enter-pager-prev: 485ms;
+  --zone-enter-rail: 530ms;
+  --zone-enter-rh: 575ms;
+
+  --zone-in-title: zone-in-up;
+  --zone-in-body: zone-in-up;
+  --zone-title: title;
 }
 
 /*
@@ -1421,21 +1486,70 @@ details[data-disclosure-closing] .disclosure-icon {
  * besides.
  */
 ::view-transition-group(*) {
-  animation-duration: 230ms;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-::view-transition-old(*) {
-  z-index: 2;
-  animation: 230ms cubic-bezier(0.4, 0, 0.6, 1) 50ms both page-lift;
-}
-
-::view-transition-new(*) {
-  z-index: 1;
   animation: none;
 }
 
-@keyframes page-lift {
+/*
+ * Two choreographies, chosen by what the reader did rather than by where they
+ * landed. `data-nav` is written on `<html>` by the `astro:before-preparation` hook
+ * in `BaseLayout.astro` and reaches these rules as an inherited custom property.
+ *
+ *   jump  — home to a section, section to section, any link that is not a pager
+ *           cell. The page's furniture SCATTERS: the left rail leaves leftward, the
+ *           home metadata margin leaves rightward, the running head and the reading
+ *           column dissolve where they are. Then, after a short dead beat, the new
+ *           page reassembles in the REVERSE of the order the pieces left — pager
+ *           cell first, running head last.
+ *
+ *   pager — the next/previous cell. A deliberate step along a linear book, so the
+ *           new page is ANCHORED ON ITS TITLE: the title arrives first and the
+ *           reading column cascades down out of it, each piece from slightly above
+ *           where it will sit. The rail and the pager cells still come in from their
+ *           own edges, so the divergence survives.
+ *
+ * Four decisions here are load-bearing, and each of them is a bug this design has
+ * already had once.
+ *
+ * **These selectors are BARE, and that is not a shortcut.** Astro writes its default
+ * per-zone animation inside `@layer astro`:
+ *
+ *     @layer astro { ::view-transition-old(body) { animation-name: astroFadeOut } }
+ *
+ * A qualified `html[data-nav='jump'] ::view-transition-old(body)` does NOT match the
+ * view-transition pseudo tree at all — those pseudo-elements hang off the document
+ * element, not off `<html>`'s box, so an ancestor-qualified selector never reaches
+ * them — which means a qualified rule loses to the layer by default rather than by
+ * specificity, and the whole stagger silently does nothing. Unlayered, a bare
+ * `::view-transition-old(body)` outranks `@layer astro` outright, and the variant is
+ * selected by the inherited custom properties instead. Both halves of that are
+ * load-bearing: qualify the selector and the choreography dies; move the variant
+ * into the layer and Astro's default wins again.
+ *
+ * **No group geometry.** `animation: none` above means no zone is moved, scaled or
+ * resized between the two snapshots. A shared-element group morphs from the old box
+ * to the new one, and on this site those boxes have nothing in common: the home
+ * `<main>` is the full shell width while an interior one is a reading column inside
+ * a two-track grid, and the h1 is `text-display` at up to 6rem on one and
+ * `text-title` at up to 2.5rem on the other. Animating between them is the
+ * page-assembles-itself artifact a 96px-to-40px title fly produced. Every zone here
+ * cross-dissolves in place instead, and the only thing that moves is a deliberate
+ * translate on the two edge directions.
+ *
+ * **`mix-blend-mode: normal` in every keyframe.** The UA puts TWO animations on
+ * `::view-transition-old/new(root)` — the fade and a `mix-blend-mode` one — and
+ * Astro's `astroFadeIn`/`astroFadeOut` bake `plus-lighter` into their own keyframes
+ * as well, so the snapshots are ADDED rather than stacked. Addition is only correct
+ * while the two opacities sum to 1, which a staggered sequence cannot hold:
+ * under-exposed frames show the paper through, and this paper is `#0c0c0e`, so the
+ * middle of every chapter change dimmed the page and brought it back. Stating
+ * `normal` per keyframe is the fix, and the new page is always opaque and
+ * underneath, so the composite can never be darker than the page under it.
+ *
+ * **The `animation` shorthand, not longhands.** For the opposite reason to the
+ * previous version: the UA's blend animation is a SECOND animation on the same
+ * pseudo-element, and a longhand cannot reach a second animation.
+ */
+@keyframes zone-out {
   from {
     opacity: 1;
     mix-blend-mode: normal;
@@ -1445,6 +1559,190 @@ details[data-disclosure-closing] .disclosure-icon {
     opacity: 0;
     mix-blend-mode: normal;
   }
+}
+
+@keyframes zone-out-left {
+  from {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(calc(-1 * var(--zone-travel)));
+  }
+}
+
+@keyframes zone-out-right {
+  from {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(var(--zone-travel));
+  }
+}
+
+@keyframes zone-in {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+  }
+}
+
+@keyframes zone-in-left {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(calc(-1 * var(--zone-travel)));
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+}
+
+@keyframes zone-in-right {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(var(--zone-travel));
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+}
+
+@keyframes zone-in-up {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateY(calc(-1 * var(--zone-drop)));
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * The exit, and it is the same for both kinds: read down the page, and each piece
+ * leaves the way it sits. Running head, rail, reading column, pager.
+ */
+::view-transition-old(rh) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-rh) both zone-out;
+}
+
+::view-transition-old(rail) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-rail) both zone-out-left;
+}
+
+::view-transition-old(body) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-body) both zone-out;
+}
+
+::view-transition-old(pager-prev) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-pager-prev) both zone-out-left;
+}
+
+::view-transition-old(pager-next) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-pager-next) both zone-out-right;
+}
+
+/* The metadata margin only exists on the home page, so only a jump can carry it. */
+::view-transition-old(meta) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-meta) both zone-out-right;
+}
+
+/*
+ * Every zone's arrival: opaque immediately, underneath.
+ *
+ * This is the compositing guarantee, and it is why `zone-in*` is an opacity
+ * animation rather than the exit being the only thing that animates. A named pseudo
+ * with no animation is a filled, opaque snapshot from the first frame, so the old
+ * piece is being UNCOVERED rather than faded toward nothing — which is what makes the
+ * dead beat read as a dissolve instead of a hole.
+ */
+::view-transition-new(rh) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rh) both var(--zone-in-rh);
+}
+
+::view-transition-new(rail) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rail) both var(--zone-in-rail);
+}
+
+::view-transition-new(body) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-body) both var(--zone-in-body);
+}
+
+::view-transition-new(pager-prev) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-prev) both
+    var(--zone-in-pager-prev);
+}
+
+::view-transition-new(pager-next) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-next) both
+    var(--zone-in-pager-next);
+}
+
+::view-transition-new(meta) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-meta) both var(--zone-in-meta);
+}
+
+/* Only a pager hop has a title zone, so only a pager hop animates one. */
+::view-transition-new(title) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-title) both var(--zone-in-title);
+}
+
+/*
+ * The title is named through a custom property, and only for a pager hop.
+ *
+ * A pager hop is between two pages of the same shape: both headings are
+ * `text-title`, both sit in the same place in the reading column, so the new content
+ * can cascade down out of the title and the pairing means something.
+ *
+ * A section jump is not. Its title can be the 96px `text-display` on the home page
+ * and the 40px `text-title` on a section, and those are not two states of one thing —
+ * so on a jump the heading is not a zone at all. It dissolves with the rest of the
+ * reading column, with no scale morph and no ghost.
+ *
+ * `var(--zone-title)` rather than a `transition:name` in the template, because a
+ * directive compiles to a rule that is always on, and the whole point is that the
+ * title is a zone for one variant and not the other.
+ */
+.reading-column h1 {
+  view-transition-name: var(--zone-title);
 }
 
 /*
