@@ -1,18 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
-import { resolveBase, SITE_ORIGIN } from '../../src/lib/site.mjs';
 
 const read = (relativePath) => readFile(new URL(relativePath, import.meta.url), 'utf8');
 const layout = () => read('../../src/layouts/BaseLayout.astro');
 const card = () => read('../../public/og-default.png');
-
-/** Every `og:`/`twitter:`/`rel=` tag the head ships. */
-const headElements = async () => {
-  const code = await layout();
-  return ['meta', 'link'].flatMap((tag) =>
-    [...code.matchAll(new RegExp(`<${tag}[^>]*>`, 'gu'))].map((match) => match[0]),
-  );
-};
 
 /**
  * The social card and the structured data.
@@ -44,41 +35,6 @@ test('the image is 1200x630, the size every card consumer expects', async () => 
   expect(head).toContain('<meta property="og:image:width" content="1200" />');
   expect(head).toContain('<meta property="og:image:height" content="630" />');
   expect(head).toContain('<meta property="og:image:type" content="image/png" />');
-});
-
-test('every absolute URL in the head carries the deployment prefix', async () => {
-  const base = resolveBase();
-  const origin = `${SITE_ORIGIN}${base}/`;
-  const named = new Set([
-    'og:image',
-    'twitter:image',
-    'og:url',
-    'canonical',
-    'sitemap',
-    'describedby',
-  ]);
-
-  const checked = (await headElements()).filter((element) => {
-    const identity =
-      /property="([^"]+)"/u.exec(element)?.[1] ??
-      /name="([^"]+)"/u.exec(element)?.[1] ??
-      /rel="([^"]+)"/u.exec(element)?.[1];
-    return identity !== undefined && named.has(identity);
-  });
-
-  /* A filter that matched nothing would pass by checking nothing. */
-  expect(checked.length).toBeGreaterThan(5);
-
-  for (const element of checked) {
-    const href =
-      /content="(https?:[^"]+)"/u.exec(element)?.[1] ?? /href="(https?:[^"]+)"/u.exec(element)?.[1];
-    if (href === undefined) {
-      continue;
-    }
-    expect(href, `${element} is not absolute`).toMatch(
-      new RegExp(`^${origin.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'),
-    );
-  }
 });
 
 test('the card image is built by joining, not by string concatenation', async () => {

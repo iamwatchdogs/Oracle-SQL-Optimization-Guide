@@ -79,20 +79,27 @@ test('it points at the source and the sitemap', async () => {
   expect(code).toContain('sitemap-index.xml');
 });
 
-test('the emitted prose argues for nothing', async () => {
+test('the file argues for nothing', async () => {
   /*
    * An agent deciding where to look cannot be persuaded by self-description, and a
    * file that argues for itself is one the agent has to learn to discount. The
    * prose describes the book and where the text is; it does not advocate.
    *
-   * Read from the built file, because the only strings that reach an agent are the
-   * literals passed to the `lines` array — a comment explaining the rule must not
-   * trip the rule it is explaining, which is what an earlier draft of this test
-   * did.
+   * Read from the route's source, and only the literals it hands to the response.
+   * An earlier draft read the built file instead, which broke on a clean runner:
+   * `verify` runs the unit suite before `astro build`, so `dist/` is not there yet.
+   * The built output is checked by `built-links.spec.mjs`, which runs after a real
+   * build. Matching on the source is deliberately narrow — it can be fooled by a
+   * comment — so it is paired with a check that the same strings are what the
+   * generator assembles.
    */
-  const built = await readFile(new URL('../../dist/llms.txt', import.meta.url), 'utf8');
-  const prose = built.slice(0, built.indexOf('## '));
+  const code = await source();
+  const quoted = [...code.matchAll(/'(?:[^'\\]|\\.)*'/gu)].map((match) => match[0]);
 
-  expect(prose).not.toMatch(/\b(you should|must read|don'?t miss|essential reading)\b/iu);
-  expect(prose).not.toMatch(/\b(sign up|subscribe|newsletter)\b/iu);
+  expect(quoted.length).toBeGreaterThan(10);
+  for (const line of quoted) {
+    expect(line, `advocacy in an emitted line: ${line}`).not.toMatch(
+      /you should|must read|don'?t miss|essential reading|sign up|subscribe|newsletter/iu,
+    );
+  }
 });
