@@ -1,0 +1,39 @@
+---
+import { REPO_PATH, REPO_URL } from '../lib/site.mjs';
+---
+
+{/*
+  The colophon, hoisted out of the two pages that used to carry it.
+
+  The markup was duplicated byte-for-byte in `[...slug].astro` and `404.astro`,
+  which was survivable while both cells were static text and stopped being
+  survivable the moment one of them gained a link: a two-file edit with no test
+  between them is a permanent-divergence generator. One component, one truth.
+
+  The third cell is the repository record, and it rides with `Compiled 2026-09-22`
+  rather than beside the title — which is the register the book already insists on.
+  `07-appendix-sources/02-version-drift-survival.md` states the rule: a repository's
+  licence, last push and archive flag are properties of a moment, so print them with
+  the date they were read. A bare GitHub button in chrome would be a repository fact
+  carrying no date at all.
+
+  No hit-target utilities here, and that is deliberate. This is a link inside a line
+  of text, not a standalone control, and WCAG 2.5.8 exempts targets in a block of
+  text. `hit-targets.test.mjs` counts `min-h-6`/`min-w-6` as the four STANDALONE
+  links a reader navigates by; putting a fifth utility on an in-text link would
+  widen that claim to something the design does not mean.
+*/}
+<footer class="mt-auto border-t border-rule">
+  <div class="mx-auto flex w-shell flex-wrap items-center justify-between gap-4 py-8">
+    <p class="meta m-0">Oracle SQL Optimization · Evidence-graded notebook</p>
+    <p class="meta m-0">Compiled 2026-09-22 · No live DB</p>
+    <p class="meta m-0">
+      <a
+        href={REPO_URL}
+        class="inline-block transition-colors hover:text-accent focus-visible:text-accent"
+      >
+        Repo · {REPO_PATH}
+      </a>
+    </p>
+  </div>
+</footer>

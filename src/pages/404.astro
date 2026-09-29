@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 ---
 
 {/* `noindex` so "This page is not in the notebook." never enters a search
@@ -36,10 +37,5 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </div>
   </main>
 
-  <footer class="mt-auto border-t border-rule">
-    <div class="mx-auto flex w-shell flex-wrap items-center justify-between gap-4 py-8">
-      <p class="meta m-0">Oracle SQL Optimization · Evidence-graded notebook</p>
-      <p class="meta m-0">Compiled 2026-09-22 · No live DB</p>
-    </div>
-  </footer>
+  <SiteFooter />
 </BaseLayout>
