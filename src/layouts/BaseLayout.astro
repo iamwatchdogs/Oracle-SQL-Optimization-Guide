@@ -504,6 +504,72 @@ const isArticle = Astro.url.pathname !== '/';
       }
     </script>
     <script>
+      /*
+       * Which KIND of navigation is this.
+       *
+       * A route swap has two choreographies and the difference is the reader's
+       * intent, not the destination:
+       *
+       *   `data-nav="jump"`  — home to a section, section to section, any link that
+       *     is not a pager cell. The page's furniture scatters: the left rail leaves
+       *     leftward, the home metadata margin leaves rightward, the centre
+       *     dissolves, and the new page reassembles in the reverse order.
+       *
+       *   `data-nav="pager"` — the next/previous cell. A deliberate step along a
+       *     linear book, so the new page is anchored on its own title and the
+       *     reading column cascades down out of it.
+       *
+       * Read from `astro:before-preparation` rather than from a `click` listener, so
+       * it works for a keyboard Enter, for a middle-click, and for anything the
+       * browser synthesises — `event.sourceElement` is the element the router
+       * itself resolved the navigation from.
+       *
+       * The key is `rel`. It is the only marker that distinguishes a pager hop from
+       * every other navigation, it needs no new markup, and it is already load-
+       * bearing in four test files. An `aria-label` is deliberately NOT added for
+       * the same reason `PrevNext.astro` keeps its name as visible-derived text: a
+       * label would break the voice-control contract where the accessible name
+       * must begin with the visible word.
+       *
+       * Default is `jump`, not `pager`. Every unmarked navigation — in-article
+       * cross-references, the breadcrumb, the header section menu, the home
+       * contributions list, "Book home", the 404 recovery links — scatters, and a
+       * reader who follows an in-article link across the book is making a section
+       * jump far more often than they are pressing a pager cell.
+       *
+       * It is written twice, because the router deletes it once. Astro re-applies the
+       * incoming document's `<html>` attributes on `astro:after-swap`, and the
+       * document being swapped in is a freshly parsed page that has never heard of
+       * `data-nav`. Writing it in `before-preparation` alone therefore works right up
+       * until the moment it matters: the attribute is present when this code runs and
+       * gone by the time the view-transition pseudo tree is built and its custom
+       * properties are read, so every pager hop silently runs the jump choreography.
+       * Measured, the clearing happens between `astro:before-swap` and
+       * `astro:after-swap`, and the re-write on `after-swap` lands in the same task
+       * as the clear, ahead of any style resolution. Pinned by
+       * `test/e2e/route-transition.spec.mjs`.
+       */
+      if (!Object.prototype.hasOwnProperty.call(document, 'routeKindInitialized')) {
+        let kind = 'jump';
+
+        const write = () => {
+          document.documentElement.dataset['nav'] = kind;
+        };
+
+        document.addEventListener('astro:before-preparation', (event) => {
+          const source = event.sourceElement;
+          const fromPager =
+            source instanceof Element && source.closest('a[rel="prev"], a[rel="next"]') !== null;
+          kind = fromPager ? 'pager' : 'jump';
+          write();
+        });
+
+        document.addEventListener('astro:after-swap', write);
+
+        Object.defineProperty(document, 'routeKindInitialized', { value: true });
+      }
+    </script>
+    <script>
       if (!Object.prototype.hasOwnProperty.call(document, 'routeAnnouncerSweepInitialized')) {
         /*
          * Astro announces the new title from an `aria-live="assertive"` node it
