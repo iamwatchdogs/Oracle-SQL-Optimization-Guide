@@ -1,6 +1,5 @@
 ---
 import { type CollectionEntry, getCollection, render } from 'astro:content';
-import { fade } from 'astro:transitions';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ReadingToc from '../components/ReadingToc.astro';
 import ReadingTocToggle from '../components/ReadingTocToggle.astro';
@@ -188,7 +187,7 @@ const proseClass = [
       <main
         id="main"
         tabindex="-1"
-        transition:animate={fade({ duration: '0.18s' })}
+        transition:name="body"
         class="mx-auto w-shell pb-20 focus:outline-none"
       >
         <div class={`mx-auto prose ${proseClass} pt-8`}>
@@ -212,7 +211,11 @@ const proseClass = [
           left half still carries the book; there is simply nothing else to say
           that the breadcrumb is not already saying.
         */}
-        <div class="running-head flex items-center justify-between gap-4" aria-hidden="true">
+        <div
+          class="running-head flex items-center justify-between gap-4"
+          aria-hidden="true"
+          transition:name="rh"
+        >
           <span class="shrink-0">Oracle SQL Optimization</span>
           {runningHeadChapter && (
             <span class="min-w-0 truncate text-right">{runningHeadChapter}</span>
@@ -234,7 +237,14 @@ const proseClass = [
             no rule of its own. */}
         <div class="toc-rail-grid grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--width-toc-rail)_minmax(0,1fr)] gap-6 lg:gap-12 items-start">
           {/* Margin apparatus — sticky section TOC (first on mobile for wayfinding) */}
-          <div class="toc-rail-cell order-1 min-w-0">
+          {/* `transition:name="rail"`. The left-hand item of a route swap, and the
+              reason the swap diverges: the rail leaves LEFTWARD while the right
+              margin on the home page leaves RIGHTWARD. It is a named zone rather
+              than a wrapper because `<main>`'s `parentElement` is asserted to be
+              this grid in `mobile-layout.spec.mjs`, and because the rail cell
+              already contains both the desktop aside and the mobile outline —
+              one name covers both without duplicating the choreography. */}
+          <div class="toc-rail-cell order-1 min-w-0" transition:name="rail">
             {tocHeadings.length > 0 && <ReadingToc headings={tocHeadings} label="Sections" />}
           </div>
 
@@ -242,7 +252,7 @@ const proseClass = [
           <main
             id="main"
             tabindex="-1"
-            transition:animate={fade({ duration: '0.18s' })}
+            transition:name="body"
             class="order-2 flex min-w-0 justify-center pb-16 focus:outline-none"
           >
             <div class="reading-column w-full min-w-0 max-w-reading">
@@ -354,10 +364,7 @@ const proseClass = [
               </nav>
               <article class={`prose ${proseClass}`}>
                 <header class="mb-8 border-b border-rule-strong pb-6">
-                  <h1
-                    transition:name="page-title"
-                    class="m-0 font-serif text-title font-semibold leading-tight tracking-[-0.025em]"
-                  >
+                  <h1 class="m-0 font-serif text-title font-semibold leading-tight tracking-[-0.025em]">
                     {entry.data.title}
                   </h1>
                   {description && (

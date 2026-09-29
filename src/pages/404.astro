@@ -1,5 +1,4 @@
 ---
-import { fade } from 'astro:transitions';
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
@@ -10,15 +9,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   <main
     id="main"
     tabindex="-1"
-    transition:animate={fade({ duration: '0.18s' })}
+    transition:name="body"
     class="mx-auto w-shell py-title-block focus:outline-none"
   >
     <div class="mx-auto max-w-measure">
       <div class="border-y border-rule-strong py-title-block">
-        <h1
-          transition:name="page-title"
-          class="m-0 mb-4 font-serif text-title font-semibold leading-tight tracking-[-0.025em]"
-        >
+        <h1 class="m-0 mb-4 font-serif text-title font-semibold leading-tight tracking-[-0.025em]">
           Page not found
         </h1>
         <p class="mb-8 max-w-[42ch] font-sans text-ink-muted leading-[1.6]">
