@@ -2,7 +2,14 @@
 import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
 import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
-import { REPO_URL, SITE_DESCRIPTION, SITE_TITLE, withBase, withoutBase } from '../lib/site.mjs';
+import {
+  REPO_URL,
+  resolveBase,
+  SITE_DESCRIPTION,
+  SITE_TITLE,
+  withBase,
+  withoutBase,
+} from '../lib/site.mjs';
 import '../styles/global.css';
 
 interface SectionLink {
@@ -83,6 +90,22 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).hr
    `/Oracle-…/` rather than `/`, and reading that as an article declared the front
    page an article to every social card and every crawler. */
 const isArticle = currentPath !== '/';
+
+/*
+ * The three absolute URLs the head has to state outright, because a social card,
+ * a structured-data block and a discovery link are all read by something other
+ * than a browser resolving a relative path — and each one is a link that has to
+ * be right about the prefix.
+ *
+ * `siteRoot` is the deployed origin including the repository path. It is built by
+ * joining, not by concatenating, because a root-relative path handed to `new URL`
+ * resolves against the origin and silently throws the prefix away.
+ */
+const origin = Astro.site ?? Astro.url.origin;
+const siteRoot = new URL(`${resolveBase()}/`, origin).href;
+const socialImage = new URL('og-default.png', `${siteRoot}`).href;
+const sitemapHref = new URL('sitemap-index.xml', siteRoot).href;
+const llmsHref = new URL('llms.txt', siteRoot).href;
 ---
 
 <!doctype html>
@@ -123,8 +146,55 @@ const isArticle = currentPath !== '/';
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={metaDescription} />
     <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={SITE_TITLE} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={SITE_DESCRIPTION} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={socialImage} />
 
+    {/*
+      Machine-readable index and a statement of what the book is.
+
+      The sitemap link is the documented discovery method, and it matters here
+      more than usual: this is a project site, so robots.txt is served from a
+      subdirectory where RFC 9309 says a crawler will not look. Declaring the
+      sitemap in the head is the one discovery route that does not depend on a
+      file being fetched from the origin root.
+
+      `llms.txt` is declared with `rel="describedby"`, which is what the v2 spec
+      asks for: the file covers every URL under its path, and this link is how a
+      client finds the file that covers the page it is looking at.
+
+      The JSON-LD describes the book rather than the page, because the book is what
+      the page is an instance of, and a `WebSite` node is the one thing here that
+      a search engine can attach a sitelinks search box to. `TechArticle` would
+      want an author, a date and a real word count, none of which this corpus
+      records, and inventing them is worse than not claiming the type.
+    */}
+    <link rel="sitemap" type="application/xml" href={sitemapHref} />
+    <link rel="describedby" type="text/markdown" href={llmsHref} />
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: SITE_TITLE,
+        description: SITE_DESCRIPTION,
+        url: siteRoot,
+        inLanguage: 'en',
+        publisher: {
+          '@type': 'Organization',
+          name: SITE_TITLE,
+          url: siteRoot,
+        },
+      })}
+    ></script>
     {/* Fonts — Astro Fonts API */}
     <Font cssVariable="--face-serif" preload />
     <Font cssVariable="--face-sans" />
