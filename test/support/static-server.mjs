@@ -51,7 +51,7 @@ const resolveFile = async (urlPath) => {
    * written in, `/00-preface/`, rather than restating the repository name in 144
    * `page.goto` calls. The cost is that a link missing its prefix would resolve
    * here instead of 404ing, so the guarantee is held somewhere it cannot be
-   * argued with: `internal-links.spec.mjs` reads the built HTML and asserts every
+   * argued with: `built-links.spec.mjs` reads the built HTML and asserts every
    * internal link carries the prefix. That check inspects the artifact itself, so
    * it survives any change to this server.
    */

@@ -9,11 +9,14 @@ const ORIGIN = `http://localhost:${PORT}`;
  *
  * `ORIGIN` and `baseURL` are separate because they answer different questions.
  * Playwright resolves every root-relative `page.goto` against `baseURL`, so that
- * needs the prefix. The static server needs the prefix too, passed as its mount
- * point, because Astro writes a flat `dist/` while every href it generates points
- * at the prefix. Probing `ORIGIN` instead would either 404 (readiness timeout with
- * no clue why) or, worse, resolve the unprefixed origin root and let a link missing
- * its prefix pass here and 404 in production.
+ * needs the prefix. Probing `ORIGIN` instead would either 404 — a readiness
+ * timeout with no clue why — or, worse, resolve the unprefixed root and let a link
+ * missing its prefix pass here and 404 in production.
+ *
+ * The static server is told the prefix by importing `resolveBase` from the same
+ * module the build used, rather than by an argument. An argument would be a third
+ * place to state the same fact, and this is the second time in this change that a
+ * value handed to something by hand disagreed with the value the build produced.
  */
 const baseURL = `${ORIGIN}${resolveBase()}/`;
 
@@ -47,7 +50,7 @@ export default defineConfig({
   // instead of `astro preview`, which daemonizes and would exit Playwright's
   // webServer supervision.
   webServer: {
-    command: `bun run build && node test/support/static-server.mjs ${PORT} ${resolveBase()}`,
+    command: `bun run build && node test/support/static-server.mjs ${PORT}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,

@@ -71,17 +71,38 @@ test('items are in reading order, not directory order', async () => {
   expect(code).toContain('toSorted');
 });
 
-test('a chapter can override the edition date when it is genuinely revised', async () => {
+test('every item carries the edition date, and nothing claims otherwise', async () => {
   const code = await route();
 
   /*
-   * The upgrade path, and the reason this is not just "one date for everything,
-   * forever": a revised chapter declares a date and sorts above the rest. The
-   * field is not in the schema yet because no chapter has needed it, and an
-   * unused schema field is a promise nothing keeps.
+   * What the corpus can honestly support. The corpus records no per-chapter dates,
+   * and a feed is the one place a date is a promise, so one date for the edition
+   * is true of all thirty-seven items.
    */
   expect(code).toContain('pubDate: edition');
   expect(code).toContain('COMPILED_ON');
+
+  /* No invented per-chapter date, and no promise of one the code does not honour. */
+  expect(code).not.toMatch(/pubDate: (new Date|Date\.now)/u);
+
+  /* The docstring names the field; the code must not read it. */
+  const statements = code.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/\/\/.*$/gmu, '');
+  expect(statements).not.toMatch(/entry\.data\.date/u);
+});
+
+test('the revision path is documented as the one that is not wired yet', async () => {
+  const code = await route();
+  const schema = await read('../../src/content.config.ts');
+
+  /*
+   * `entry.data.date` is the way out, and the schema does not accept it yet —
+   * which is deliberate. No chapter has been revised, and a schema field nothing
+   * sets is a promise nothing keeps. The two are asserted together so the comment
+   * and the schema cannot drift apart: the day the field is added, this fails and
+   * says so, rather than the comment quietly promising a capability that is gone.
+   */
+  expect(code).toContain('entry.data.date');
+  expect(schema).not.toMatch(/date:/u);
 });
 
 test('the feed is discoverable from every page', async () => {
@@ -105,8 +126,13 @@ test('the feed is served as an RSS document, and advertised as one', async () =>
   const code = await route();
   const head = await layout();
 
-  /* `@astrojs/rss` sets the content type; the type a reader is told about is the
-     one declared for autodiscovery, and the two have to be the same string. */
+  /*
+   * `@astrojs/rss` serves the document as `application/xml`, which is correct for
+   * a `.xml` URL and is what GitHub Pages sends regardless. Autodiscovery declares
+   * the more specific `application/rss+xml`, which is the type the format is
+   * registered as. The two are not the same string and do not need to be: one is
+   * what the server sends, the other is what the format is.
+   */
   expect(code).toContain('@astrojs/rss');
   expect(head).toContain('type="application/rss+xml"');
   expect(head).toContain('title={`${SITE_TITLE} — chapters`}');
