@@ -157,10 +157,18 @@
   --zone-exit-rh: 0ms;
   --zone-exit-rail: var(--zone-stagger);
   --zone-exit-body: calc(2 * var(--zone-stagger));
-  --zone-exit-body-home: calc(2 * var(--zone-stagger));
   --zone-exit-pager-prev: calc(3 * var(--zone-stagger));
   --zone-exit-pager-next: calc(4 * var(--zone-stagger));
-  --zone-exit-meta: calc(2 * var(--zone-stagger));
+
+  /*
+   * The home zones leave LAST, for the same reason they arrive first: `body-home` is the
+   * entire first viewport, and the home page is the first thing a reader sees on a cold
+   * arrival, so it should be the last thing to go when they leave it. The top-of-page
+   * slot it used to occupy — 90ms, alongside `body` — put the largest region of the site
+   * on screen for 90ms before the furniture had even started moving.
+   */
+  --zone-exit-body-home: calc(4 * var(--zone-stagger));
+  --zone-exit-meta: calc(4 * var(--zone-stagger));
 
   /*
    * 490ms: the pager cell at the foot of the page finishes leaving at 180 + 240,
@@ -171,10 +179,26 @@
   --zone-enter-pager-next: var(--zone-enter-base);
   --zone-enter-pager-prev: calc(var(--zone-enter-base) + var(--zone-stagger));
   --zone-enter-body: calc(var(--zone-enter-base) + 2 * var(--zone-stagger));
-  --zone-enter-body-home: calc(var(--zone-enter-base) + 2 * var(--zone-stagger));
-  --zone-enter-meta: calc(var(--zone-enter-base) + 2 * var(--zone-stagger));
   --zone-enter-rail: calc(var(--zone-enter-base) + 3 * var(--zone-stagger));
   --zone-enter-rh: calc(var(--zone-enter-base) + 4 * var(--zone-stagger));
+
+  /*
+   * The home page arrives FIRST, and this is a change of mind rather than an oversight.
+   *
+   * On a section page the ladder is read bottom-up: the pager cells at the foot come back
+   * first and the running head at the top last, so the page builds from where the reader's
+   * eye already is. On the home page that reading inverts. `body-home` is the whole first
+   * viewport — title block, abstract, primary control and the contents list — and `meta` is
+   * nested inside it, so a ladder slot at the top of the page arrives after 670ms of
+   * staring at an empty frame for the largest, most important arrival in the whole site.
+   *
+   * So the home zones take the base, arriving at 490ms, and the two most prominent regions
+   * of a home→section swap therefore leave last rather than first. This is the one place
+   * the reverse ordering is deliberately inverted, and the reason is that the ordering is
+   * there to serve the reader's position, not to be a rule.
+   */
+  --zone-enter-body-home: var(--zone-enter-base);
+  --zone-enter-meta: var(--zone-enter-base);
 
   /*
    * Which way each piece comes back from, or whether it simply resolves in place.
