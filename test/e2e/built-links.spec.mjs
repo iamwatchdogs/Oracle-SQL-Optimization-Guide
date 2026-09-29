@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { resolveBase } from '../../src/lib/site.mjs';
+import { resolveBase, SITE_ORIGIN } from '../../src/lib/site.mjs';
 
 const distRoot = new URL('../../dist/', import.meta.url).pathname;
 
@@ -61,6 +61,35 @@ test('every internal link in the built site carries the deployment prefix', asyn
   );
 
   expect(offenders).toEqual([]);
+});
+
+test('every page the agent index names is a page that was built', async () => {
+  /*
+   * The index is generated from the collection, so a link in it can only be wrong
+   * if the URL built from an id and the file Astro wrote from that id disagree.
+   * That is exactly the kind of mistake no other test would notice: both halves
+   * look right on their own.
+   */
+  const index = await readFile(path.join(distRoot, 'llms.txt'), 'utf8');
+  const origin = `${SITE_ORIGIN}${resolveBase()}/`;
+  const targets = [...index.matchAll(/\]\((https?:\/\/[^)]+)\)/gu)]
+    .map((match) => match[1])
+    .filter((href) => href.startsWith(origin))
+    .map((href) => href.slice(origin.length));
+
+  /* An index that named nothing would pass by having nothing to check. */
+  expect(targets.length).toBeGreaterThan(30);
+
+  const files = new Set(await walk(distRoot));
+  const dead = targets.filter((target) => {
+    const served = target.replace(/\/$/u, '');
+    /* The home page is a directory index; a section or chapter is one too. The
+       sitemap is named here as the other index on the site, and is a file. */
+    const built = served === '' ? 'index.html' : `${served}/index.html`;
+    return !files.has(path.join(distRoot, built)) && !files.has(path.join(distRoot, served));
+  });
+
+  expect(dead).toEqual([]);
 });
 
 test('every internal link in the built site resolves to a built file', async () => {
