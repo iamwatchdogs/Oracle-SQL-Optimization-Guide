@@ -5,11 +5,18 @@ import astroExpressiveCodePlugin from 'astro-expressive-code';
 import mermaid from 'astro-mermaid';
 import tailwindcss from '@tailwindcss/vite';
 import { markdownProcessor } from './src/lib/markdown-processor.mjs';
+import { SITE_ORIGIN } from './src/lib/site.mjs';
 
 // https://astro.build/config
 export default defineConfig({
-  // Replace with the real production URL so sitemap.xml and canonical URLs are correct.
-  site: 'https://example.com',
+  /*
+   * Published at https://iamwatchdogs.github.io/Oracle-SQL-Optimization-Guide/.
+   *
+   * `site` is the origin and the repository is a path prefix, never a single
+   * URL: putting the repository in `site` builds cleanly and then emits a
+   * sitemap of URLs that all 404 (withastro/astro#13315).
+   */
+  site: SITE_ORIGIN,
   output: 'static',
   trailingSlash: 'always',
   vite: {

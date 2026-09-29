@@ -2,7 +2,7 @@
 import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
 import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
-import { REPO_URL } from '../lib/site.mjs';
+import { REPO_URL, SITE_DESCRIPTION, SITE_TITLE } from '../lib/site.mjs';
 import '../styles/global.css';
 
 interface SectionLink {
@@ -55,17 +55,13 @@ const textScales = TEXT_SCALE_STEPS;
 const measures = MEASURE_STEPS;
 
 const fullTitle =
-  title === 'Oracle SQL Optimization for Junior Devs'
-    ? `${title} — Evidence-graded tuning`
-    : `${title} · Oracle SQL Optimization`;
+  title === SITE_TITLE ? `${title} — Evidence-graded tuning` : `${title} · Oracle SQL Optimization`;
 
 /* One fallback, used by BOTH `<meta name="description">` and `og:description`.
    Astro omits an attribute whose value is `undefined`, so having the fallback
    on one line only meant a page without frontmatter `description` shipped a
    human-readable description and no social one at all. */
-const metaDescription =
-  description ??
-  'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.';
+const metaDescription = description ?? SITE_DESCRIPTION;
 
 /* Canonical must never carry a query string or fragment, and must resolve
    against the configured site origin rather than whatever host served the page. */
