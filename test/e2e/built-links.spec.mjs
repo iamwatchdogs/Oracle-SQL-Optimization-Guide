@@ -63,6 +63,64 @@ test('every internal link in the built site carries the deployment prefix', asyn
   expect(offenders).toEqual([]);
 });
 
+/**
+ * Every absolute URL the head states, on every page.
+ *
+ * The `href`/`src` scan above cannot see these: they are in `content`
+ * attributes, or absolute rather than root-relative, so `isInternal` filters them
+ * out. Left unchecked, a `siteRoot` built from the bare origin would make every
+ * card, every canonical and every discovery link point at a page that is not
+ * deployed — and nothing else in the suite would notice.
+ *
+ * This is where the check belongs: it reads built HTML, and this project runs
+ * after `astro build`. An earlier version lived in the unit suite and read the
+ * layout's *source*, where every one of these is an Astro expression, so its
+ * value-matching regexes skipped all of them and it asserted nothing.
+ */
+test('every URL the head states is absolute and carries the deployment prefix', async () => {
+  const base = resolveBase();
+  const origin = `${SITE_ORIGIN}${base}/`;
+  const named = new Set([
+    'og:url',
+    'og:image',
+    'twitter:image',
+    'canonical',
+    'sitemap',
+    'describedby',
+    'alternate',
+  ]);
+
+  const pages = await loadPages();
+  const seen = new Map();
+
+  for (const { file, html } of pages) {
+    for (const element of [...html.matchAll(/<(?:meta|link)\b[^>]*>/gu)].map((m) => m[0])) {
+      const identity =
+        /property="([^"]+)"/u.exec(element)?.[1] ??
+        /name="([^"]+)"/u.exec(element)?.[1] ??
+        /rel="([^"]+)"/u.exec(element)?.[1];
+      if (identity === undefined || !named.has(identity)) {
+        continue;
+      }
+
+      const url =
+        /content="(https?:[^"]+)"/u.exec(element)?.[1] ??
+        /href="(https?:[^"]+)"/u.exec(element)?.[1];
+      if (url === undefined) {
+        continue;
+      }
+
+      seen.set(identity, seen.get(identity) ?? url);
+      expect(url.startsWith(origin), `${file}: ${identity} is ${url}`).toBe(true);
+    }
+  }
+
+  /* Every named tag was actually present and absolute. A loop over nothing passes
+     by checking nothing, and this is the check that would have caught a `siteRoot`
+     built from the bare origin. */
+  expect([...seen.keys()].toSorted()).toEqual([...named].toSorted());
+});
+
 test('every page the agent index names is a page that was built', async () => {
   /*
    * The index is generated from the collection, so a link in it can only be wrong
