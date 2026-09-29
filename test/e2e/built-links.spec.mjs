@@ -130,6 +130,24 @@ test('every URL the head states is absolute and carries the deployment prefix', 
   expect([...seen.keys()].toSorted()).toEqual([...named].toSorted());
 });
 
+test('the 404 page declares no canonical', async () => {
+  /*
+   * There is no URL for a 404 to be canonical *to*. It was declaring itself
+   * canonical at `/404/`, which does not exist — `dist/` holds `404.html` and no
+   * such directory — and `<link rel="canonical">` is a hint a crawler may follow,
+   * so one pointing at a page that itself 404s teaches a crawler about a page
+   * that is not there.
+   */
+  const notFound = await readFile(path.join(distRoot, '404.html'), 'utf8');
+
+  expect(notFound).toContain('name="robots" content="noindex, follow"');
+  expect(notFound).not.toMatch(/<link rel="canonical"/u);
+
+  /* A real page still ships one, or this would be a fix that removed the tag. */
+  const home = await readFile(path.join(distRoot, 'index.html'), 'utf8');
+  expect(home).toMatch(/<link rel="canonical" href="https?:\/\/[^"]+"/u);
+});
+
 test('every page the agent index names is a page that was built', async () => {
   /*
    * The index is generated from the collection, so a link in it can only be wrong

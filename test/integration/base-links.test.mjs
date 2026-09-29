@@ -144,13 +144,24 @@ test('a link authored as raw HTML inside a disclosure is left to Astro, not pref
    * The corpus contains no raw HTML anchors, so nothing shipped depends on this.
    * If a document ever does, the fix is to write it as a markdown link.
    */
+  /*
+   * A markdown link and a raw one in the same document, which is what makes this a
+   * test rather than a note: the first is prefixed, the second is not, and deleting
+   * the plugin would fail the first assertion rather than quietly satisfy both.
+   */
   const code = await renderWith(
-    ['<details><summary>Raw</summary>', '', '<a href="/x/">raw html</a>', '', '</details>'].join(
-      '\n',
-    ),
+    [
+      'A [markdown link](/y/).',
+      '',
+      '<details><summary>Raw</summary>',
+      '',
+      '<a href="/x/">raw html</a>',
+      '',
+      '</details>',
+    ].join('\n'),
     [rehypeDisclosures, rehypeBaseLinks.bind(null, { base: BASE })],
   );
 
-  /* The prefix is not applied, and the renderer is still well-formed. */
-  expect(code).toContain('href="/x/"');
+  expect(code).toContain('href="/book/y/"');
+  expect(code).toMatch(/<a href="\/x\/">raw html<\/a>/u);
 });
