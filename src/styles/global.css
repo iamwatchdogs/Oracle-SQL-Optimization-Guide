@@ -1401,90 +1401,78 @@ details[data-disclosure-closing] .disclosure-icon {
 }
 
 /*
- * Route transition choreography: fade OUT, then fade IN.
+ * Route transition choreography.
  *
- * `fade({ duration: '0.18s' })` writes its `::view-transition-old/new` rules into
- * `@layer astro`. The UA stylesheet contributes its own
- * `::view-transition-group(*)` geometry animation, and nothing in the project
- * touched either of them. Measured on the built site with
- * `document.getAnimations()` during a route swap:
+ * What is below is a per-zone stagger with two variants, and the reason it is
+ * written the way it is comes from three defects that each looked like something
+ * else. All three were measured on the built site with `document.getAnimations()`
+ * during a real navigation, and all three are pinned by
+ * `test/e2e/route-transition.spec.mjs` and
+ * `test/e2e/route-transition-compositing.spec.mjs`.
  *
- *   ::view-transition-group(root)        250ms  linear
- *   ::view-transition-group(page-title)  250ms  linear
- *   ::view-transition-old/new(page-title) 180ms  cubic-bezier(.76,0,.24,1)
+ * **A zone rule must be BARE.** Astro writes its default per-zone animation inside
+ * `@layer astro`:
  *
- * So the shared `page-title` snapshot was being MOVED AND SCALED on the UA's
- * 250ms linear curve while the page it belonged to cross-faded on a 180ms eased
- * one — a 70ms tail of title still in flight over a page that had already
- * arrived, travelled linearly rather than eased. That, plus the title block's
- * own entrance replaying underneath it (see `.rise` below), is what a route swap
- * felt like.
+ *     @layer astro { ::view-transition-old(body) { animation-name: astroFadeOut } }
  *
- * The first fix put both halves on one 180ms symmetric quart, which made the
- * geometry agree with the cross-dissolve and left the swap feeling abrupt: the two
- * pages were at 50% opacity at the same instant, so the reader saw a hard
- * dissolve with no moment where either page was settled. The complaint was that it
- * did not feel like a transition at all.
+ * and an ancestor-qualified `html[data-nav='jump'] ::view-transition-old(body)` does
+ * not match the view-transition pseudo tree at all — those pseudo-elements hang off
+ * the document element, not off `<html>`'s box, so an ancestor-qualified selector
+ * never reaches them. Such a rule parses, appears in the CSSOM with the right
+ * declared value, and never applies; the swap silently runs Astro's plain 180ms
+ * fade. Unlayered, a bare `::view-transition-old(body)` outranks the layer outright.
+ * The variant then has to travel by another route, and inherited custom properties
+ * do reach the pseudo tree.
  *
- * So the two halves were made SEQUENTIAL, which is what a page change actually is:
+ * **The router deletes `data-nav`.** It is written on `astro:before-preparation` and
+ * then re-applied away on `astro:after-swap`, because the document being swapped in
+ * is a freshly parsed page that has never heard of the attribute. Set once and left
+ * alone it is reliably present when the CSS author writes it and reliably gone when
+ * the browser evaluates it, and every pager hop runs the jump choreography. See
+ * `BaseLayout.astro`, which writes it twice for that reason.
  *
- *   out    180ms  accelerating  — the old page leaves rather than thins
- *   in     260ms  settling      — starts 140ms in, so the last 40ms of the fade-out
- *                                  overlaps the first of the fade-in
+ * **`plus-lighter` cannot composite a stagger.** The UA puts two animations on
+ * `::view-transition-old/new(root)` — the fade, and `-ua-mix-blend-mode-plus-lighter`
+ * — and Astro's `astroFadeIn`/`astroFadeOut` bake `plus-lighter` into their own
+ * keyframes as well, so the two snapshots are ADDED rather than stacked. Addition is
+ * only correct while the two opacities sum to 1, which a symmetric cross-fade
+ * satisfies and a stagger never does: between the exit finishing and a zone's
+ * entrance starting, the sum is under 1. Under-exposed frames show the paper
+ * through, and this paper is `#0c0c0e`, so the middle of every chapter change dimmed
+ * the page and brought it back. (vtbag.dev, "Flickering during Cross-Fade
+ * Animations?": with a dark background plus-lighter does not merely fail to help, it
+ * goes the other way — the combined image renders darker than either snapshot.
+ * w3c/csswg-drafts#9276 is still open on fixing this for
+ * `prefers-color-scheme: dark`, so it will not be fixed for us.) Every keyframe
+ * below therefore states `mix-blend-mode: normal` outright rather than merely
+ * un-animating the property, so a UA that applies it at a different specificity
+ * still loses.
  *
- * That read is right and it is what this keeps. What the sequence got wrong is a
- * property of the COMPOSITING, not the timing.
- *
- * The UA puts two animations on `::view-transition-old/new(root)`: the fade, and
- * `-ua-mix-blend-mode-plus-lighter`. `fade()` bakes `plus-lighter` into both of its
- * own keyframes as well, so the two snapshots are ADDED together rather than one
- * being drawn over the other. Addition is only correct while the two opacities sum
- * to 1 — that is the invariant the CSSWG wrote it for, and a symmetric cross-fade
- * satisfies it. A SEQUENCE cannot: for the whole 140ms before the fade-in starts,
- * the old page is at some fraction and the new is at zero, and the sum is under 1.
- * Under-exposed frames show the paper through, and this paper is `#0c0c0e`.
- * (vtbag.dev, "Flickering during Cross-Fade Animations?": with a dark background
- * plus-lighter does not merely fail to help, it goes the other way — the combined
- * image renders darker than either snapshot. w3c/csswg-drafts#9276 is still open on
- * fixing this for `prefers-color-scheme: dark`, so it will not be fixed for us.)
- *
- * So the sequence stays and the blend goes:
- *
- *   old    230ms  opacity 1 → 0, 50ms in,  on TOP  — the page being removed
- *   new     none                             opaque, UNDERNEATH
- *
- * The new page carries no animation at all, which is the whole trick. It is a fully
- * opaque snapshot sitting beneath the old one from the first frame, so the old page
- * is not fading toward nothing — it is being uncovered. The composite is a
- * draw of the old over an opaque new, so it can never be darker than the new page
- * itself: there is no alpha hole and no additive flare, and the dip was only ever
- * an artifact of trying to fade two pages through the background at once. This is
- * the same shape Vercel's `react-view-transitions` recipe and vtbag's Starlight
- * integration both arrived at from the other direction — do not animate the old
- * image — and it is a genuine exit-then-enter: the old page leaves, and the new one
- * is revealed rather than dissolved up from zero.
+ * The declarations are the `animation` SHORTHAND rather than longhands, because the
+ * UA's blend animation is a _second_ animation on the same pseudo-element and a
+ * longhand cannot reach a second animation — only the shorthand replaces both.
  *
  * `z-index` does the paint-order flip, because the two snapshots are siblings inside
  * `::view-transition-image-pair` and default to tree order, which paints the new one
- * on top. Both are set explicitly so the order is stated rather than inherited.
+ * on top. Every old half is 2 and every new half is 1, so each zone is a draw of the
+ * departing piece over an opaque incoming one and the composite can never be darker
+ * than the page underneath. That is also why the arriving half animates opacity at
+ * all: a named pseudo with no animation is a filled, opaque snapshot from frame one,
+ * so the old piece is UNCOVERED rather than faded toward nothing, and the dead beat
+ * reads as a dissolve instead of a hole.
  *
- * The `animation` SHORTHAND replaces the two UA animations instead of retiming them,
- * which is the opposite of what this block used to do and is the reason the keyframes
- * are spelled out: the shorthand has to kill `-ua-mix-blend-mode-plus-lighter` too,
- * and a longhand cannot reach a second animation on the same element. `mix-blend-mode:
- * normal` inside the keyframes is the belt to that braces — the property is stated,
- * not merely un-animated, so a UA that applies it at a different specificity still
- * loses.
- *
- * Geometry keeps the project's exponential ease-out over 230ms so the title's
- * movement spans the swap rather than snapping at the end of the fade-out. 280ms
- * total, down from 400ms: above roughly 300ms a transition starts costing the focus
- * move and the route announcement, which is an accessibility bill and not polish.
- *
- * These rules are unlayered, which is the whole mechanism: unlayered declarations
- * outrank every `@layer`, Astro's included, and they outrank the UA stylesheet
- * besides.
- */
+ * Group geometry is off. `animation: none` below means no zone is moved, scaled or
+ * resized between the two snapshots. A shared-element group morphs from the old box
+ * to the new one, and on this site those boxes have nothing in common: the home
+ * `<main>` is the full shell width while an interior one is a reading column inside
+ * a two-track grid, and the h1 is `text-display` at up to 6rem on one and
+ * `text-title` at up to 2.5rem on the other. Animating between them is the
+ * page-assembles-itself artifact a 96px-to-40px title fly produced — the UA was
+ * moving and scaling the shared `page-title` snapshot on its own 250ms linear curve
+ * while the page it belonged to cross-faded on 180ms, a 70ms tail of title still in
+ * flight over a page that had already arrived. Every zone here cross-dissolves in
+ * place, and the only thing that moves is a deliberate translate on the two edge
+ * directions.
 ::view-transition-group(*) {
   animation: none;
 }
@@ -1640,6 +1628,37 @@ details[data-disclosure-closing] .disclosure-icon {
     opacity: 1;
     mix-blend-mode: normal;
     transform: translateY(0);
+  }
+}
+
+/*
+ * The ROOT zone, which is not a zone like the others: it is whatever the named
+ * pieces do not cover, and it has to be neutralised rather than choreographed.
+ *
+ * The UA puts `-ua-mix-blend-mode-plus-lighter` on `::view-transition-old/new(root)`
+ * and nowhere else, so the additive blend the rest of this block works to cancel
+ * survives on precisely the one pseudo that was never given a keyframe. `root` is
+ * only ever the gutter between the named pieces — the page background showing around
+ * a rail, inside a shell — and adding a black gutter to an already-black paper is
+ * what darkened the middle of a swap before the named zones were covered at all.
+ *
+ * A duration of zero plus `both` fill pins the blend at its first keyframe for the
+ * whole pseudo's life, and the declaration has to be the `animation` shorthand: the
+ * blend is a second animation on the same element and no longhand reaches it.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation: 0s linear 0s both root-fill;
+}
+
+@keyframes root-fill {
+  from {
+    mix-blend-mode: normal;
+  }
+
+  to {
+    mix-blend-mode: normal;
   }
 }
 
