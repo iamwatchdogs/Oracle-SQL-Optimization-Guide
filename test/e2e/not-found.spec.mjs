@@ -26,7 +26,7 @@ test.describe('404 page', () => {
 
   test('uses the title token, not the home-only display token', usesTheTitleToken);
 
-  test('shares the page-title transition name with every other page', sharesTheTransitionName);
+  test('participates in the route swap like every other page', joinsTheRouteSwap);
 
   test('does not overflow at 390px', doesNotOverflowAt390px);
 });
@@ -79,15 +79,20 @@ async function usesTheTitleToken({ page }) {
  * Astro scopes the name: the element carries `data-astro-transition-scope`
  * with a build-unique id, and the `view-transition-name` itself lives in a
  * generated stylesheet rule keyed by that id. Asserting on the `style`
- * attribute therefore never matches. What actually matters — and what the 404
- * page used to break — is that *every* page's h1 is scoped, so navigating to
- * the 404 morphs the title instead of cutting to it.
+ * attribute therefore never matches.
+ *
+ * This used to check the h1, because the h1 was the shared `page-title` zone. It is
+ * not any more — a section jump must not pair a 96px home heading with a 40px section
+ * heading, and the pager hop that does want the pairing names the title in CSS
+ * instead. The zone every page now shares, the 404 included, is the reading column,
+ * so that is what is asserted: a 404 that fell outside the swap would cut to it
+ * rather than dissolve into it, which is the defect this test exists for.
  */
-async function sharesTheTransitionName({ page }) {
+async function joinsTheRouteSwap({ page }) {
   const scopeOf = async (route) => {
     await page.goto(route);
-    const scope = await page.locator('h1').first().getAttribute('data-astro-transition-scope');
-    expect(scope, `h1 on ${route} carries no data-astro-transition-scope`).toBeTruthy();
+    const scope = await page.locator('main#main').getAttribute('data-astro-transition-scope');
+    expect(scope, `main on ${route} carries no data-astro-transition-scope`).toBeTruthy();
     return scope;
   };
   await scopeOf('/no-such-page/');
