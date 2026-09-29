@@ -5,7 +5,7 @@ import astroExpressiveCodePlugin from 'astro-expressive-code';
 import mermaid from 'astro-mermaid';
 import tailwindcss from '@tailwindcss/vite';
 import { markdownProcessor } from './src/lib/markdown-processor.mjs';
-import { SITE_ORIGIN } from './src/lib/site.mjs';
+import { resolveBase, SITE_ORIGIN } from './src/lib/site.mjs';
 
 // https://astro.build/config
 export default defineConfig({
@@ -17,6 +17,15 @@ export default defineConfig({
    * sitemap of URLs that all 404 (withastro/astro#13315).
    */
   site: SITE_ORIGIN,
+  /*
+   * The repository prefix. GitHub Pages mounts the project site here, and Astro
+   * prefixes the assets it generates but not the links a document writes — those
+   * are handled by `rehypeBaseLinks` in the markdown pipeline.
+   *
+   * `SITE_BASE=/` builds these same sources for a target that serves from the
+   * root, so moving off GitHub Pages is an environment variable and not an edit.
+   */
+  base: resolveBase(),
   output: 'static',
   trailingSlash: 'always',
   vite: {

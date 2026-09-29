@@ -13,6 +13,7 @@
  */
 import { expect, test } from '@playwright/test';
 import { FIRST_PAGE } from './support/pages.mjs';
+import { deployed } from './support/deployed.mjs';
 import { MOBILE, TABLET, WIDE } from './support/viewports.mjs';
 import { breadcrumbShape } from './support/breadcrumb.mjs';
 import {
@@ -264,7 +265,9 @@ test('the pager walks the whole book and every link in it resolves', async ({ pa
 
   expect(walk.looped, `the pager looped at ${walk.looped}`).toBeNull();
   expect(walk.dead, 'dead pager targets').toEqual([]);
-  expect(walk.route, 'the walk did not reach the end of the book').toBe('/08-bonus-batch-api/');
+  expect(walk.route, 'the walk did not reach the end of the book').toBe(
+    deployed('/08-bonus-batch-api/'),
+  );
   expect(walk.visited.size, 'the chain does not cover the book').toBeGreaterThan(30);
   expect(walk.hasNext, 'the last page still offers a next link').toBeNull();
   expect(walk.hasPrev, 'the last page lost its previous link').toBe(true);

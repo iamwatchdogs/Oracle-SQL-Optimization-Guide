@@ -11,6 +11,8 @@
  * measures and judges hides which of the two failed.
  */
 
+import { deployed } from './deployed.mjs';
+
 /** The right edge of the reading prose, in CSS pixels. */
 export const proseRight = (page) =>
   page.evaluate(() => {
@@ -27,7 +29,7 @@ export const proseRight = (page) =>
  * while the pager ran 89px past it.
  */
 export const readingEdges = (page) =>
-  page.evaluate(() => {
+  page.evaluate((home) => {
     const box = (selector) => {
       const element = document.querySelector(selector);
       if (element === null) {
@@ -40,10 +42,10 @@ export const readingEdges = (page) =>
       pager: box('nav[aria-label="Book navigation"]'),
       firstCell: box('nav[aria-label="Book navigation"] a[rel="prev"]'),
       lastCell: box('nav[aria-label="Book navigation"] a:last-of-type'),
-      bookHome: box('main a[href="/"]'),
+      bookHome: box(`main a[href="${home}"]`),
       h2Rule: box('article.prose h2'),
     };
-  });
+  }, deployed('/'));
 
 /**
  * Every table on the page, with the geometry that decides whether the wrapper is

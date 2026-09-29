@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { findEscapingOverflow, px } from './support/disclosure.mjs';
 import { FIRST_PAGE } from './support/pages.mjs';
+import { deployed } from './support/deployed.mjs';
 
 /*
  * The 404 page.
@@ -55,8 +56,8 @@ async function offersTwoRecoveryLinks({ page }) {
   await page.goto('/no-such-page/');
   const links = page.locator('main#main a');
   await expect(links).toHaveCount(2);
-  await expect(links.nth(0)).toHaveAttribute('href', '/');
-  await expect(links.nth(1)).toHaveAttribute('href', '/07-appendix-sources/');
+  await expect(links.nth(0)).toHaveAttribute('href', deployed('/'));
+  await expect(links.nth(1)).toHaveAttribute('href', deployed('/07-appendix-sources/'));
 }
 
 async function rendersNoTocAndNoPager({ page }) {

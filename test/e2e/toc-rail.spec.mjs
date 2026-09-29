@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { DESKTOP_VIEWPORT, PHONE_VIEWPORT } from './support/toc.mjs';
 import { readingEdges } from './support/reading-surface.mjs';
+import { deployed } from './support/deployed.mjs';
 import {
   articleRight,
   collapseRail,
@@ -122,13 +123,13 @@ async function survivesAReloadAndAClientNavigation({ page }) {
   await page.reload();
   await expect.poll(async () => (await railGeometry(page)).attribute).toBe('collapsed');
 
-  await page.evaluate(() => {
+  await page.evaluate((prefix) => {
     const link = [...document.querySelectorAll('a')].find((anchor) =>
-      anchor.getAttribute('href')?.startsWith('/03-toolbox/'),
+      anchor.getAttribute('href')?.startsWith(prefix),
     );
     link.click();
-  });
-  await page.waitForURL('**/03-toolbox/**');
+  }, deployed('/03-toolbox/'));
+  await page.waitForURL(`**${deployed('/03-toolbox/')}**`);
   /* The router replaces the whole document, which replaces `<html>`; the state
      has to come back from storage rather than from the attribute that went with
      the old one. */
