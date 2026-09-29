@@ -79,6 +79,21 @@ export const SITE_DESCRIPTION =
 export const SITE_LOCALE = 'en';
 
 /**
+ * The day this edition of the book was compiled.
+ *
+ * The colophon printed this, and the appendix is explicit about why: a
+ * repository's licence, last push and archive flag are properties of a moment, so
+ * they are printed with the date they were read rather than as bare chrome. The
+ * date belongs to the edition, not to any one chapter.
+ *
+ * It is written down rather than taken from the clock on purpose. A build that
+ * stamped `new Date()` would produce a different answer on every run, so the same
+ * input would yield a different `lastBuildDate` and a different footer — a diff
+ * nobody can review. Raise it when the content actually changes.
+ */
+export const COMPILED_ON = '2026-09-22';
+
+/**
  * Join a root-relative path to the configured base.
  *
  * Read from `import.meta.env.BASE_URL` rather than `SITE_BASE` on purpose: this
