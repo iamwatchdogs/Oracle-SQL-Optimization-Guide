@@ -1,0 +1,102 @@
+# Oracle SQL Optimization for Junior Devs
+
+A short, evidence-graded book about proving an Oracle SQL performance win before
+you ship it. No database required to read it; the labs are written to be run
+against a toy schema you create yourself.
+
+> Prove every speed win twice. A short book from 68 proven Oracle fixes, tools,
+> and safe ship habits.
+
+**Read it at** <https://iamwatchdogs.github.io/Oracle-SQL-Optimization-Guide/>
+
+---
+
+## What is here
+
+Eight parts, meant to be read in order, then an appendix on how every claim is
+checked. Each part opens with a decision map rather than a list of tricks.
+
+| Part                      | What it establishes                                                      |
+| ------------------------- | ------------------------------------------------------------------------ |
+| Preface                   | What an evidence grade is, and how to prove a win                        |
+| Proven techniques         | Five fixes, each with the symptom it answers and the gate it sits behind |
+| Papers behind the recipes | Which sources can license an Oracle claim, and which cannot              |
+| Toolbox                   | The instrument that answers which question                               |
+| Recipes                   | Frozen input, one change, named trials, rehearsed rollback               |
+| The feedback loop         | Noise floor, accept-or-roll back gate, and when to stop                  |
+| The OSS guide             | Vetting an external tool before trusting its output                      |
+| Appendix                  | The citation system, and surviving version drift                         |
+
+## Why it is built this way
+
+**Every claim is graded.** A technique is not a technique because it is
+repeated. Each one names what would make it a hypothesis rather than a result,
+and the preface is the map for reading those grades.
+
+**Nothing runs against a live database to be written.** The book ships prose and
+SQL you run yourself. Every script is designed to be read before it is run.
+
+**A repository fact belongs to a date.** Oracle's behaviour changes between
+releases, and an external tool's licence and maintenance state change between
+months. Where a claim depends on either, the appendix says so and dates it.
+
+## For agents
+
+The book publishes a machine-readable index at
+[`/llms.txt`](https://iamwatchdogs.github.io/Oracle-SQL-Optimization-Guide/llms.txt) —
+one entry per chapter, grouped by part, each with a sentence on what the page is
+for. The source is one markdown file per page under [`contents/`](contents/).
+
+## Building it locally
+
+Requires [Bun](https://bun.sh). Node also works, but every command below assumes
+Bun and the lockfile is Bun's.
+
+```sh
+bun install
+bun run dev          # http://localhost:4321
+```
+
+`SITE_BASE` moves the deployment prefix. Leave it unset for GitHub Pages; set it
+to `/` to build for a host that serves from the origin root.
+
+```sh
+SITE_BASE=/ bun run build
+```
+
+### Checks
+
+```sh
+bun run quality   # lint, format, astro check, tsgo
+bun run test      # vitest — unit and integration
+bun run verify    # all of the above, then a build, then the e2e suite
+```
+
+`bun run test:e2e` drives a real browser against a real build and starts its own
+server, so it needs no running dev server.
+
+### Generated assets
+
+The favicon set and the social card are drawn from the design tokens, not
+hand-painted. Regenerate them after changing a colour:
+
+```sh
+bun run icons
+```
+
+They are checked in rather than built, so a normal build never rewrites a binary.
+
+## Deploying
+
+GitHub Pages, through Actions — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+Push to `main`; the workflow builds, uploads the artifact and publishes it.
+
+The one thing to know is that a GitHub Pages _project_ site is served from
+`/<repo>/` rather than `/`, which is why `base` is set in `astro.config.mjs` and
+why every link in the prose is prefixed at render time rather than in the source.
+
+## Licence and provenance
+
+The book is the work; the Oracle documentation and the papers named in the
+appendix are other people's. What each one licenses you to claim is recorded in
+[`07-appendix-sources/`](contents/07-appendix-sources/).
