@@ -127,7 +127,11 @@ test('the route swap names its zones, and names them explicitly', async () => {
 
   /* Three `<main>`s across the route templates — two mutually exclusive branches of
    * the catch-all plus the 404's own — and the rest are content zones. */
-  expect(declared.filter((name) => name === 'body')).toHaveLength(3);
+  /* `body` on the two section templates, `body-home` on the home page: the home column
+     is 1152px at x=64 and a section's is 824px at x=392, so one shared name asks the
+     browser to morph one into the other and it slides the page 328px to do it. */
+  expect(declared.filter((name) => name === 'body')).toHaveLength(2);
+  expect(declared.filter((name) => name === 'body-home')).toHaveLength(1);
   for (const zone of ['rh', 'rail', 'meta', 'pager-prev', 'pager-next']) {
     expect(declared, `zone ${zone} is not named in any template`).toContain(zone);
   }
@@ -162,16 +166,10 @@ test('the title is named in CSS and only for a pager hop', async () => {
 
   expect(slug).not.toMatch(/transition:name="(page-)?title"/u);
 
-  /*
-   * The name is a custom property, not a literal, and the variant is chosen by
-   * `--zone-title` rather than by an ancestor-qualified selector. Both halves matter:
-   *
-   * A qualified `html[data-nav='pager'] .reading-column h1` DOES match here, because
-   * this is a real element in the real tree rather than a view-transition
-   * pseudo-element. But the zone RULES that consume the name must stay bare — the
-   * pseudos hang off the document element and an ancestor-qualified selector never
-   * reaches them, which is the defect `route-transition.spec.mjs` pins.
-   */
+  /* A custom property, not a literal, keyed on the navigation kind. An ancestor-
+     qualified selector matches here, because this is a real element rather than a
+     view-transition pseudo — but the zone RULES that consume the name must stay bare,
+     which is the defect `route-transition.spec.mjs` pins. */
   expect(global).toMatch(/\.reading-column h1 \{[^}]*view-transition-name: var\(--zone-title\)/u);
   expect(global).not.toMatch(/view-transition-name: title/u);
   /* Exactly one element is named, and the value arrives from the token table. */

@@ -184,10 +184,32 @@ const proseClass = [
         ]}
       />
 
+      {/*
+       * The home page's reading column is a DIFFERENT ZONE from a section's, on
+       * purpose. They are the same element on every page and that is exactly the
+       * problem: the home `<main>` is 1152px wide at x=64, a section's is 824px at
+       * x=392, so naming both `body` hands the browser a single shared-element group
+       * whose job is to morph one box into the other. It does, over the UA's 250ms
+       * geometry animation, sliding the whole page 328px sideways and narrowing it by
+       * the same amount on the way.
+       *
+       * That is the whole difference between the two directions. Section to section,
+       * both boxes are 824px at x=392, so the group has nothing to do and the swap is
+       * smooth. Home to section and back, it has a very large something to do, and it
+       * is the only thing anyone notices. Measured on the dev server at 1280px:
+       *
+       *   home     1152px wide, x=64
+       *   section   824px wide, x=392
+       *
+       * Two names means two unpaired groups, each of which has nothing to morph and
+       * so can only cross-dissolve where it stands. The reading column arrives and
+       * departs in its own column's coordinates rather than being dragged across the
+       * viewport to meet it.
+       */}
       <main
         id="main"
         tabindex="-1"
-        transition:name="body"
+        transition:name="body-home"
         class="mx-auto w-shell pb-20 focus:outline-none"
       >
         <div class={`mx-auto prose ${proseClass} pt-8`}>
