@@ -300,17 +300,17 @@ const proseClass = [
                 `truncate` needs — `overflow` does nothing on a plain inline box, so
                 the previous `block` was there to make truncation work at all.
 
-                **Two.** It was the only element in the trail off the mono register:
-                Source Serif at Tailwind's unscaled `text-sm`, 14px, `normal-case`.
-                So the separator sat on one line box — mono, `--type-mono`,
-                leading 1.65, which moves with the reader's text size — and the
-                title on another — serif, a raw default that does not. Two boxes, two
-                families, two leadings, and a gap between them that grew from 1.45px
-                at the default size to 5.74px at 120%. DESIGN.md specifies one
-                register for the whole trail: mono, uppercase, meta. The "you are
-                here" signal is now `--ink` against the trail's `--ink-faint`, plus
-                `aria-current`, rather than a change of typeface and case. That
-                restores one line box for the whole trail, which is the alignment.
+                **Two.** It was the only element in the trail off the mono
+                register: Source Serif at Tailwind's unscaled `text-sm`, 14px,
+                `normal-case`. So the separator sat on one line box — mono,
+                `--type-mono`, leading 1.65, which moves with the reader's text
+                size — and the title on another — serif, a raw default that does
+                not. Two boxes, two families, two leadings, and a gap between them
+                that grew from 1.45px at the default size to 5.74px at 120%. One
+                register for the whole trail is what keeps it to one line box, and
+                that is the alignment. The register is now the UI face — see the
+                note on the `<ol>` below for why the trail left mono entirely, and
+                what carries "you are here" in its place.
 
                 **Three.** The separator has to live INSIDE the label, not beside it.
                 The note this replaced said the invariant held "by construction",
@@ -339,8 +339,8 @@ const proseClass = [
               */}{' '}
               {/*
                 `font-serif` is not a typo and it changes nothing you can see: the
-                `ol` below sets `.meta`, so no glyph on this trail is drawn in the
-                body face.
+                `ol` below sets `font-sans`, so no glyph on this trail is drawn in
+                the body face.
 
                 It is here for `ch`. `--measure` is `70ch`, and `ch` resolves against
                 the element's OWN font. `@layer base` puts `nav { font-family:
@@ -352,9 +352,52 @@ const proseClass = [
                 track's 736px, 70px wider than the text it sits above. Declaring the
                 body face on the nav puts both `ch` measurements in the same font,
                 which is what makes one cap mean the same width in both places.
+
+                This is why the trail's TYPEFACE moved but the nav's did not. `ch` is
+                a measuring instrument here, and the instrument is the article's
+                face whatever the trail is drawn in.
               */}
-              <nav aria-label="Breadcrumb" class="mb-6 max-w-measure font-serif">
-                <ol class="meta m-0 flex list-none flex-wrap items-baseline gap-x-1 gap-y-1 p-0">
+              <nav aria-label="Breadcrumb" class="mb-4 max-w-measure font-serif">
+                {/*
+                  THE TRAIL IS CHROME, NOT EVIDENCE.
+
+                  It was `.meta` — JetBrains Mono, uppercase, tracked out — which is
+                  the register this project reserves for things that carry a value:
+                  grade chips, `[S##]` citations, `E-Rows`, running heads. A
+                  breadcrumb carries no value, it carries a path, and borrowing the
+                  evidence register made the loudest false signal on the page.
+
+                  It was loud in three compounding ways, all visible at once in the
+                  top 100px. It was BIGGER than the running head directly above it
+                  (`--type-mono` 13px against `--type-running-head` 11px), so the
+                  page opened with two stacked uppercase mono bands and the second
+                  one shouted. It duplicated the `h1` sitting 16px below it in a
+                  second family, weight and case — and on a section index the
+                  duplication is total, `PROVEN TECHNIQUES — CHOOSE BY SYMPTOM` over
+                  the identical `h1`. And its last crumb was the only `--ink`
+                  element in the top band, a full-ink false climax directly above
+                  the one element that is supposed to be the page's voice. On a
+                  390px phone it took THREE full lines, and the third of them was
+                  the h1's own title.
+
+                  So: `font-sans` at `text-ui`, which is what DESIGN.md assigns to
+                  nav, TOC labels and buttons — the chrome register the trail was
+                  always a member of in intent. That drops it below the running head
+                  in presence, breaks the two-band stack, and lets the h1 be the
+                  loudest thing in the first viewport without anyone having to
+                  ask which thing is the title.
+
+                  The ink steps down with it. Ancestors carry `--ink-faint`, the
+                  same 6.6:1 the running head carries, because they are the part of
+                  the trail that is information you do not have yet. The current
+                  page is `--ink-muted` at `font-medium`: one step UP, not the four
+                  up to `--ink` it was, and a weight step rather than a colour
+                  jump — the "you are here" signal, held inside one register. It is
+                  also the last crumb in a trail whose last crumb is never a link,
+                  and that plus `aria-current` is what identifies it; colour is the
+                  third signal, not the only one.
+                */}
+                <ol class="m-0 flex list-none flex-wrap items-baseline gap-x-1 gap-y-1 p-0 font-sans text-ui text-ink-faint">
                   <li class="min-w-0">
                     <a
                       href="/"
@@ -389,7 +432,7 @@ const proseClass = [
                        */
                       <li class={isLast ? 'min-w-0 truncate' : 'min-w-0'}>
                         {isLast ? (
-                          <span aria-current="page" class="text-ink">
+                          <span aria-current="page" class="font-medium text-ink-muted">
                             <span aria-hidden="true" class="mr-1 select-none">
                               /
                             </span>
