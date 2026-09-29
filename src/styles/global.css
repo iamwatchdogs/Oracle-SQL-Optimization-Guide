@@ -113,9 +113,15 @@
   /*
    * Route-transition choreography — the shared vocabulary.
    *
-   * One duration, one stagger, one dead beat, and the two travel distances. 190ms
-   * per piece, 45ms between pieces, 70ms of nothing between the last thing leaving
-   * and the first thing arriving.
+   * Four numbers and two travel distances, and every delay in the block below is
+   * derived from them rather than typed out:
+   *
+   *   240ms per piece · 45ms between pieces · 70ms of nothing in the middle
+   *
+   * The third one is the load-bearing number. The pieces leave top-down and come
+   * back bottom-up, so nothing arrives until the last thing has gone, and the
+   * 70ms between the two is a real pause on a real blank page. It is called a dead
+   * beat because nothing is scheduled in it, not because nothing is in it.
    */
   /*
    * Per-piece duration.
@@ -128,11 +134,12 @@
    * shape of the choreography is identical and only its pace moves.
    */
   --zone-dur: 240ms;
+  --zone-stagger: 45ms;
+  --zone-beat: 70ms;
   --zone-travel: 60px;
   --zone-drop: 36px;
   --zone-out-ease: cubic-bezier(0.4, 0, 1, 1);
   --zone-in-ease: cubic-bezier(0, 0, 0.2, 1);
-  --zone-beat: 70ms;
 
   /*
    * The two variants, as delays and directions. Which one is live is decided by
@@ -140,33 +147,48 @@
    * `BaseLayout.astro`, and it arrives here as an inherited custom property rather
    * than as a selector — see the note above the zone rules for why that is not a
    * stylistic preference.
+   *
+   * The exit ladder is the page read top to bottom. The entrance ladder is that
+   * ladder reversed, and every one of its numbers is written as an offset from
+   * `--zone-enter-base` — the moment the last piece finishes leaving plus the dead
+   * beat. Retiming the swap is therefore a change to one of four numbers above, and
+   * there is no way for the two ladders to fall out of step with each other.
    */
   --zone-exit-rh: 0ms;
-  --zone-exit-rail: 45ms;
-  --zone-exit-body: 90ms;
-  --zone-exit-body-home: 90ms;
-  --zone-exit-title: 0ms;
-  --zone-exit-pager-prev: 135ms;
-  --zone-exit-pager-next: 180ms;
-  --zone-exit-meta: 90ms;
+  --zone-exit-rail: var(--zone-stagger);
+  --zone-exit-body: calc(2 * var(--zone-stagger));
+  --zone-exit-body-home: calc(2 * var(--zone-stagger));
+  --zone-exit-pager-prev: calc(3 * var(--zone-stagger));
+  --zone-exit-pager-next: calc(4 * var(--zone-stagger));
+  --zone-exit-meta: calc(2 * var(--zone-stagger));
 
-  --zone-enter-rh: 670ms;
-  --zone-enter-rail: 625ms;
-  --zone-enter-body: 580ms;
-  --zone-enter-body-home: 580ms;
-  --zone-enter-pager-prev: 535ms;
-  --zone-enter-pager-next: 490ms;
-  --zone-enter-meta: 580ms;
+  /*
+   * 490ms: the pager cell at the foot of the page finishes leaving at 180 + 240,
+   * and the beat adds 70. The first thing to come back is the pager cell, because
+   * it was the last thing to go.
+   */
+  --zone-enter-base: calc(4 * var(--zone-stagger) + var(--zone-dur) + var(--zone-beat));
+  --zone-enter-pager-next: var(--zone-enter-base);
+  --zone-enter-pager-prev: calc(var(--zone-enter-base) + var(--zone-stagger));
+  --zone-enter-body: calc(var(--zone-enter-base) + 2 * var(--zone-stagger));
+  --zone-enter-body-home: calc(var(--zone-enter-base) + 2 * var(--zone-stagger));
+  --zone-enter-meta: calc(var(--zone-enter-base) + 2 * var(--zone-stagger));
+  --zone-enter-rail: calc(var(--zone-enter-base) + 3 * var(--zone-stagger));
+  --zone-enter-rh: calc(var(--zone-enter-base) + 4 * var(--zone-stagger));
 
+  /*
+   * Which way each piece comes back from, or whether it simply resolves in place.
+   * An edge leaves along its own axis and returns along the same one; the two
+   * centre pieces dissolve where they stand.
+   */
   --zone-in-rh: zone-in;
   --zone-in-rail: zone-in-left;
-  --zone-in-body: none;
+  --zone-in-body: zone-in;
   --zone-in-body-home: zone-in;
   --zone-in-pager-prev: zone-in-left;
   --zone-in-pager-next: zone-in-right;
   --zone-in-meta: zone-in-right;
 
-  /* The title is not a zone on a jump, and is the anchor of a pager hop. */
   --type-running-head: calc(0.6875rem * var(--type-scale));
   --type-pager: calc(1rem * var(--type-scale));
   --type-contribution: calc(1.125rem * var(--type-scale));
@@ -254,17 +276,21 @@
 /*
  * The pager variant.
  *
- * The reading column rises into place instead of simply being there, so a next/previous
- * cell reads as a step along a linear book rather than as a cut. Transform only — see
- * the note on the incoming halves for why nothing on the arriving side may animate its
- * opacity.
+ * The reading column RISES into place instead of resolving where it stands, so a
+ * next/previous cell reads as a step along a linear book rather than as a cut. It
+ * dissolves as well as travelling, because the dead beat is the point and a piece
+ * that is simply there through the pause is not participating in it.
  *
- * The heading is not a zone. It lives inside the reading column, and the column is
- * painted from the first frame, so a separate title snapshot would be a second copy of
- * the same pixels sitting on top of the first.
+ * This is the ONLY difference between the two variants. The entrance ladder, the
+ * dead beat and the furniture's behaviour are shared, so a pager hop and a section
+ * jump take exactly as long and are legible in the same way.
+ *
+ * The heading is not a zone. It lives inside the reading column, so naming it would
+ * snapshot the same pixels twice and put a second copy of the title on top of the
+ * first for the length of the swap.
  */
 html[data-nav='pager'] {
-  --zone-in-body: zone-rise;
+  --zone-in-body: zone-in-up;
 }
 
 /*
@@ -1411,8 +1437,8 @@ details[data-disclosure-closing] .disclosure-icon {
 /*
  * Route transition choreography.
  *
- * What is below is a per-zone stagger with two variants, and the reason it is
- * written the way it is comes from three defects that each looked like something
+ * What is below is TWO staggers with a pause between them, one variant, and the reason
+ * it is written the way it is comes from three defects that each looked like something
  * else. All three were measured on the built site with `document.getAnimations()`
  * during a real navigation, and all three are pinned by
  * `test/e2e/route-transition.spec.mjs` and
@@ -1463,11 +1489,15 @@ details[data-disclosure-closing] .disclosure-icon {
  * `z-index` does the paint-order flip, because the two snapshots are siblings inside
  * `::view-transition-image-pair` and default to tree order, which paints the new one
  * on top. Every old half is 2 and every new half is 1, so each zone is a draw of the
- * departing piece over an opaque incoming one and the composite can never be darker
- * than the page underneath. That is also why the arriving half animates opacity at
- * all: a named pseudo with no animation is a filled, opaque snapshot from frame one,
- * so the old piece is UNCOVERED rather than faded toward nothing, and the dead beat
- * reads as a dissolve instead of a hole.
+ * departing piece over the arriving one, and the composite is an ordinary source-over
+ * against this paper however little of either half is showing. What the middle of the
+ * swap therefore shows is the `root` snapshot underneath — the page background and the
+ * chrome, which is where the header's steady hand during a swap comes from.
+ *
+ * The gap between the two ladders is `--zone-beat`. It is not padding: the arrival
+ * delays are written as offsets from `--zone-enter-base`, which is the last exit's
+ * end PLUS the beat, so the beat cannot be edited away by moving a delay and cannot
+ * silently collapse to zero if someone sets it that way without noticing.
  *
  * Group geometry is off. `animation: none` below means no zone is moved, scaled or
  * resized between the two snapshots. A shared-element group morphs from the old box
@@ -1497,11 +1527,12 @@ details[data-disclosure-closing] .disclosure-icon {
  *           page reassembles in the REVERSE of the order the pieces left — pager
  *           cell first, running head last.
  *
- *   pager — the next/previous cell. A deliberate step along a linear book, so the
- *           new page is ANCHORED ON ITS TITLE: the title arrives first and the
- *           reading column cascades down out of it, each piece from slightly above
- *           where it will sit. The rail and the pager cells still come in from their
- *           own edges, so the divergence survives.
+ *   pager — the next/previous cell. A deliberate step along a linear book. The same
+ *           ladder and the same dead beat as a jump; the one difference is that the
+ *           reading column RISES into place from 36px above rather than resolving
+ *           where it stands, so the page arrives from slightly ahead of the reader
+ *           rather than under their feet. The rail and the pager cells still come in
+ *           from their own edges, so the divergence survives.
  *
  * Four decisions here are load-bearing, and each of them is a bug this design has
  * already had once.
@@ -1535,11 +1566,12 @@ details[data-disclosure-closing] .disclosure-icon {
  * `::view-transition-old/new(root)` — the fade and a `mix-blend-mode` one — and
  * Astro's `astroFadeIn`/`astroFadeOut` bake `plus-lighter` into their own keyframes
  * as well, so the snapshots are ADDED rather than stacked. Addition is only correct
- * while the two opacities sum to 1, which a staggered sequence cannot hold:
- * under-exposed frames show the paper through, and this paper is `#0c0c0e`, so the
- * middle of every chapter change dimmed the page and brought it back. Stating
- * `normal` per keyframe is the fix, and the new page is always opaque and
- * underneath, so the composite can never be darker than the page under it.
+ * while the two opacities sum to 1, which a staggered sequence cannot hold for a
+ * single frame: during the dead beat they sum to ZERO. Under those frames the paper
+ * shows through, and this paper is `#0c0c0e`, so the middle of every chapter change
+ * used to dim the page and bring it back. Stating `normal` per keyframe is the fix,
+ * and it matters more on the arrival than on the departure, because the arrival is
+ * the half whose opacity actually reaches zero.
  *
  * **The `animation` shorthand, not longhands.** For the opposite reason to the
  * previous version: the UA's blend animation is a SECOND animation on the same
@@ -1707,81 +1739,80 @@ details[data-disclosure-closing] .disclosure-icon {
 }
 
 /*
- * Every zone's arrival: PAINTED FROM THE FIRST FRAME, and never animated in opacity.
+ * Every zone's arrival: a second stagger, in the REVERSE of the order the pieces
+ * left, starting only once every exit has finished.
  *
- * This is the fourth and last of the defects, and it is the one that made the whole
- * feature feel broken rather than merely imperfect.
+ * Reverse order is the whole effect. A reader who watches the running head go
+ * first and the pager cell go last sees a page come apart, and then sees that same
+ * page build itself back up from the bottom. Forward order would read as the two
+ * pages sliding past one another, which is a transition between documents; reverse
+ * order reads as one document opening and closing.
  *
- * The entrance used to fade each zone in at its own delay, which is the obvious way to
- * write it and is wrong here. The zones leave top-down and arrive bottom-up, so a zone
- * that leaves first arrives last and is therefore absent for the longest — and those
- * windows stack in the middle of the swap. At its centre there was a moment when no
- * zone was painted at all: the reading column, the rail and the running head were all
- * gone at once and the page was simply not there. Measured on the dev server, 250ms
- * of an 810ms swap with nothing on screen, and it is why section-to-section read as
- * "the transition is removed" rather than as a fast swap.
+ * It is also why the middle of the swap is blank. A zone that leaves first arrives
+ * last, so the zones are absent longest in the middle and their absences stack: at
+ * the centre of every jump there is a genuine moment when nothing is painted, and
+ * that is deliberate. It is the beat a reader feels as a page changing rather than
+ * as pixels moving, and it is the reason this choreography does not overlap the
+ * two ladders — an overlapping entrance closes that hole and buys only a shorter
+ * version of the same effect.
  *
- * That is not a timing problem and cannot be tuned away: the gaps coincide because of
- * the reverse ordering, so every value of every delay produces the same hole.
- *
- * A view-transition pseudo with no animation is a filled, opaque snapshot from the
- * first frame, which is the property the whole design was originally built on and which
- * this had quietly stopped using. Giving the incoming halves no opacity animation
- * restores it: the new page is always under the departing pieces, each of which lifts
- * off it in turn, and the page is uncovered rather than absent. The stagger is still
- * legible — it is the peel, not the arrival.
- *
- * The trade is real and stated plainly: this is "the old page is taken away" rather
- * than "the new page is built", so the reverse-order reassembly is gone. It was never
- * visible as reassembly, because the reassembly happened over a blank page.
+ * `z-index` still does the paint-order flip, so each zone is a draw of the
+ * departing piece over the arriving one. Because both halves of a zone are inside
+ * the same isolated `::view-transition-image-pair` and the keyframes below state
+ * `mix-blend-mode: normal` outright, that draw is an ordinary composite and cannot
+ * go darker than the paper underneath it, however little of either half is showing.
  */
-::view-transition-new(rh),
-::view-transition-new(rail),
-::view-transition-new(body),
-::view-transition-new(body-home),
-::view-transition-new(pager-prev),
-::view-transition-new(pager-next),
+::view-transition-new(rh) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rh) both var(--zone-in-rh);
+}
+
+::view-transition-new(rail) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rail) both var(--zone-in-rail);
+}
+
+::view-transition-new(body) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-body) both var(--zone-in-body);
+}
+
+::view-transition-new(body-home) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-body-home) both
+    var(--zone-in-body-home);
+}
+
+::view-transition-new(pager-prev) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-prev) both
+    var(--zone-in-pager-prev);
+}
+
+::view-transition-new(pager-next) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-next) both
+    var(--zone-in-pager-next);
+}
+
+/* The metadata margin only exists on the home page, so only a jump can carry it. */
 ::view-transition-new(meta) {
   z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-meta) both var(--zone-in-meta);
 }
 
 /*
- * The pager hop is the one variant with something to animate on arrival, and it animates
- * TRANSFORM only, for the same reason: a transform moves a painted snapshot, it does not
- * withhold one. The new page rises 36px into place while the old one peels off above it,
- * which is what makes a pager cell read as a step along a linear book.
+ * The `animation` SHORTHAND, not longhands, for the same reason the exit halves use
+ * it: the UA's additive blend is a SECOND animation on the same pseudo-element and
+ * no longhand can reach it.
  *
- * BARE selector, with the variant arriving through `--zone-in-body` rather than through
- * a qualified one. `html[data-nav='pager'] ::view-transition-new(body)` does not match
- * the view-transition pseudo tree at all — the same trap as everywhere else in this
- * block — and when it was written that way Astro's own `astroFadeIn` won and the reading
- * column cross-faded on 180ms instead. `none` is a valid animation-name, so the jump
- * variant resolves to no animation at all and the pseudo is a filled opaque snapshot.
+ * BARE selectors throughout, with the pager variant arriving through the inherited
+ * `--zone-in-body` rather than through a qualified selector. An
+ * `html[data-nav='pager'] ::view-transition-new(body)` does not match the
+ * view-transition pseudo tree at all — those pseudo-elements hang off the document
+ * element, not off `<html>`'s box — so it parses, reaches the CSSOM, and never
+ * applies, and Astro's own `astroFadeIn` wins instead.
  */
-::view-transition-new(body) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) 0ms both var(--zone-in-body);
-}
-
-@keyframes zone-rise {
-  from {
-    transform: translateY(calc(-1 * var(--zone-drop)));
-  }
-
-  to {
-    transform: translateY(0);
-  }
-}
-
-::view-transition-old(title) {
-  z-index: 2;
-  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-title) both zone-out;
-}
-
-::view-transition-new(title) {
-  z-index: 1;
-  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-title) both var(--zone-in-title);
-}
 
 /*
  * `.rise` is the title block's entrance and it belongs to the FIRST VIEWPORT of a
