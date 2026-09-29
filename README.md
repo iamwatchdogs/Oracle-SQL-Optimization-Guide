@@ -88,10 +88,21 @@ They are checked in rather than built, so a normal build never rewrites a binary
 
 ## Deploying
 
-GitHub Pages, through Actions — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
-Push to `main`; the workflow builds, uploads the artifact and publishes it.
+GitHub Pages, through Actions — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+and [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). Push to `main`;
+the deploy workflow builds, uploads the artifact and publishes it.
 
-The one thing to know is that a GitHub Pages _project_ site is served from
+Two settings live on the repository rather than in the code, and neither is
+optional:
+
+- **Settings → Pages → Build and deployment → Source: GitHub Actions.** Without
+  this the deploy job has nowhere to publish to.
+- **Settings → Branches → Protect `main`**, with the `CI / verify` check required.
+  The two workflows are separate on purpose — deploy needs `pages: write`, and CI
+  should stay read-only — so a _direct push to `main`_ would otherwise publish
+  without being checked. Branch protection is what closes that.
+
+The one thing to know about a project site is that GitHub Pages serves it from
 `/<repo>/` rather than `/`, which is why `base` is set in `astro.config.mjs` and
 why every link in the prose is prefixed at render time rather than in the source.
 

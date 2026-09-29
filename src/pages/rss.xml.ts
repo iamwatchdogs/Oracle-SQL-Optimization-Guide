@@ -19,9 +19,12 @@ import {
  * carries the edition's compile date, which is true of all of them — they were
  * compiled together, and the colophon already prints it.
  *
- * A chapter that is genuinely revised gains a `date` in its frontmatter and then
- * sorts above the rest. That is the whole upgrade path, and it is one line per
- * chapter rather than a date to maintain across 37 files that mostly never change.
+ * `entry.data.date` is the way out. A chapter that is genuinely revised adds one
+ * to its frontmatter and the schema starts accepting it; until then the field
+ * does not exist, because an unused schema field is a promise nothing keeps.
+ * Revised chapters are ordered by `order` and not by date, so a revision shows up
+ * as a new `pubDate` on an item a reader already has rather than as a reordered
+ * feed. A book is read in order; a feed that reshuffles is harder to follow.
  *
  * ## What a feed is for here
  *

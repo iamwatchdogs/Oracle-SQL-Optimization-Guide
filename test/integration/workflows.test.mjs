@@ -56,7 +56,11 @@ test('CI runs the same gate the developer runs locally', async () => {
   const gates = names.map((name) => `bun run ${name}`);
 
   gates.forEach((gate, index) => {
-    expect(run, `CI does not run "${gate}"`).toContain(gate);
+    /* Anchored, and not a bare `toContain`: `bun run test` is a substring of
+       `bun run test:e2e`, so deleting the unit-test step would leave this green. */
+    expect(run, `CI does not run "${gate}"`).toMatch(
+      new RegExp(`^\\s*${gate.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\s*$`, 'mu'),
+    );
     /* The script a gate invokes has to exist, or `bun run` fails at the first step
        rather than at the one that was actually missing. */
     expect(scripts.scripts[names[index]], `no "${names[index]}" script`).toBeTruthy();
@@ -80,8 +84,13 @@ test('the deploy is gated on the same checks the branch is', async () => {
   /*
    * Deploy is a separate workflow because it needs `pages: write`, and this
    * project should not grant that on every push. The cost of splitting them is
-   * that nothing forces the two to agree — so `main` is required for both, and
-   * CI covers pull requests, which means nothing reaches `main` unchecked.
+   * that nothing in either file forces the two to agree — both require `main`, and
+   * CI covers pull requests, so a change *through a pull request* is checked.
+   *
+   * A direct push to `main` still deploys unchecked. Closing that is a repository
+   * setting, not a file: branch protection with CI as a required check. The
+   * README says so, because a guarantee that depends on a setting nothing in the
+   * repository mentions is not a guarantee.
    */
   expect(deploy.on.push.branches).toEqual(['main']);
   expect(ci.on.push.branches).toEqual(['main']);
@@ -142,7 +151,7 @@ test('the deploy uses the official Astro action, not a hand-rolled upload', asyn
   expect(uses.some((action) => action.startsWith('withastro/action@'))).toBe(true);
 });
 
-test('every action is pinned to a major tag that exists', async () => {
+test('every action is pinned to a major tag', async () => {
   const documents = await Promise.all([workflow('ci.yml'), workflow('deploy.yml')]);
 
   const actions = documents.flatMap((doc) =>
@@ -152,8 +161,12 @@ test('every action is pinned to a major tag that exists', async () => {
       .filter(Boolean),
   );
 
-  /* A major tag, not a SHA and not `main`: a floating ref can change under a
-     pipeline that has already been reviewed. */
+  /*
+   * A major tag, not a SHA and not `main`: a floating ref can change under a
+   * pipeline that has already been reviewed. This asserts the shape, not that the
+   * tag exists — no test can know which tags a third party has published, and the
+   * versions here were read from each registry when the workflow was written.
+   */
   actions.forEach((action) => {
     expect(action).toMatch(/^[\w.-]+\/[\w.-]+@v\d+$/u);
   });
