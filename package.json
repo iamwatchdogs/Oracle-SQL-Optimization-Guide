@@ -24,6 +24,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "sync": "astro sync",
+    "icons": "bun scripts/generate-icons.mjs",
     "check": "astro check",
     "check:tsgo": "tsgo --noEmit -p tsconfig.json",
     "lint": "oxlint . --deny-warnings",
