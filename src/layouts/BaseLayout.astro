@@ -27,7 +27,14 @@ interface Props {
   bare?: boolean;
   sections?: SectionLink[];
   sectionPosition?: number | undefined;
-  /** Emit `<meta name="robots" content="noindex">`. Use for error pages. */
+  /**
+   * Emit `<meta name="robots" content="noindex">`. Use for error pages.
+   *
+   * An error page also omits its canonical, because there is no URL for it to be
+   * canonical *to*. A 404 declares itself canonical at a path that does not exist,
+   * and `<link rel="canonical">` is a hint a crawler may follow — pointing one at
+   * a page that itself 404s teaches a crawler about a page that is not there.
+   */
   noindex?: boolean;
 }
 
@@ -144,7 +151,8 @@ const feedHref = new URL('rss.xml', siteRoot).href;
     <meta name="theme-color" content={THEME_COLOR} />
     <link rel="manifest" href={withBase('/site.webmanifest')} />
     <meta name="application-name" content="Oracle SQL" />
-    <link rel="canonical" href={canonical} />
+    {/* No canonical on a noindex page — see the `noindex` prop. */}
+    {!noindex && <link rel="canonical" href={canonical} />}
     <meta property="og:type" content={isArticle ? 'article' : 'website'} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={metaDescription} />
