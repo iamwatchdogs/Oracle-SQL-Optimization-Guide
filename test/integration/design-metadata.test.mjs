@@ -90,39 +90,91 @@ test('the route fade is documented as uncovering the new page, not cross-fading'
   expect(motionSection).toMatch(/prefers-reduced-motion/iu);
 });
 
-test('the route fade ships at 180ms on every template that declares one', async () => {
+test('the route swap names its zones, and names them explicitly', async () => {
   /*
-   * The cross-fade is read from the ROUTE TEMPLATES, not the layout.
+   * Every zone is an explicit `transition:name`, never a `transition:animate`.
    *
-   * DESIGN.md sanctions exactly one opacity transition, and it is the
-   * whole-document one the `<ClientRouter>` swap performs on the swapped
-   * content. It used to be declared on four sibling elements — two `<main>`
-   * branches and the `<header>` — which meant the persistent header chrome
-   * dissolved and re-materialised on every navigation (content entrance on
-   * furniture, and the exact thing the design world's rationale excludes) and
-   * four elements cross-faded independently instead of one page. The header
-   * declaration is now gone, and this test pins that: the count is asserted
-   * against BOTH templates, so a fourth one coming back fails here rather than
-   * shipping.
+   * This used to assert three `fade({ duration: '0.18s' })` calls — one per
+   * `<main>` across the two route templates. There is no `fade()` left: the swap is
+   * a per-zone stagger now, and `fade()` writes `plus-lighter` into its own
+   * keyframes, which a staggered sequence cannot composite. Every zone is named
+   * instead, so the choreography in `global.css` can reach it by name.
+   *
+   * The count is the part that must not drift. A `<main>` that quietly loses its
+   * name becomes an unnamed region inside the root snapshot and stops taking part in
+   * the stagger, which is invisible in review and obvious on screen.
    */
   const templates = await Promise.all(
-    ['src/pages/[...slug].astro', 'src/pages/404.astro'].map((path) => readRepoFile(path)),
+    [
+      'src/pages/[...slug].astro',
+      'src/pages/404.astro',
+      'src/components/HomeTitleBlock.astro',
+      'src/components/PrevNext.astro',
+    ].map((path) => readRepoFile(path)),
   );
-  const routeFades = templates
-    .flatMap((source) => [...source.matchAll(/fade\(\{ duration: '([\d.]+)s' \}\)/gu)])
-    .map(([, seconds]) => Math.round(Number(seconds) * 1000));
+  const declared = templates
+    .flatMap((source) => [...source.matchAll(/transition:name="([\w-]+)"/gu)])
+    .map(([, name]) => name);
 
-  expect(routeFades).toHaveLength(3);
-  for (const duration of routeFades) {
-    expect(duration).toBe(180);
+  /* Three `<main>`s across the route templates — two mutually exclusive branches of
+   * the catch-all plus the 404's own — and the rest are content zones. */
+  expect(declared.filter((name) => name === 'body')).toHaveLength(3);
+  for (const zone of ['rh', 'rail', 'meta', 'pager-prev', 'pager-next']) {
+    expect(declared, `zone ${zone} is not named in any template`).toContain(zone);
   }
-  /* Exactly one cross-fade per page: the two mutually exclusive `<main>`
-   * branches of the catch-all plus the 404 page's own `<main>`. */
-  expect(markup(baseLayout)).not.toMatch(/transition:animate/u);
-  /* The catch-all carries two — its `<main>` is written twice for the home and
-   * interior branches, which are mutually exclusive — and 404 carries one. */
-  expect(markup(templates[0]).match(/transition:animate/gu)).toHaveLength(2);
-  expect(markup(templates[1]).match(/transition:animate/gu)).toHaveLength(1);
+
+  /* No `fade()` and no `transition:animate` anywhere in the routes: a re-introduced
+   * animation would write `plus-lighter` back over the zone choreography. */
+  for (const source of templates) {
+    expect(source).not.toMatch(/transition:animate/u);
+    expect(source).not.toMatch(/from 'astro:transitions'/u);
+  }
+  /* The layout declares none either — it owns the router, not the zones. */
+  expect(markup(baseLayout)).not.toMatch(/transition:(animate|name|persist)/u);
+});
+
+test('the title is named in CSS and only for a pager hop', async () => {
+  /*
+   * The one zone that is not a template directive.
+   *
+   * A section jump must NOT pair the headings: the home h1 is `text-display` at up
+   * to 6rem and a section h1 is `text-title` at up to 2.5rem, in different parts of
+   * different layouts. Pairing them morphs a 2.4x scale and a ~328px move, which is
+   * the page-assembles-itself artifact. A pager hop is between two pages of the
+   * same shape, so there the pairing is what the cascade hangs from.
+   *
+   * An Astro `transition:name` compiles to a rule that is always on, so the
+   * distinction can only be expressed in CSS, keyed on the navigation kind.
+   */
+  const [slug, global] = await Promise.all([
+    readRepoFile('src/pages/[...slug].astro'),
+    readRepoFile('src/styles/global.css'),
+  ]);
+
+  expect(slug).not.toMatch(/transition:name="(page-)?title"/u);
+
+  /*
+   * The name is a custom property, not a literal, and the variant is chosen by
+   * `--zone-title` rather than by an ancestor-qualified selector. Both halves matter:
+   *
+   * A qualified `html[data-nav='pager'] .reading-column h1` DOES match here, because
+   * this is a real element in the real tree rather than a view-transition
+   * pseudo-element. But the zone RULES that consume the name must stay bare — the
+   * pseudos hang off the document element and an ancestor-qualified selector never
+   * reaches them, which is the defect `route-transition.spec.mjs` pins.
+   */
+  expect(global).toMatch(/\.reading-column h1 \{[^}]*view-transition-name: var\(--zone-title\)/u);
+  expect(global).not.toMatch(/view-transition-name: title/u);
+  /* Exactly one element is named, and the value arrives from the token table. */
+  expect(global.match(/view-transition-name: var\(--zone-title\)/gu)).toHaveLength(1);
+  /* The token is `none` by default and `title` only under the pager kind. */
+  expect(global).toMatch(/--zone-title: none;/u);
+  expect(global).toMatch(/html\[data-nav='pager'\] \{[^}]*--zone-title: title;/u);
+  /* No zone rule is ancestor-qualified: that form silently never applies.
+     Checked against the stylesheet with its comments stripped, because the file
+     documents the failure in prose and the prose names the exact selector. */
+  const rules = global.replaceAll(/\/\*[\s\S]*?\*\//gu, '');
+  expect(rules).not.toMatch(/html\[data-nav='[a-z]+'\] ::view-transition-/u);
 });
 
 test('in-page entrance motion stays transform-only', () => {
