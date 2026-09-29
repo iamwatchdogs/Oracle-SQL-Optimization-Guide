@@ -335,12 +335,30 @@ const proseClass = [
                   {breadcrumbItems.map((item, i) => {
                     const isLast = i === breadcrumbItems.length - 1;
                     return (
-                      <li class="min-w-0">
+                      /*
+                       * The LAST crumb truncates; the others do not. The truncation
+                       * lives on the `<li>`, not on the label, and that placement is
+                       * load-bearing.
+                       *
+                       * The trail aligns its items with `items-baseline`, so a label
+                       * has to contribute a TEXT baseline. An `inline-block` does —
+                       * except when its overflow is not visible, at which point the
+                       * spec makes its baseline its bottom margin edge instead.
+                       * `truncate` is `overflow: hidden`, so putting it on the label
+                       * silently cost this crumb its text baseline and the flex row
+                       * aligned its bottom edge to the other crumbs' baselines: a
+                       * measured 6.4px, with the title riding visibly high and the
+                       * trail's first line no longer level.
+                       *
+                       * The `<li>` is a block-level flex item, and a block container
+                       * takes its baseline from its first line box regardless of
+                       * overflow — so the ellipsis stays and the baseline is honest.
+                       * The label inside is then plain inline, which also keeps the
+                       * `/` and the title sharing one line box.
+                       */
+                      <li class={isLast ? 'min-w-0 truncate' : 'min-w-0'}>
                         {isLast ? (
-                          <span
-                            aria-current="page"
-                            class="inline-block max-w-full truncate text-ink"
-                          >
+                          <span aria-current="page" class="text-ink">
                             <span aria-hidden="true" class="mr-1 select-none">
                               /
                             </span>
