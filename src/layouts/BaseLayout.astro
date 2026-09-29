@@ -95,10 +95,29 @@ const isArticle = currentPath !== '/';
     <meta name="generator" content={Astro.generator} />
     {noindex && <meta name="robots" content="noindex, follow" />}
     <ClientRouter fallback="animate" />
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0c0e'/%3E%3Cpath d='M7 9h18M7 16h18M7 23h11' stroke='%238aa4ff' stroke-width='2'/%3E%3C/svg%3E"
-    />
+    {/*
+      The icon set is real files rather than an inline data URI. A data URI
+      cannot be cached across pages, cannot be a home-screen icon at 192px, and
+      meant every page re-parsed the same 300 bytes of SVG. The order is the one
+      browsers expect: the ICO first, because Safari and older desktop browsers
+      still ask for it by name and would otherwise take the SVG and render it
+      with no fallback.
+    */}
+    <link rel="icon" href={withBase('/favicon.ico')} sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
+    <link rel="icon" type="image/png" sizes="32x32" href={withBase('/favicon-32x32.png')} />
+    <link rel="icon" type="image/png" sizes="16x16" href={withBase('/favicon-16x16.png')} />
+    <link rel="apple-touch-icon" href={withBase('/apple-touch-icon.png')} />
+
+    {/*
+      The paper colour, so a browser paints its own chrome in the book's colour
+      rather than in white. It matches the manifest's `theme_color`; both are the
+      dark default, which is the one a reader is looking at before they have
+      chosen anything.
+    */}
+    <meta name="theme-color" content="#0c0c0e" />
+    <link rel="manifest" href={withBase('/site.webmanifest')} />
+    <meta name="application-name" content="Oracle SQL" />
     <link rel="canonical" href={canonical} />
     <meta property="og:type" content={isArticle ? 'article' : 'website'} />
     <meta property="og:title" content={fullTitle} />
