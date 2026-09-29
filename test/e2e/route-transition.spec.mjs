@@ -1,245 +1,298 @@
 /*
- * Route transition choreography, and the compositing bug that was hiding in it.
+ * Route transition choreography, and what it is built out of.
  *
- * Two failures were measured here, on the built site, with `document.getAnimations()`
- * during a swap.
+ * The swap is a per-zone stagger with two variants, selected by `data-nav` on
+ * `<html>` — `jump` for a section jump, `pager` for a next/previous cell. This
+ * spec drives real navigations and reads the animations the browser actually ran,
+ * because three separate defects in this feature were each invisible to a
+ * screenshot and to any assertion made against the stylesheet's source text:
  *
- * The first was a desynchronisation. The UA contributed its own
- * `::view-transition-group(*)` geometry animation at 250ms linear, while
- * `fade({ duration: '0.18s' })` faded the snapshots at 180ms on an eased curve — so
- * the shared `page-title` snapshot was still moving and scaling on a linear track
- * 70ms after the page it belonged to had finished arriving. Underneath that, the home
- * page's title-block entrance (500ms, up to a 240ms stagger, finishing at 740ms)
- * replayed on every client navigation, because the router re-creates that markup.
+ *   1. Astro writes its default per-zone animation inside `@layer astro`, and an
+ *      ancestor-qualified `html[data-nav='jump'] ::view-transition-old(body)` does
+ *      not match the view-transition pseudo tree at all. The rule parses, reaches
+ *      the CSSOM, and never applies.
+ *   2. The router re-applies the incoming document's `<html>` attributes on
+ *      `astro:after-swap`, deleting `data-nav` after it was written and before the
+ *      pseudo tree reads it — so every pager hop ran the jump choreography.
+ *   3. Astro's `astroFadeIn`/`astroFadeOut` bake `mix-blend-mode: plus-lighter`
+ *      into their keyframes, which a staggered sequence cannot composite.
  *
- * The second was a dark dip, and it was invisible in every one of those measurements,
- * because it is a property of how the two snapshots composite rather than of either
- * one's timing. `fade()` bakes `mix-blend-mode: plus-lighter` into both keyframes, and
- * the UA adds a second `-ua-mix-blend-mode-plus-lighter` animation on top. Addition is
- * only correct while the two opacities sum to 1. Making the fade sequential — out
- * 180ms, then in 260ms after a 140ms delay — broke that invariant for the whole
- * 140ms, the frames were under-exposed, and the paper showed through them. The paper is
- * `#0c0c0e`, so the middle of every chapter change dimmed the page and brought it back.
- *
- * The fix keeps the sequential read and changes the compositing. The new page carries
- * no animation at all: it is a fully opaque snapshot UNDERNEATH the old one, and the
- * old page is uncovered rather than faded toward nothing. These tests assert that
- * structure, because the dip cannot be observed from timings at all.
+ * So the assertions here are on the resolved animation list: the keyframe names,
+ * their resolved delays, and the transform endpoints. A regression reintroduces
+ * one of the three above as `astroFadeOut d=0` and these fail.
  */
-
 import { expect, test } from '@playwright/test';
 import { DESKTOP_VIEWPORT } from './support/toc.mjs';
+import { navigateTo } from './support/navigation.mjs';
 
-/*
- * The choreography, as constants rather than as prose.
+/** Every zone, in the order a jump reads the page: top to bottom. */
+const EXIT_ORDER = ['rh', 'rail', 'body', 'pager-prev', 'pager-next'];
+
+const PREFACE = '/00-preface/';
+const PROOF = '/00-preface/02-how-to-prove-a-win/';
+
+/* The swap is 810ms end to end; this covers the tail with room for a slow machine. */
+const SETTLE = 2400;
+
+/**
+ * Start recording, navigate, and return every view-transition animation the
+ * browser ran, de-duplicated.
  *
- * GEOMETRY  230ms on the project's ease-out: a title that arrives fast and settles
- *           reads as one motion, and it spans the swap rather than snapping at the
- *           end of the fade-out.
- * OUT       230ms, 50ms in: a beat where the old page is simply still there, then the
- *           removal, then the new page is revealed underneath it.
- * NEW       no animation. This is the load-bearing value in the file.
- * TOTAL     280ms. Above roughly 300ms a transition starts delaying the focus move
- *           and the route announcement, which is an accessibility cost.
+ * Recording starts BEFORE the click and reads `document.getAnimations()` on a
+ * timer rather than after `navigateTo` returns, because `navigateTo` waits for the
+ * new pathname — by which point the swap has already finished and the pseudo tree
+ * is gone. An animation whose keyframes have not resolved yet is skipped: the tree
+ * is live for a frame or two before the engine will answer for it.
  */
-const GEOMETRY_CURVE = 'cubic-bezier(0.22, 1, 0.36, 1)';
-const LIFT_CURVE = 'cubic-bezier(0.4, 0, 0.6, 1)';
-const GEOMETRY_MS = 230;
-const OUT_MS = 230;
-const OUT_DELAY_MS = 50;
-const TOTAL_MS = OUT_DELAY_MS + OUT_MS;
-
-const installViewTransitionRecorder = (page) =>
+const startRecorder = (page) =>
   page.evaluate(() => {
     const seen = new Set();
-    globalThis.viewTransitionTrace = seen;
-    const record = () => {
+    globalThis.zoneTrace = seen;
+    globalThis.zoneTraceId = setInterval(() => {
       for (const animation of document.getAnimations()) {
-        const pseudo = animation.effect?.pseudoElement ?? '';
-        if (!pseudo.includes('view-transition')) {
+        const raw = animation.effect?.pseudoElement ?? '';
+        if (!raw.includes('view-transition')) {
           continue;
         }
         const keyframes = animation.effect.getKeyframes();
-        /* A view-transition animation is in the tree for a frame or two before its
-           keyframes resolve, and an engine asked in that window answers with an
-           empty list. Recording that would assert an easing of "none" against a
-           curve that simply had not been reported yet; the next sample 20ms later
-           carries the real keyframes, so skip the empty ones. */
         if (keyframes.length === 0) {
           continue;
         }
         const timing = animation.effect.getTiming();
+        /*
+         * The travel, read from the START of the keyframes.
+         *
+         * A zone's `from` is its far edge and its `to` is rest: an entering piece
+         * begins at `translateX(-60px)` and lands at 0, a departing piece begins at
+         * 0 and leaves at `-60px`. So the offset that encodes direction and distance
+         * is the first one, and taking the last silently reports every zone as
+         * having travelled nowhere. The two halves are kept separately because the
+         * axis is the assertion: horizontal for the edges, vertical for the title.
+         */
+        const offsets = keyframes
+          .map((keyframe) => /translate([XY])\((-?[\d.]+)px\)/u.exec(keyframe.transform ?? ''))
+          .find(Boolean);
+        const start = offsets[0] ?? null;
         seen.add(
           JSON.stringify({
-            pseudo,
+            zone: raw.replace('::view-transition-', ''),
             name: animation.animationName,
-            duration: timing.duration,
             delay: timing.delay,
-            easings: [...new Set(keyframes.map((keyframe) => keyframe.easing))],
-            /* Opacity endpoints, which is where the compositing guarantee lives: a
-               fade that ENDS at 0 fully clears, revealing whatever is under it. */
             opacity: keyframes.map((keyframe) => keyframe.opacity),
+            axis: start?.[1] ?? null,
+            travel: start?.[2] ?? null,
           }),
         );
       }
+    }, 8);
+  });
+
+const readRecorder = (page) =>
+  page.evaluate(() => {
+    clearInterval(globalThis.zoneTraceId);
+    return [...globalThis.zoneTrace].map((entry) => JSON.parse(entry));
+  });
+
+async function recordSwap(page, go) {
+  await page.goto(PREFACE);
+  await page.waitForTimeout(600);
+  await startRecorder(page);
+  await go();
+  await page.waitForTimeout(SETTLE);
+  return readRecorder(page);
+}
+
+/** `new(rail)` → `['new', 'rail']` */
+const splitZone = (entry) => {
+  const match = /^(\w+)\(([^)]*)\)$/u.exec(entry.zone);
+  return match ? [match[1], match[2]] : [entry.zone, ''];
+};
+
+const half = (entries, side, zone) =>
+  entries.filter((entry) => {
+    const [kind, name] = splitZone(entry);
+    return kind === side && name === zone;
+  });
+
+const delays = (entries, side, zone) => half(entries, side, zone).map((entry) => entry.delay);
+
+/** `a[rel="next"]` on the current page, navigated for real. */
+const pressNext = async (page) => {
+  await page.locator('a[rel="next"]').first().click();
+  await page.waitForFunction((from) => location.pathname !== from, PREFACE, { timeout: 15_000 });
+};
+
+/**
+ * Assert that a set of edge zones travels the full distance on the horizontal axis
+ * in the expected direction, and that the named centre zones do not move at all.
+ *
+ * Shared by the jump and the pager variants because the divergence is the one thing
+ * they have in common: what differs between them is the centre's arrival, never the
+ * furniture's departure.
+ */
+function expectDividedEdges(entries, side, distance, centres = []) {
+  for (const [zone, direction] of [
+    ['rail', -1],
+    ['pager-prev', -1],
+    ['pager-next', 1],
+  ]) {
+    const zoneEntries = half(entries, side, zone);
+    expect(zoneEntries, `the ${side} half lost the ${zone} zone`).not.toEqual([]);
+    for (const entry of zoneEntries) {
+      expect(entry.axis, `${zone} does not travel on the horizontal axis`).toBe('X');
+      expect(entry.travel, `${zone} does not leave ${direction < 0 ? 'left' : 'right'}`).toBe(
+        String(direction * distance),
+      );
+    }
+  }
+  for (const zone of centres) {
+    for (const entry of half(entries, side, zone)) {
+      expect(entry.axis, `${zone} travels, and must not`).toBeNull();
+    }
+  }
+}
+
+const readTravel = (page) =>
+  page.evaluate(() => {
+    const computed = getComputedStyle(document.documentElement);
+    return {
+      travel: Number.parseFloat(computed.getPropertyValue('--zone-travel')),
+      drop: Number.parseFloat(computed.getPropertyValue('--zone-drop')),
     };
-    globalThis.viewTransitionTraceId = setInterval(record, 20);
   });
-
-const readViewTransitionRecorder = (page) =>
-  page.evaluate(() => {
-    clearInterval(globalThis.viewTransitionTraceId);
-    return [...globalThis.viewTransitionTrace].map((entry) => JSON.parse(entry));
-  });
-
-const navigateTo = (page, prefix) =>
-  page.evaluate((href) => {
-    const link = [...document.querySelectorAll('a')].find((anchor) =>
-      anchor.getAttribute('href')?.startsWith(href),
-    );
-    link.click();
-  }, prefix);
-
-/** Settle the scroll first, or a scroll still easing out competes for the frames. */
-const parkTheScroll = (page) =>
-  page.evaluate(() => {
-    document.documentElement.style.scrollBehavior = 'auto';
-    window.scrollTo(0, 3000);
-  });
-
-const risingCount = (page) =>
-  page.evaluate(
-    () =>
-      document.getAnimations().filter((animation) => animation.animationName === 'rise-in').length,
-  );
-
-const byPseudo = (entries, fragment) => entries.filter((entry) => entry.pseudo.includes(fragment));
-
-/** One swap's worth of recorded animations, sampled on a settled page. */
-async function recordOneSwap(page) {
-  await page.setViewportSize(DESKTOP_VIEWPORT);
-  await page.goto('/');
-  await page.waitForTimeout(700);
-  await parkTheScroll(page);
-  await page.waitForTimeout(300);
-
-  await installViewTransitionRecorder(page);
-  await navigateTo(page, '/00-preface/');
-  await page.waitForTimeout(1500);
-  return readViewTransitionRecorder(page);
-}
-
-/*
- * One duration and one curve per axis, and the whole swap inside 280ms.
- */
-async function runsOneDurationAndOneCurvePerAxis({ page }) {
-  const animations = await recordOneSwap(page);
-
-  const groups = byPseudo(animations, '::view-transition-group');
-  const olds = byPseudo(animations, '::view-transition-old');
-
-  expect(groups.length).toBeGreaterThan(0);
-  expect(olds.length).toBeGreaterThan(0);
-
-  for (const group of groups) {
-    expect(group.duration).toBe(GEOMETRY_MS);
-    expect(group.delay).toBe(0);
-    expect(group.easings).toEqual([GEOMETRY_CURVE]);
-  }
-  for (const old of olds) {
-    expect(old.duration).toBe(OUT_MS);
-    expect(old.delay).toBe(OUT_DELAY_MS);
-    expect(old.easings).toEqual([LIFT_CURVE]);
-  }
-  /* Every animation the swap ran, geometry included, fits in the budget it claims. */
-  for (const entry of animations) {
-    expect(entry.delay + entry.duration).toBeLessThanOrEqual(TOTAL_MS);
-  }
-}
-
-/*
- * The compositing guarantee, and the whole reason the dip is gone.
- *
- * Two things have to be true at once, and neither is visible in a duration:
- *
- *   1. the new page animates NOTHING, so it is opaque from the first frame. It is a
- *      filled page sitting underneath, not a page fading up from zero — which is
- *      what made the 140ms hole in the previous sequence.
- *   2. nothing composites additively. `plus-lighter` adds the two opacities, which is
- *      only right while they sum to 1; sequenced, they do not, and on this paper the
- *      under-exposed frames render darker than either page. The `animation` shorthand
- *      on the old page kills the UA's `-ua-mix-blend-mode-plus-lighter` alongside its
- *      fade, so there must be no such animation left in the tree.
- *
- * Then the old page's own fade has to END at zero opacity, or it never finishes
- * uncovering the page under it.
- */
-async function keepsTheNewPageOpaqueUnderneathInsteadOfFadingBothThroughThePaper({ page }) {
-  const animations = await recordOneSwap(page);
-
-  const news = byPseudo(animations, '::view-transition-new');
-  const olds = byPseudo(animations, '::view-transition-old');
-  const blends = animations.filter((entry) => entry.name.includes('-ua-mix-blend-mode-'));
-
-  expect(news).toEqual([]);
-  expect(blends).toEqual([]);
-  for (const old of olds) {
-    expect(old.opacity.at(0)).toBe('1');
-    expect(old.opacity.at(-1)).toBe('0');
-  }
-}
-
-/*
- * Reduced motion means less of it, not the same motion with a longer clock.
- */
-async function givesAReducedMotionReaderNoTransitionAtAll({ page }) {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.setViewportSize(DESKTOP_VIEWPORT);
-  await page.goto('/');
-  await page.waitForTimeout(500);
-  await parkTheScroll(page);
-
-  await installViewTransitionRecorder(page);
-  await navigateTo(page, '/00-preface/');
-  await page.waitForTimeout(900);
-  const animations = await readViewTransitionRecorder(page);
-
-  expect(animations).toEqual([]);
-}
-
-async function playsTheEntranceOncePerDocument({ page }) {
-  await page.setViewportSize(DESKTOP_VIEWPORT);
-  await page.goto('/');
-  await page.waitForTimeout(200);
-
-  /* The first viewport animates in, as specified. */
-  await expect.poll(() => risingCount(page)).toBe(4);
-  await page.waitForTimeout(900);
-
-  /* One hop away and back again, and the title block is at rest both times: the
-     router re-creates that markup, so without the `data-title-entrance` marker
-     the entrance would replay on every arrival. */
-  await navigateTo(page, '/00-preface/');
-  await page.waitForTimeout(1200);
-  expect(await risingCount(page)).toBe(0);
-
-  await navigateTo(page, '/');
-  await page.waitForTimeout(1400);
-  expect(await risingCount(page)).toBe(0);
-}
 
 test.describe('the route swap', () => {
-  test('runs one duration and one curve per axis, inside 280ms', runsOneDurationAndOneCurvePerAxis);
-  test(
-    'keeps the new page opaque underneath instead of fading both through the paper',
-    keepsTheNewPageOpaqueUnderneathInsteadOfFadingBothThroughThePaper,
-  );
-  test(
-    'gives a reduced-motion reader no transition at all',
-    givesAReducedMotionReaderNoTransitionAtAll,
-  );
-  test(
-    'plays the title-block entrance once per document, not once per arrival',
-    playsTheEntranceOncePerDocument,
-  );
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test('a section jump captures every zone and leaves in page order', async ({ page }) => {
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+
+    for (const zone of EXIT_ORDER) {
+      expect(half(entries, 'old', zone), `zone ${zone} was not captured`).not.toEqual([]);
+    }
+
+    const order = EXIT_ORDER.map((zone) => Math.min(...delays(entries, 'old', zone)));
+    const ascending = order.every((value, index) => index === 0 || value > order[index - 1]);
+
+    expect(
+      ascending,
+      `exit is not top-to-bottom: ${EXIT_ORDER.map((z, i) => `${z}@${order[i]}`).join(' ')}`,
+    ).toBe(true);
+    expect(order[0]).toBe(0);
+  });
+
+  test('a section jump diverges, and the centre stays put', async ({ page }) => {
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+    const { travel } = await readTravel(page);
+
+    expectDividedEdges(entries, 'old', travel, ['body', 'rh']);
+  });
+});
+
+test.describe('the route swap, reversed', () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test('a section jump arrives in the reverse of the order it left', async ({ page }) => {
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+    const arrival = EXIT_ORDER.map((zone) => Math.min(...delays(entries, 'new', zone)));
+    const reversed = arrival.every((value, index) => index === 0 || value < arrival[index - 1]);
+
+    expect(
+      reversed,
+      `entrance is not reversed: ${EXIT_ORDER.map((z, i) => `${z}@${arrival[i]}`).join(' ')}`,
+    ).toBe(true);
+  });
+
+  test('the entrance waits for the exit to finish', async ({ page }) => {
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+
+    const lastExit = Math.max(
+      ...EXIT_ORDER.flatMap((zone) => half(entries, 'old', zone).map((e) => e.delay + 190)),
+    );
+    const firstArrival = Math.min(...EXIT_ORDER.flatMap((zone) => delays(entries, 'new', zone)));
+
+    /* The dead beat. A reader gets a moment where the old page is simply gone,
+       rather than one dissolve running through the other's midpoint. */
+    expect(firstArrival).toBeGreaterThan(lastExit);
+  });
+});
+
+test.describe('a pager hop', () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test('is anchored on the title, and only then', async ({ page }) => {
+    const entries = await recordSwap(page, () => pressNext(page));
+    const { drop } = await readTravel(page);
+
+    const title = half(entries, 'new', 'title');
+    const body = half(entries, 'new', 'body');
+
+    /* The title drops in from above and the reading column follows it down. */
+    for (const entry of [...title, ...body]) {
+      expect(entry.name, 'the pager arrival is not anchored from above').toBe('zone-in-up');
+      expect(entry.axis).toBe('Y');
+      expect(entry.travel).toBe(String(-drop));
+    }
+    expect(Math.min(...delays(entries, 'new', 'title'))).toBeLessThan(
+      Math.min(...delays(entries, 'new', 'body')),
+    );
+  });
+
+  test('still diverges at its edges', async ({ page }) => {
+    const entries = await recordSwap(page, () => pressNext(page));
+    const { travel } = await readTravel(page);
+
+    expectDividedEdges(entries, 'new', travel);
+  });
+
+  test('is not the same animation as a jump', async ({ page }) => {
+    /* The regression this pins: `data-nav` is deleted by the router on
+       `astro:after-swap`, so a pager hop silently ran the jump choreography. The
+       two differ only in the title zone and in the body's entrance. */
+    const pager = await recordSwap(page, () => pressNext(page));
+    const jump = await recordSwap(page, () => navigateTo(page, PROOF));
+
+    expect(half(pager, 'new', 'title')).not.toEqual([]);
+    expect(half(jump, 'new', 'title')).toEqual([]);
+    expect(delays(pager, 'new', 'body')).not.toEqual(delays(jump, 'new', 'body'));
+  });
+});
+
+test.describe('the route swap, composited', () => {
+  test.use({ viewport: DESKTOP_VIEWPORT });
+
+  test('every zone is opaque underneath and clears on the way out', async ({ page }) => {
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+    const zones = [...EXIT_ORDER, 'meta'].filter((zone) => half(entries, 'new', zone).length > 0);
+
+    for (const zone of zones) {
+      for (const entry of half(entries, 'new', zone)) {
+        expect(entry.opacity.at(0), `${zone} arrives already painted`).toBe('0');
+        expect(entry.opacity.at(-1), `${zone} does not arrive opaque`).toBe('1');
+      }
+    }
+    for (const zone of EXIT_ORDER) {
+      for (const entry of half(entries, 'old', zone)) {
+        expect(entry.opacity.at(0), `${zone} does not start opaque`).toBe('1');
+        expect(entry.opacity.at(-1), `${zone} never clears`).toBe('0');
+      }
+    }
+  });
+
+  test('nothing composites additively', async ({ page }) => {
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+
+    /* `plus-lighter` adds the two opacities, which is only correct while they sum
+       to 1. A stagger cannot hold that, and on this paper the under-exposed frames
+       render darker than either page. */
+    const additive = entries.filter((entry) => entry.name.includes('-ua-mix-blend-mode-'));
+    expect(additive, 'a mix-blend-mode animation survived into the swap').toEqual([]);
+  });
+
+  test('a reduced-motion reader gets no stagger at all', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const entries = await recordSwap(page, () => navigateTo(page, PROOF));
+
+    expect(entries).toEqual([]);
+  });
 });
