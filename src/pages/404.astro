@@ -1,15 +1,41 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>Not found</title>
-  </head>
-  <body>
-    <main>
-      <h1>404</h1>
-      <p>Page not found.</p>
-      <a href="/">Back to home</a>
-    </main>
-  </body>
-</html>
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+---
+
+{/* `noindex` so "This page is not in the notebook." never enters a search
+    index. `text-title` rather than `text-display` — DESIGN.md scopes the
+    display token to the home title block, and this is an interior page. */}
+<BaseLayout title="Not found" description="This page is not in the notebook." noindex>
+  <main
+    id="main"
+    tabindex="-1"
+    transition:name="body"
+    class="mx-auto w-shell py-title-block focus:outline-none"
+  >
+    <div class="mx-auto max-w-measure">
+      <div class="border-y border-rule-strong py-title-block">
+        <h1 class="m-0 mb-4 font-serif text-title font-semibold leading-tight tracking-[-0.025em]">
+          Page not found
+        </h1>
+        <p class="mb-8 max-w-[42ch] font-sans text-ink-muted leading-[1.6]">
+          This citation does not map to a record. Return to the notebook and look up the section
+          again.
+        </p>
+        <div class="flex flex-wrap gap-4">
+          <a href="/" class="primary-control leading-none">
+            Back to home <span aria-hidden="true">→</span>
+          </a>
+          <a
+            href="/07-appendix-sources/"
+            class="inline-flex items-center gap-2 rounded-ui border border-rule-strong bg-transparent px-5 py-3 font-sans text-ui font-medium leading-none text-ink no-underline transition-colors hover:border-accent hover:text-accent"
+          >
+            Source appendix
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <SiteFooter />
+</BaseLayout>

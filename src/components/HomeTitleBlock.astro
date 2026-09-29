@@ -1,0 +1,315 @@
+---
+/**
+ * Home title block — FIRST VIEWPORT.
+ * Full-bleed paper title-block: display title, abstract, 9 numbered
+ * contributions, solid "Begin at Preface", mono tabular metadata
+ * with zone-ramp grade chips (A1–D).
+ */
+interface Contribution {
+  href: string;
+  title: string;
+  description?: string | undefined;
+}
+
+type Zone = 'a' | 'b' | 'c' | 'd';
+
+interface GradeItem {
+  label: string;
+  zone: Zone;
+  meaning: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  contributions: Contribution[];
+  meta: MetaRow[];
+  grades?: GradeItem[];
+}
+
+type MetaRow = { kind: 'text'; value: string } | { kind: 'grades' };
+
+const gradeMeanings: Record<string, { meaning: string; zone: Zone }> = {
+  A1: { zone: 'a', meaning: 'Oracle versioned documentation' },
+  A2: { zone: 'a', meaning: 'Oracle brief or whitepaper' },
+  B1: { zone: 'b', meaning: 'Peer-reviewed research paper' },
+  B2: { zone: 'b', meaning: 'Independent reproduction' },
+  C1: { zone: 'c', meaning: 'Deterministic tool with repeatable output' },
+  C2: { zone: 'c', meaning: 'Maintained open-source project' },
+  D: { zone: 'd', meaning: 'Blog or forum — context only, never proof alone' },
+};
+
+const { title, description, contributions, meta, grades } = Astro.props;
+
+/*
+ * A single typed array rather than parallel `gradeLabels` / `gradeZones`
+ * arrays. Two parallel arrays have no arity contract: a missing zone silently
+ * drops its chip, and a missing meaning silently drops a label. One map of
+ * label -> { zone, meaning } cannot be misordered or half-populated.
+ */
+const gradeItems: GradeItem[] =
+  grades ??
+  Object.entries(gradeMeanings).map(([label, entry]) => ({
+    label,
+    zone: entry.zone,
+    meaning: entry.meaning,
+  }));
+
+const showGrades = gradeItems.length > 0;
+const gradeChipClass =
+  'inline-flex items-center rounded-ui border border-current bg-zone-chip-bg px-[0.4rem] py-[0.15rem] font-mono text-chip font-semibold tracking-[0.06em] uppercase leading-none tabular-nums whitespace-nowrap align-middle data-[zone=a]:text-zone-a data-[zone=b]:text-zone-b data-[zone=c]:text-zone-c data-[zone=d]:text-zone-d';
+const sectionWord = contributions.length === 1 ? 'section' : 'sections';
+---
+
+{/*
+  `hero-composition` opts this section out of the reader's text scale. It is the
+  display title, the abstract, the primary control and the metadata margin, sized
+  as one arrangement rather than as four text blocks, so the type size that moves
+  the prose would move the arrangement instead of the reading. The section BELOW
+  this one — the contributions list, a separate `<section>` — is left in the scale,
+  because it is a list a reader scans and its rows are text.
+*/}
+<section
+  class="hero-composition border-y border-rule-strong py-title-block"
+  aria-labelledby="book-title"
+>
+  <div class="mx-auto w-shell">
+    {/*
+      A FIXED metadata margin, not a content-sized one.
+
+      This was `lg:grid-cols-[1fr_auto]`, and the `auto` track resolved to the
+      aside's own max-content width. The evidence key's panel is 150.14px wider
+      at its widest than the summary that closes it, so opening the disclosure
+      handed those 150px to the `1fr` column: the display title lost a line and
+      80.62px of height, the aside's own top slid 219px up out from under the
+      pointer, and everything below the title block moved 123.25px down. The
+      horizontal flip landed in a single frame (2ms) and, on close, 283ms AFTER
+      the panel animation had visibly finished — the `content-visibility …
+      allow-discrete` transition in `global.css` keeps the panel laid out for a
+      second 280ms, so the 150px snapped back long after the reader thought the
+      disclosure was shut.
+
+      A track measured in `rem` cannot move, so none of it can. The width is
+      chosen to hold the summary's closed-state max-content (403.67px of text plus
+      28.8px of padding) inside 27.5rem, which lands the closed state within 3px
+      of where it was and leaves 291px of slack below it for the panel to open
+      into.
+    */}
+    <div class="grid lg:grid-cols-[minmax(0,1fr)_var(--width-title-meta)] gap-8 lg:gap-16 items-start">
+      <div class="min-w-0">
+        <h1
+          id="book-title"
+          class="rise rise-1 mb-5 font-serif text-display font-bold leading-[1.05] tracking-[-0.03em]"
+        >
+          {title}
+        </h1>
+
+        <p class="rise rise-2 mb-8 max-w-[42ch] font-sans text-abstract leading-[1.6] text-ink-muted">
+          {description}
+        </p>
+
+        <div class="rise rise-3">
+          <a href="/00-preface/" class="primary-control leading-none">
+            Begin at Preface
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </div>
+
+      {/*
+        `transition:name="meta"` is the RIGHT-hand item of a home→section swap, and
+        the reason that swap diverges: this margin leaves rightward while the
+        section's TOC rail leaves leftward. It is named on the aside itself rather
+        than wrapped, because `title-block.spec.mjs` asserts that `#book-title`'s
+        immediate next sibling is the abstract, and a wrapper between them would
+        break that — and because the margin is the one piece of home furniture with
+        no counterpart on an interior page, so a wrap would have to be conditional.
+      */}
+      <aside
+        class="rise rise-4 pt-2 lg:border-l lg:border-rule lg:pl-8 lg:pb-1 lg:text-right"
+        aria-label="Publication metadata"
+        transition:name="meta"
+      >
+        <dl class="meta space-y-1.5">
+          {meta.map((row) => (
+            <div class="lg:text-right">
+              <dt class="sr-only">
+                {row.kind === 'grades' ? 'Evidence grades in use' : 'Publication detail'}
+              </dt>
+              <dd class="m-0 normal-case">
+                {row.kind === 'grades' && showGrades ? (
+                  <span class="inline-flex flex-wrap gap-1 justify-end">
+                    {gradeItems.map((grade) => (
+                      <span class={gradeChipClass} data-zone={grade.zone}>
+                        {grade.label}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  row.kind === 'text' && row.value
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        {showGrades && (
+          <details id="evidence-key" class="disclosure group mt-5 text-left">
+            <summary class="list-none [&::-webkit-details-marker]:hidden marker:content-none">
+              <span class="text-ink">Evidence key</span>
+              <span class="ml-auto font-mono text-mono text-ink-faint">
+                Source strength, not a benchmark
+              </span>
+              <svg
+                class="disclosure-icon shrink-0 text-ink-faint transition-transform duration-[280ms] ease-[cubic-bezier(.22,1,.36,1)] group-open:rotate-45 motion-reduce:transition-none"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14"></path>
+              </svg>
+            </summary>
+            <div class="disclosure-flow">
+              <div class="disclosure-content-inner disclosure-flow-inner">
+                {/*
+                  The panel opens into the slack below the title column, so its
+                  height is a real budget rather than a free-for-all: the whole
+                  panel has to fit the 291px the `1fr` column has to spare, or
+                  the contributions list below gets pushed down the page. Tight
+                  leading, a tighter row gap and a narrower ordinal column are
+                  what buy the ~60px of headroom that keeps the page still.
+                */}
+                {/*
+                  `leading-none` on the `<dt>` is load-bearing, and it was worth
+                  82px of the panel's height.
+
+                  `.disclosure-content-inner` sets `line-height: var(--body-leading)`
+                  for prose. The `<dt>` carries only a grade chip and never
+                  overrides it, so its strut is 18px × 1.65 = 29.7px, and
+                  `items-baseline` on the row aligns the two cells on that strut
+                  rather than on the chip or the description beside it. Measured:
+                  every one of the seven single-line rows came out 29.7px tall —
+                  11px over the 17.8px chip it was supposed to be sized by, 7
+                  times, in a panel that only has 225px of slack to open into.
+                */}
+                {/*
+                  The rows are a list to be read, not a table to be scanned, and
+                  `gap-[0.3rem]` made them one: seven rows on a 24.7px pitch, the
+                  description hard against its chip, and the two closing paragraphs
+                  crowded into the last row. The row gap is 0.6rem and the column
+                  gap 0.8rem, which is what "space between them" costs in a panel
+                  this narrow.
+                */}
+                <dl class="mt-0 grid gap-[0.6rem]">
+                  {gradeItems.map((grade) => (
+                    <div class="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-[0.8rem]">
+                      <dt class="m-0 leading-none">
+                        <span class={gradeChipClass} data-zone={grade.zone}>
+                          {grade.label}
+                        </span>
+                      </dt>
+                      <dd class="m-0 text-mono leading-[1.4] text-ink-muted">{grade.meaning}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p class="mt-[0.9rem] font-mono text-mono leading-[1.4] text-ink-faint">
+                  <strong class="text-ink">PROVEN</strong> = 2 agreeing sources, or 1 A1/A2/B1
+                  source + a repeatable rerun.
+                </p>
+                <p class="mt-[0.75rem] flex gap-[0.45rem] font-mono text-mono leading-[1.4] text-ink-faint">
+                  <a href="/00-preface/">How grades work</a>
+                  <span aria-hidden="true">·</span>
+                  <a href="/07-appendix-sources/">Source lookup</a>
+                </p>
+              </div>
+            </div>
+          </details>
+        )}
+      </aside>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { reanchorAfterSettle } from '../lib/disclosure-reanchor.mjs';
+
+  if (!Object.prototype.hasOwnProperty.call(document, 'evidenceKeyInitialized')) {
+    document.addEventListener('astro:page-load', () => {
+      const evidenceKey = document.querySelector<HTMLDetailsElement>('#evidence-key');
+      if (window.location.hash === '#evidence-key' && evidenceKey) {
+        evidenceKey.open = true;
+        /*
+         * Opening grows the panel by ~200px, which pushes the key back off screen
+         * after the router already scrolled to it, so the jump has to be redone.
+         *
+         * This used to redo it on the next animation frame, with a comment
+         * claiming it waited for the disclosure to settle. A frame is ~16ms into a
+         * 280ms `grid-template-rows` transition, so it re-anchored while the panel
+         * was still growing and the reader landed short — the same defect the
+         * mobile TOC jump had, fixed there and left here. The shared helper waits
+         * for the transition, with a next-frame path for reduced motion.
+         */
+        reanchorAfterSettle({
+          container: evidenceKey,
+          resolveTarget: () => evidenceKey,
+          windowRef: window,
+        });
+      }
+    });
+    Object.defineProperty(document, 'evidenceKeyInitialized', { value: true });
+  }
+</script>
+
+<section class="mx-auto mt-0 w-shell pb-16" aria-labelledby="contributions-heading">
+  {/*
+    `mx-auto` on the measure. The list and the prose below it are both centred on
+    the page's axis, and they have to be: the list is 832px and the prose is
+    648px, so left-aligning each against the shell put their centre lines 160px
+    apart and their left edges 252px apart. Reading down the page the rules
+    stair-stepped — inset 144px for the list, inset 396px for the prose — and the
+    two regions were not concentric with each other or with the title block above
+    them. Centring is the honest resolution: a preprint's contents list and its
+    abstract are the same width in the best cases and concentric in all of them.
+  */}
+  <div class="mx-auto max-w-contributions">
+    <div class="border-b border-rule-strong pt-10 pb-4">
+      <h2 id="contributions-heading" class="running-head text-ink-muted text-xs">
+        Contents · {contributions.length} {sectionWord}
+      </h2>
+    </div>
+
+    {/* No `aria-label` here: the parent `<section aria-labelledby>` already
+        names the region, and a second element labelled "Book sections" in the
+        same page collided with the header nav landmark. */}
+    <ol class="list-none p-0 m-0">
+      {contributions.map((c, i) => (
+        <li>
+          <a
+            href={c.href}
+            class="group grid grid-cols-[2.5rem_minmax(0,1fr)] items-baseline gap-4 border-b border-rule px-0 py-4 text-ink no-underline transition-colors hover:bg-accent-soft hover:text-ink"
+          >
+            <span class="font-mono text-mono tabular-nums text-ink-faint" aria-hidden="true">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <span class="min-w-0">
+              <span class="block font-serif text-contribution font-semibold leading-[1.4] tracking-[-0.01em] transition-colors group-hover:text-accent">
+                {c.title}
+              </span>
+              {c.description && (
+                <span class="mt-1 block font-sans text-ui leading-[1.45] text-ink-muted">
+                  {c.description}
+                </span>
+              )}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
