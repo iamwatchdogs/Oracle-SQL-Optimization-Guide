@@ -20,6 +20,31 @@ import { DESKTOP_VIEWPORT } from './support/toc.mjs';
 import { navigateTo } from './support/navigation.mjs';
 import { EXIT_ORDER, PROOF, half, recordSwap } from './support/zone-swap.mjs';
 
+/**
+ * Assert that the root pseudo is present in the trace and is not being driven by the
+ * UA's additive blend.
+ *
+ * The UA puts `-ua-mix-blend-mode-plus-lighter` on `::view-transition-old/new(root)`
+ * and nowhere else, so `root` is the one pseudo that carries the additive blend
+ * whether or not it has a keyframe of its own. Covering the six named zones left it
+ * running, and `root` is the pseudo that holds the gutter between them — so the blend
+ * was being added to the one region nothing else painted over. It passed while the
+ * named zones were correct because a trace that happened to miss `root` is
+ * indistinguishable from a clean one.
+ *
+ * Split out because that reasoning is worth more than the three lines that express
+ * it, and the test names the trap better than a nested loop does.
+ */
+function expectNeutralRoot(entries) {
+  const root = entries.filter((entry) => entry.zone.startsWith('root'));
+  expect(root, 'the root pseudo did not appear in the trace at all').not.toEqual([]);
+  for (const entry of root) {
+    expect(entry.name, 'the UA blend is still driving the root pseudo').not.toContain(
+      'mix-blend-mode',
+    );
+  }
+}
+
 test.describe('the route swap, composited', () => {
   test.use({ viewport: DESKTOP_VIEWPORT });
 
@@ -47,7 +72,12 @@ test.describe('the route swap, composited', () => {
     const entries = await recordSwap(page, () => navigateTo(page, PROOF));
 
     const additive = entries.filter((entry) => entry.name.includes('-ua-mix-blend-mode-'));
+    /* Every pseudo, not just the ones this project animates — see `expectNeutralRoot`. */
     expect(additive, 'a mix-blend-mode animation survived into the swap').toEqual([]);
+  });
+
+  test('the root pseudo is pinned to normal, not left to the UA', async ({ page }) => {
+    expectNeutralRoot(await recordSwap(page, () => navigateTo(page, PROOF)));
   });
 
   test('a reduced-motion reader gets no stagger at all', async ({ page }) => {
