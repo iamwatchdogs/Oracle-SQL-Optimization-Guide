@@ -16,3 +16,62 @@
 export const REPO_URL = 'https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide';
 
 export const REPO_PATH = REPO_URL.replace(/^https?:\/\//u, '').replace(/\/+$/u, '');
+
+/*
+ * Where the notebook is published.
+ *
+ * GitHub Pages mounts a repository at `https://<account>.github.io/<repo>`, so
+ * the two halves of that address are different facts and Astro keeps them in
+ * different fields: `site` is the origin, `base` is the repository prefix.
+ * Writing the repository into `site` instead is the classic mistake and it
+ * fails quietly — the build succeeds and every sitemap entry 404s
+ * (withastro/astro#13315).
+ */
+
+/** The origin. No trailing slash; the repository is a path, not part of this. */
+export const SITE_ORIGIN = 'https://iamwatchdogs.github.io';
+
+/**
+ * The path GitHub Pages mounts this repository at.
+ *
+ * This is the default, not the law: `astro.config.mjs` lets `SITE_BASE`
+ * override it, so a future deploy target that serves from the origin root
+ * (Cloudflare Pages, Netlify, a custom domain) can build these same sources
+ * without editing anything here. Build for the root by setting `SITE_BASE=/`.
+ */
+export const SITE_BASE = '/Oracle-SQL-Optimization-Guide';
+
+/** The name of the work. Also the one title `BaseLayout` renders unabbreviated. */
+export const SITE_TITLE = 'Oracle SQL Optimization for Junior Devs';
+
+/**
+ * What the notebook is, for a reader who has not opened it yet.
+ *
+ * Every page has a `description` in frontmatter, so this is the floor rather
+ * than the norm — but a page without one would otherwise ship a description to
+ * humans and none to crawlers, because `og:description` shares the fallback.
+ */
+export const SITE_DESCRIPTION =
+  'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.';
+
+/** BCP 47 tag for `hreflang` and `og:locale`. The book is English, no region. */
+export const SITE_LOCALE = 'en';
+
+/**
+ * Join a root-relative path to the configured base.
+ *
+ * Read from `import.meta.env.BASE_URL` rather than `SITE_BASE` on purpose: this
+ * runs in every component, and only Astro knows the value the build actually
+ * used — including an override that came from the environment. Reading
+ * `SITE_BASE` here would quietly disagree with a `SITE_BASE=/` build.
+ *
+ * Idempotent: a path already carrying the base is returned unchanged, so
+ * double-applying it cannot produce `/Oracle-…/Oracle-…/`.
+ */
+export const withBase = (path) => {
+  const base = import.meta.env.BASE_URL.replace(/\/$/u, '');
+  if (base === '') {
+    return path;
+  }
+  return path === base || path.startsWith(`${base}/`) ? path : `${base}${path}`;
+};
