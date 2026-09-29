@@ -10,7 +10,26 @@
  * feature were each invisible to a source-level check: an ancestor-qualified zone
  * rule that parses and never applies, a router that deletes the variant attribute
  * after it has been written, and additive blending that a stagger cannot composite.
+ *
+ * It also normalises one engine difference, because a spec that reads a keyframe's
+ * `transform` has to cope with three serialisations of the same authored value.
+ * `getKeyframes()` returns what the author wrote, and the engines disagree about
+ * whether to simplify a `calc()`: for `translateX(calc(-1 * var(--zone-travel)))`
+ * with `--zone-travel: 60px`, Chromium and WebKit report `"translateX(-60px)"` and
+ * Firefox reports `"translateX(calc(-60px))"`. The rendering is identical in all
+ * three — sampled matrices match at every progress value — so the peel belongs here
+ * rather than in the stylesheet, where hardcoding the distance would demote
+ * `--zone-travel` and `--zone-drop` to values nothing but a test reads.
  */
+
+/*
+ * Both of these are declared INSIDE the evaluated body below rather than at module
+ * scope, and installed as page globals instead. `page.evaluate` serialises a function
+ * body and evaluates it in the page, where module scope does not exist, so a helper
+ * declared here could not be closed over. `globalThis.zoneFlatten` and
+ * `globalThis.zoneDescribe` are the page-side copy; nothing in Node reads them.
+ */
+
 /** Every zone, in the order a jump reads the page: top to bottom. */
 export const EXIT_ORDER = ['rh', 'rail', 'body', 'pager-prev', 'pager-next'];
 
@@ -19,6 +38,14 @@ export const PROOF = '/00-preface/02-how-to-prove-a-win/';
 
 /** The swap is ~910ms end to end; this covers the tail with room for a slow machine. */
 export const SETTLE = 1800;
+
+/**
+ * Read the choreography's tokens as the STYLESHEET resolved them, not as they are authored.
+ *
+ * Every delay in the arrival ladder is a nested `calc()` over three custom properties, so
+ * the authored text cannot be read for the resolved value. `getComputedStyle` is the only
+ * place the arithmetic has actually happened.
+ */
 
 /**
  * Begin recording every view-transition animation the browser runs.
@@ -38,35 +65,70 @@ export const SETTLE = 1800;
  * step with the transition itself, so it is the primary clock; the interval is a
  * backstop for the case where rAF is throttled.
  */
-export const startRecorder = (page) =>
+/**
+ * Install the two pure helpers the recorder needs, as page globals.
+ *
+ * They cannot be closed over: `page.evaluate` serialises a function body and evaluates it
+ * in the page, where module scope does not exist. Declaring them as page globals is the
+ * alternative to writing them inline in every callback, and it keeps each `evaluate` body
+ * small enough to read — which is the whole point, since these bodies cannot be
+ * unit-tested and can only be verified by running them.
+ */
+const installHelpers = (page) =>
   page.evaluate(() => {
-    const seen = new Set();
-    globalThis.zoneTrace = seen;
+    /* Peel a serialised `calc()` wrapper — see the note on this recorder above. */
+    globalThis.zoneFlatten = (transform) => {
+      let value = transform ?? '';
+      let previous;
+
+      do {
+        previous = value;
+        value = value.replaceAll(/calc\(([^()]*)\)/gu, '$1');
+      } while (value !== previous);
+
+      return value;
+    };
+
+    /** Reduce one animation to a recordable entry, or null if it is not ours. */
+    globalThis.zoneDescribe = (animation) => {
+      const pseudo = animation.effect?.pseudoElement ?? '';
+      if (!pseudo.includes('view-transition')) {
+        return null;
+      }
+
+      const keyframes = animation.effect.getKeyframes();
+      if (keyframes.length === 0) {
+        return null;
+      }
+
+      const offset = keyframes
+        .map((keyframe) =>
+          /translate([XY])\((-?[\d.]+)px\)/u.exec(globalThis.zoneFlatten(keyframe.transform)),
+        )
+        .find(Boolean);
+
+      return JSON.stringify({
+        zone: pseudo.replace('::view-transition-', ''),
+        name: animation.animationName,
+        delay: animation.effect.getTiming().delay,
+        opacity: keyframes.map((keyframe) => keyframe.opacity),
+        axis: offset?.[1] ?? null,
+        travel: offset?.[2] ?? null,
+      });
+    };
+  });
+
+export const startRecorder = async (page) => {
+  await installHelpers(page);
+  await page.evaluate(() => {
+    globalThis.zoneTrace = new Set();
 
     const sweep = () => {
       for (const animation of document.getAnimations()) {
-        const raw = animation.effect?.pseudoElement ?? '';
-        if (!raw.includes('view-transition')) {
-          continue;
+        const entry = globalThis.zoneDescribe(animation);
+        if (entry) {
+          globalThis.zoneTrace.add(entry);
         }
-        const keyframes = animation.effect.getKeyframes();
-        if (keyframes.length === 0) {
-          continue;
-        }
-        const offset = keyframes
-          .map((keyframe) => /translate([XY])\((-?[\d.]+)px\)/u.exec(keyframe.transform ?? ''))
-          .find(Boolean);
-
-        seen.add(
-          JSON.stringify({
-            zone: raw.replace('::view-transition-', ''),
-            name: animation.animationName,
-            delay: animation.effect.getTiming().delay,
-            opacity: keyframes.map((keyframe) => keyframe.opacity),
-            axis: offset?.[1] ?? null,
-            travel: offset?.[2] ?? null,
-          }),
-        );
       }
     };
 
@@ -82,6 +144,7 @@ export const startRecorder = (page) =>
     globalThis.zoneTraceRaf = requestAnimationFrame(onFrame);
     globalThis.zoneTraceId = setInterval(sweep, 8);
   });
+};
 
 export const readRecorder = (page) =>
   page.evaluate(() => {
