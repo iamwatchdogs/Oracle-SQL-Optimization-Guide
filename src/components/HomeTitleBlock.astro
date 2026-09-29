@@ -99,7 +99,6 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
       <div class="min-w-0">
         <h1
           id="book-title"
-          transition:name="page-title"
           class="rise rise-1 mb-5 font-serif text-display font-bold leading-[1.05] tracking-[-0.03em]"
         >
           {title}
@@ -117,9 +116,19 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
         </div>
       </div>
 
+      {/*
+        `transition:name="meta"` is the RIGHT-hand item of a home→section swap, and
+        the reason that swap diverges: this margin leaves rightward while the
+        section's TOC rail leaves leftward. It is named on the aside itself rather
+        than wrapped, because `title-block.spec.mjs` asserts that `#book-title`'s
+        immediate next sibling is the abstract, and a wrapper between them would
+        break that — and because the margin is the one piece of home furniture with
+        no counterpart on an interior page, so a wrap would have to be conditional.
+      */}
       <aside
         class="rise rise-4 pt-2 lg:border-l lg:border-rule lg:pl-8 lg:pb-1 lg:text-right"
         aria-label="Publication metadata"
+        transition:name="meta"
       >
         <dl class="meta space-y-1.5">
           {meta.map((row) => (
