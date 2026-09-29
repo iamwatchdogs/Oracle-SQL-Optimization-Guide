@@ -1,0 +1,116 @@
+---
+interface Link {
+  href: string;
+  title: string;
+}
+
+interface Props {
+  prev?: Link | undefined;
+  next?: Link | undefined;
+}
+
+const { prev, next } = Astro.props;
+const pagerLinkClass =
+  'group flex min-w-0 flex-col gap-[0.35rem] rounded-ui border border-rule p-5 text-ink no-underline transition-colors hover:border-accent hover:bg-accent-soft hover:text-ink';
+
+const pagerTitleClass =
+  'font-serif text-pager font-semibold leading-[1.35] tracking-[-0.01em] text-wrap-balance transition-colors group-hover:text-accent';
+
+/*
+ * A running head is not a card grid, and a two-line pager title that orphans its
+ * last word ("Version Drift Survival for Oracle Docs and / OSS") reads as a
+ * mistake rather than as a tight rag. `balance` only ever acts on the lines the
+ * title actually takes, so a one-line title is unaffected.
+ */
+
+/*
+ * A separator between the running head and the chapter title, for the
+ * ACCESSIBLE NAME only.
+ *
+ * The two are flex items, so each is blockified onto its own line and nothing is
+ * visible between them — but accessible-name computation concatenates the text of
+ * an element's descendants and does not insert whitespace at element boundaries,
+ * so the link announced as "PreviousProven Techniques - Choose by Symptom".
+ * One run-on word, in every engine, for every reader who is not looking at the
+ * screen.
+ *
+ * A literal space or a colon between the elements does not fix it: whitespace
+ * between flex items is not rendered, and a flex container discards
+ * whitespace-only anonymous items, so neither reaches the name. `sr-only` is
+ * clipped rather than `display: none`, so it IS rendered and therefore IS part of
+ * the name.
+ *
+ * Kept as visible-derived text rather than an `aria-label` so that the name still
+ * begins with the visible word, which is what voice-control users say.
+ */
+const NameSeparator = 'sr-only';
+---
+
+{/* The whole nav is omitted when there is nowhere to go, rather than shipping
+    an empty bordered landmark plus two anonymous spacers.
+
+    The width is NOT set here. `ch` resolves against this element's own font, and
+    `nav` is Inter by the base layer, so a `max-w-*` on it would measure against
+    a different `ch` than the serif prose it has to align with. The caller wraps
+    it in the measure — see the note in `src/pages/[...slug].astro`.
+
+    The rule above the cells only appears when there are two of them: a
+    full-width rule over a single half-width cell left a 373px stub with nothing
+    under it at the end of the book. */}
+{prev || next ? (
+  <nav
+    aria-label="Book navigation"
+    class:list={[
+      'mt-10 grid gap-3 pt-8 sm:grid-cols-2',
+      prev && next ? 'border-t border-rule' : '',
+    ]}
+  >
+    {/*
+      The two pager cells are the bottom-left and bottom-right items of a section
+      jump's exit, and the two edge items of a pager hop's entrance. `rel` is what
+      distinguishes a pager hop from any other navigation; see the `data-nav` hook
+      in `BaseLayout.astro`. The names go on the cells rather than on a wrapper
+      because `pager-and-404.spec.mjs` asserts exactly one
+      `nav[aria-label="Book navigation"]` and walks the cells as first/last-child.
+    */}
+    {prev ? (
+      <a href={prev.href} rel="prev" class={pagerLinkClass} transition:name="pager-prev">
+        <span class="running-head">
+          <span aria-hidden="true">←</span> Previous
+        </span>
+        <span class={NameSeparator}>: </span>
+        <span class={pagerTitleClass}>{prev.title}</span>
+      </a>
+    ) : (
+      <span aria-hidden="true" class="hidden sm:block"></span>
+    )}
+    {next ? (
+      <a
+        href={next.href}
+        rel="next"
+        class={`${pagerLinkClass} sm:items-end sm:justify-end sm:text-right`}
+        transition:name="pager-next"
+      >
+        {/* The space belongs INSIDE the decorative span. Written as
+            `Next <span>→</span>` the label ends in a space, and stripping the
+            `aria-hidden` subtree leaves "Next " — so the name came out
+            "Next : Indexes and Layout" while the previous link read
+            "Previous: Measure First". Putting the space with the glyph makes the
+            two links name consistently. */}
+        <span class="running-head">
+          Next<span aria-hidden="true"> →</span>
+        </span>
+        <span class={NameSeparator}>: </span>
+        <span class={pagerTitleClass}>{next.title}</span>
+      </a>
+    ) : (
+      <span aria-hidden="true" class="hidden sm:block"></span>
+    )}
+  </nav>
+) : (
+  <p class="meta mt-10 border-t border-rule pt-8">
+    <a href="/" class="no-underline transition-colors hover:text-accent">
+      <span aria-hidden="true">←</span> End of notebook — return to contents
+    </a>
+  </p>
+)}

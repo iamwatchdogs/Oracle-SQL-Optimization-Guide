@@ -1,0 +1,64 @@
+---
+/*
+ * The rail's toggle. ONE control, and it never leaves.
+ *
+ * There were two: a button at the rail's right edge that closed the rail, and an
+ * "edge tab" on the shell's left edge that reopened it. The button you pressed was
+ * at x=296 and the control that replaced it was at x=64 — 232px to the left and 65px
+ * down, under a cursor that had not moved. Measured at 1280×900, not assumed. The
+ * chevron also swapped between two hard-coded glyphs with nothing moving, so the
+ * one thing a reader watches during a state change was the one thing that did
+ * nothing at all.
+ *
+ * Now there is one button and it travels: it slides from the rail's right edge into
+ * the gutter as the rail closes, and the arrow rotates 180° on the way, so the
+ * press and its consequence are the same object moving. It is never hidden and
+ * never re-created. `position: fixed` is what lets it escape the rail's track
+ * closing to zero width, and it is rendered OUTSIDE the rail's cell entirely —
+ * a fixed element inside an `overflow: hidden` cell that has collapsed to nothing
+ * is still painted, but it is a structure that fights the tools, and a control
+ * whose position is decided by its ancestor's clipping is not a page-level
+ * control.
+ *
+ * It lives here, as a sibling of the reading-surface grid, rather than inside
+ * `ReadingToc.astro`: the rail is optional (a page with no headings has none) and
+ * the toggle has to outlive it.
+ *
+ * `pr-12` on the rail's own header row reserves the 44px this occupies when the
+ * rail is open, so the label can never run underneath it.
+ */
+
+const railToggleClass =
+  'toc-rail-toggle flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-ui border border-transparent bg-transparent text-ink-faint transition-colors hover:border-control-edge hover:text-accent';
+
+interface Props {
+  label: string;
+  expanded: boolean;
+}
+
+const { label, expanded } = Astro.props;
+const name = label.toLowerCase();
+---
+
+<button
+  type="button"
+  class={railToggleClass}
+  data-toc-rail-toggle
+  aria-expanded={expanded ? 'true' : 'false'}
+  aria-label={expanded ? `Collapse the ${name} rail` : `Show the ${name} rail`}
+>
+  <svg
+    class="toc-rail-chevron"
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M15 6l-6 6 6 6"></path>
+  </svg>
+</button>

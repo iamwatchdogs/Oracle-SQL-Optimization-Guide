@@ -1,0 +1,698 @@
+---
+import { Font } from 'astro:assets';
+import { ClientRouter } from 'astro:transitions';
+import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
+import { REPO_URL } from '../lib/site.mjs';
+import '../styles/global.css';
+
+interface SectionLink {
+  href: string;
+  title: string;
+  description?: string | undefined;
+}
+
+interface Props {
+  title: string;
+  description?: string | undefined;
+  /** Show the compact site header (running head + nav + toggle). */
+  bare?: boolean;
+  sections?: SectionLink[];
+  sectionPosition?: number | undefined;
+  /** Emit `<meta name="robots" content="noindex">`. Use for error pages. */
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  bare = false,
+  sections = [],
+  sectionPosition,
+  noindex = false,
+} = Astro.props;
+const fallbackSections: SectionLink[] = [
+  { href: '/00-preface/', title: 'Preface' },
+  { href: '/01-proven-techniques/', title: 'Proven Techniques' },
+  { href: '/02-papers-behind-recipes/', title: 'Papers Behind Recipes' },
+  { href: '/03-toolbox/', title: 'Toolbox' },
+  { href: '/04-recipes/', title: 'Recipes' },
+  { href: '/05-feedback-loop/', title: 'Feedback Loop' },
+  { href: '/06-oss-guide/', title: 'OSS Guide' },
+  { href: '/07-appendix-sources/', title: 'Appendix: Sources' },
+  { href: '/08-bonus-batch-api/', title: 'Bonus: Batch API' },
+];
+const navigationSections = sections.length > 0 ? sections : fallbackSections;
+const currentPath = Astro.url.pathname;
+
+/*
+ * The reading-preference steppers, in the order the controls present them.
+ *
+ * They come from the controller's step lists rather than being written out here,
+ * so the stylesheet, the controller's validation and the rendered buttons cannot
+ * drift into three different sets. `aria-pressed` is what says which is live.
+ */
+const textScales = TEXT_SCALE_STEPS;
+const measures = MEASURE_STEPS;
+
+const fullTitle =
+  title === 'Oracle SQL Optimization for Junior Devs'
+    ? `${title} — Evidence-graded tuning`
+    : `${title} · Oracle SQL Optimization`;
+
+/* One fallback, used by BOTH `<meta name="description">` and `og:description`.
+   Astro omits an attribute whose value is `undefined`, so having the fallback
+   on one line only meant a page without frontmatter `description` shipped a
+   human-readable description and no social one at all. */
+const metaDescription =
+  description ??
+  'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.';
+
+/* Canonical must never carry a query string or fragment, and must resolve
+   against the configured site origin rather than whatever host served the page. */
+const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).href;
+const isArticle = Astro.url.pathname !== '/';
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={metaDescription} />
+    <meta name="generator" content={Astro.generator} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    <ClientRouter fallback="animate" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0c0e'/%3E%3Cpath d='M7 9h18M7 16h18M7 23h11' stroke='%238aa4ff' stroke-width='2'/%3E%3C/svg%3E"
+    />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content={isArticle ? 'article' : 'website'} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    {/* Fonts — Astro Fonts API */}
+    <Font cssVariable="--face-serif" preload />
+    <Font cssVariable="--face-sans" />
+    <Font cssVariable="--face-mono" />
+
+    {/*
+      Theme and reading preferences init — dark default; everything else from
+      stored preference.
+
+      One blocking inline script, not two. Both halves have to land before the
+      first paint, and a second script would have to observe the first one's DOM
+      write to build on it, which is a worse contract than one script that owns
+      all of it. Every read is inside the `try`, so a storage-blocked reader gets
+      the defaults rather than an exception in the head.
+
+      `data-title-entrance` marks the FIRST document only. `.rise` is the title
+      block's entrance and the router re-creates that markup on every client
+      navigation, so without the marker the abstract and the metadata margin kept
+      drifting into place 740ms after a cross-fade that ended at 180ms.
+    */}
+    <script is:inline>
+      (function () {
+        var root = document.documentElement;
+        root.dataset.titleEntrance = '';
+        try {
+          var theme = localStorage.getItem('theme');
+          if (theme === 'light') {
+            root.dataset.theme = 'light';
+          }
+          /* dark is default; no prefers-color-scheme override */
+        } catch (e) {
+          /* dark default */
+        }
+        try {
+          var text = localStorage.getItem('reading-text');
+          if (text === '0.9' || text === '1.1' || text === '1.2') {
+            root.dataset.readingText = text;
+          }
+          var measure = localStorage.getItem('reading-measure');
+          if (measure === '60' || measure === '75') {
+            root.dataset.readingMeasure = measure;
+          }
+          if (localStorage.getItem('reading-toc') === 'collapsed') {
+            root.dataset.readingToc = 'collapsed';
+          }
+        } catch (e) {
+          /* reader defaults */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    {/* `focus-visible:fixed` (not `absolute`) so the link stays reachable after
+        the reader has scrolled, and the positioning lives on the focus variant
+        only so the outcome never depends on Tailwind's utility sort order. */}
+    <a
+      href="#main"
+      class="primary-control leading-none sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-50"
+    >
+      Skip to content
+    </a>
+
+    {!bare && (
+      /* Two deliberate omissions from this element.
+       *
+       * No transition directives at all — no `transition:persist`, and none wanted.
+       *
+       * Persisting the header is the obvious-looking next step after a route swap:
+       * it would make the chrome literally motionless across the navigation. Do not
+       * do it. The `Contents` trigger carries a section counter — `Section 02 / 09`
+       * on a chapter, `09 sections` on the home page — which is this design system's
+       * running head, and a persisted element keeps its DOM, so the counter would
+       * survive the hop and a reader sitting in Section 03 would be looking at
+       * `Section 02 / 09`. There is no way to persist the shell and re-render one
+       * child. The wordmark, the two dropdown triggers and the theme toggle are
+       * chrome; the counter is page state, and this element holds both.
+       * `test/e2e/running-head.spec.mjs` is the guard, and it exists for this reason.
+       *
+       * The counter cross-fading with the page it belongs to is correct, not an
+       * oversight. It is a running head doing what a running head does, and it
+       * cross-fades over an identical `bg-paper` ground, so the header does not dim
+       * or move while it happens. Animating the header *as a group* is a different
+       * and rejected thing: that made four sibling elements cross-fade independently
+       * instead of one page, which is content-entrance behaviour on furniture.
+       *
+       * `max-[48rem]:static`. The mobile menu is in flow (see the note on the
+       * `<details>` below), so an open panel makes the header as tall as the
+       * section list. A sticky header that owns 905px of an 844px viewport is
+       * worse than one that scrolls away, so below `48rem` the header returns to
+       * normal flow and the menu is simply the next thing in the page. */
+      <header class="sticky top-0 z-40 border-b border-rule bg-paper max-[48rem]:static">
+        <div class="mx-auto flex min-h-12 w-shell items-center justify-between gap-3 max-[30rem]:gap-2 max-[48rem]:flex-wrap max-[48rem]:gap-y-2">
+          {/*
+            `min-h-11` + `flex items-center` on the wordmark itself: as a bare
+            flex child it sized to its 18px line box, so the only route home in
+            the header was an 18px touch target on a phone.
+          */}
+          <a
+            href="/"
+            class="running-head flex min-h-11 shrink-0 items-center no-underline transition-colors hover:text-accent"
+          >
+            Oracle SQL <span class="max-[48rem]:hidden">· Notebook</span>
+          </a>
+
+          {/*
+            The repository link is an `<a>`, not a `<button>`, and that is not a
+            detail. It navigates rather than toggles, so the element is right —
+            but it is also load-bearing: `hit-targets.test.mjs` locates the theme
+            toggle with a NON-GREEDY match that starts at the first `<button` in
+            this file. A fourth control written as a button would capture the
+            markup between itself and `#theme-toggle` and assert the wrong string.
+
+            Its resting treatment is the other three's, verbatim. That is the whole
+            argument that a link out of the world can sit in the top bar without
+            becoming the loudest thing in it: at rest there is no box, the ink is
+            `--ink-muted`, and the accent arrives on approach. Nothing about the
+            resting state announces it — the reader finds it by looking, the way
+            they find `Contents` and `Theme`.
+
+            `no-underline` is explicit because the wordmark needs it too and the
+            header has no blanket anchor reset to inherit.
+
+            Below `30rem` the control takes its own row, which is the only way this
+            link can exist in the header at all. Measured at 390px: the four controls
+            need 416px of a 358px row, and `#reading-prefs` has a 2px margin before
+            its own 320px panel leaves the viewport. A 4th inline control moves that
+            summary 41px left and puts the panel at x=-40 — the reading-prefs buttons
+            fail `keepsHeaderInsideViewport` at -23, not the link that caused it.
+            So below `30rem` this is `basis-full shrink-0` and the header is two
+            rows — both halves are load-bearing. `basis-full` alone is not enough:
+            `flex-shrink` defaults to 1, so the link compresses back onto the first
+            row instead of claiming a line of its own, which squeezed `#reading-prefs`
+            to x=147 at 480px and threw its panel to x=-173. Above the breakpoint the
+            row has the room and this sits inline with the other three.
+
+            That also makes the mobile target better rather than worse: a full-width
+            44px row beats a 34px glyph wedged between three neighbours.
+
+            `aria-label` is absent at rest and wrong to add for the same reason the
+            other three carry none — the voice-control contract wants the accessible
+            name to begin with the visible word. It is here because the word is
+            visible at every width, so "Repo" is a prefix of nothing and needs no
+            label; the name is the text. Nothing here is glyph-only.
+          */}
+          <a
+            href={REPO_URL}
+            aria-label="Repository"
+            class="flex min-h-11 list-none items-center gap-[0.6rem] rounded-ui border border-transparent px-3 py-2 font-sans text-ui font-medium text-ink-muted no-underline transition-colors hover:border-control-edge hover:text-accent focus-visible:border-control-edge focus-visible:text-ink max-[30rem]:gap-0 max-[30rem]:px-[0.55rem]"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              class="shrink-0"
+              aria-hidden="true"
+            >
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+            <span class="max-[30rem]:hidden">Repo</span>
+          </a>
+
+          {/*
+              Below `48rem` the menu is IN FLOW, full width, under the header
+              controls — not an overlay.
+
+              A `<details>` establishes a containing block for its non-summary
+              children REGARDLESS of `position` (Chrome wraps them in
+              `::details-content`, whose `content-visibility` implies
+              `contain: layout paint size`). So a panel positioned `fixed` or
+              `absolute` from inside one resolves `left`, `right` and `width`
+              against the ~104px summary box rather than the viewport. Measured:
+              the overlay was 71.78px wide at x=234 and ran 358px off a 390px
+              screen. Nothing positioned from inside a `<details>` can overlay
+              the viewport, so the mobile presentation stops trying.
+
+              `max-[48rem]:open:basis-full` is what keeps the CLOSED header at
+              48px: `basis-full` unconditionally would wrap the summary onto its
+              own row even when the menu is shut, doubling the height of a
+              sticky header that is on screen at all times.
+            */}
+          {navigationSections.length > 0 ? (
+            <details
+              id="site-nav"
+              data-dropdown
+              class="group relative ml-auto max-[48rem]:static max-[48rem]:open:basis-full"
+            >
+              {/*
+              At rest this trigger is a word and a glyph, not a box. It carried a
+              permanent `--control-edge` border, which put three 3.23:1 boxes in a
+              header that already has a hairline under it — four horizontal lines in
+              48px — and made the least important thing on the page the loudest.
+
+              WCAG 1.4.11 asks for 3:1 on the visual information *required* to
+              identify a control, and the boundary is not required when the control
+              says what it is: this is the word "Contents" at 5.4:1, next to a
+              section count, next to a disclosure glyph. The box comes back for
+              hover, for open, and for `focus-visible`, so the affordance is never
+              more than a hover away, and `border-transparent` keeps the 1px box
+              model reserved so its arrival moves nothing.
+
+              `ReadingTocToggle` already works this way, and the panel below keeps
+              its own `--rule-strong` hairline when open.
+            */}
+              <summary class="flex min-h-11 list-none items-center gap-[0.6rem] rounded-ui border border-transparent focus-visible:border-control-edge focus-visible:text-ink px-3 py-2 font-sans text-ui font-medium text-ink-muted transition-colors hover:border-control-edge hover:text-accent group-open:border-control-edge group-open:text-ink max-[30rem]:px-[0.55rem] [&::-webkit-details-marker]:hidden marker:content-none">
+                <span>Contents</span>
+                {/* Decorative: the accessible name of this button must not change
+                    with viewport width (WCAG 2.5.3, Label in Name). */}
+                <span
+                  class="font-mono text-chip whitespace-nowrap text-ink-faint max-[48rem]:hidden"
+                  aria-hidden="true"
+                >
+                  {sectionPosition
+                    ? `Section ${String(sectionPosition).padStart(2, '0')} / ${String(navigationSections.length).padStart(2, '0')}`
+                    : `${String(navigationSections.length).padStart(2, '0')} sections`}
+                </span>
+                <svg
+                  class="disclosure-icon shrink-0 text-ink-faint transition-transform duration-[280ms] ease-[cubic-bezier(.22,1,.36,1)] group-open:rotate-45 motion-reduce:transition-none"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14"></path>
+                </svg>
+              </summary>
+              {/*
+                Desktop: a right-anchored dropdown capped at 22rem, hanging off
+                the summary. Mobile: `static` and full width, so it joins the
+                header's wrapping flow — see the note on the `<details>` above.
+              */}
+              <div class="absolute right-0 top-[calc(100%_+_0.5rem)] z-50 w-[min(22rem,calc(100vw_-_2rem))] max-[48rem]:static max-[48rem]:mt-2 max-[48rem]:max-h-[70vh] max-[48rem]:w-full disclosure-flow">
+                <div class="disclosure-flow-inner">
+                  <nav
+                    class="nav-overlay-viewport w-full overflow-y-auto overscroll-contain border border-rule-strong bg-paper p-2"
+                    aria-label="Book sections"
+                  >
+                    {navigationSections.map((section, index) => {
+                      const isActive =
+                        currentPath === section.href || currentPath.startsWith(`${section.href}`);
+                      return (
+                        <a
+                          href={section.href}
+                          class="group grid min-h-11 grid-cols-[2.25rem_minmax(0,1fr)] items-baseline gap-2 px-[0.65rem] py-[0.55rem] font-sans text-ui leading-[1.35] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-accent data-[active=true]:border-l data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:text-accent"
+                          aria-current={isActive ? 'location' : undefined}
+                          data-active={isActive ? 'true' : 'false'}
+                        >
+                          <span
+                            class="font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent"
+                            aria-hidden="true"
+                          >
+                            {String(index + 1).padStart(2, '0')}
+                          </span>
+                          <span class="min-w-0">
+                            <span class="block">{section.title}</span>
+                            {section.description && (
+                              /* `ink-muted`, not `ink-faint`. At 11px this is
+                                 body-size text, and `ink-faint` measured 4.48:1 on
+                                 the light theme's `accent-soft` hover wash — a
+                                 hard fail against 4.5:1, live description copy.
+                                 `ink-muted` clears it in both themes and on both
+                                 the resting and hovered backgrounds. */
+                              <span class="mt-0.5 block text-chip leading-[1.4] text-ink-muted">
+                                {section.description}
+                              </span>
+                            )}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </nav>
+                </div>
+              </div>
+            </details>
+          ) : null}
+
+          {/*
+            Reading preferences.
+
+            Two steppers, not a settings page: text scale on four steps and line
+            measure on three. Both write one attribute on `<html>` and nothing
+            else — the ramp and the measure live in `global.css`, so the control
+            is a projection of the stylesheet rather than a second copy of it.
+
+            The measure steppers are labelled in CHARACTERS, because that is the
+            unit the stylesheet is written in and the number a reader of a
+            68-character book already has a feel for. The scale steppers are
+            labelled with an `A` at the size they select, so the control is its
+            own preview and needs no icon set to explain itself.
+          */}
+          {/* `data-dropdown` is the whole dismissal contract: this panel and the
+              section list beside it close when the reader looks away, and the other
+              two disclosures in the project — the evidence key and the mobile
+              outline — deliberately do not. An evidence key is something you read
+              in place, and a mobile outline that closed when a link inside it took
+              focus would close on every use. */}
+          <details class="group relative" id="reading-prefs" data-dropdown>
+            <summary class="flex min-h-11 list-none cursor-pointer items-center gap-[0.6rem] rounded-ui border border-transparent focus-visible:border-control-edge focus-visible:text-ink px-3 py-2 font-sans text-ui font-medium text-ink-muted transition-colors hover:border-control-edge hover:text-accent group-open:border-control-edge group-open:text-ink max-[30rem]:px-[0.55rem] [&::-webkit-details-marker]:hidden marker:content-none">
+              <span class="max-[30rem]:hidden">Reading</span>
+              {/* `Aa` is the control's own preview, not an icon: two letters at two
+                  sizes is the most legible shorthand there is for a type control,
+                  and it needs no icon set to be understood. Hidden from the tree so
+                  the accessible name does not change with viewport width
+                  (WCAG 2.5.3, Label in Name). */}
+              <span class="font-serif text-ui max-[30rem]:inline" aria-hidden="true">
+                Aa
+              </span>
+              <svg
+                class="disclosure-icon shrink-0 text-ink-faint transition-transform duration-[280ms] ease-[cubic-bezier(.22,1,.36,1)] group-open:rotate-45 motion-reduce:transition-none"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14"></path>
+              </svg>
+            </summary>
+            {/*
+              `absolute` at EVERY width, which is the opposite of the section
+              list's treatment and the reason for the difference.
+
+              The section list cannot overlay: nine 44px rows is most of a phone
+              viewport, so below `48rem` it goes in flow and the header returns to
+              normal flow with it. This panel is 320px of mostly whitespace, and
+              putting it in flow made the header 402.3px tall on an 844px
+              viewport — the panel pushed its own summary onto a second row and
+              the theme button onto a third, so opening a text-size control ate
+              half the screen. A `<details>`'s panel is positioned against the
+              summary's own box, and a right-anchored 20rem dropdown needs
+              nothing more than that: it hangs off the control that opened it and
+              covers the article, which is what a dropdown is for.
+            */}
+            <div class="absolute right-0 top-[calc(100%_+_0.5rem)] z-50 w-[min(20rem,calc(100vw_-_2rem))] disclosure-flow">
+              <div class="disclosure-flow-inner">
+                <div
+                  class="nav-overlay-viewport w-full overflow-y-auto overscroll-contain border border-rule-strong bg-paper p-4"
+                  aria-label="Reading preferences"
+                >
+                  <div class="flex flex-col gap-4">
+                    <fieldset class="m-0 border-0 p-0">
+                      <legend class="running-head mb-2 p-0">Text size</legend>
+                      <div class="grid grid-cols-4 gap-1.5">
+                        {textScales.map((scale) => (
+                          <button
+                            type="button"
+                            class="flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-ui border border-control-edge bg-transparent font-serif text-ink transition-colors hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent"
+                            data-reading-pref="text"
+                            data-value={scale}
+                            aria-pressed="false"
+                            aria-label={`Set text size to ${Math.round(Number(scale) * 100)}%`}
+                          >
+                            {/*
+                              The preview is the step it selects, at 1.5× so a
+                              10% step is still visibly a step: at 1.1× the four
+                              letters read as four near-identical rows.
+                            */}
+                            <span
+                              class="leading-none"
+                              style={`font-size: ${Number(scale) * 1.5}rem`}
+                            >
+                              A
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <fieldset class="m-0 border-0 p-0">
+                      <legend class="running-head mb-2 p-0">Line measure · characters</legend>
+                      <div class="grid grid-cols-3 gap-1.5">
+                        {measures.map((measure) => (
+                          <button
+                            type="button"
+                            class="flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-ui border border-control-edge bg-transparent font-mono text-mono tabular-nums text-ink transition-colors hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent"
+                            data-reading-pref="measure"
+                            data-value={measure}
+                            aria-pressed="false"
+                            aria-label={`Set line measure to ${measure} characters`}
+                          >
+                            {measure}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <p class="meta m-0 leading-[1.5] normal-case">
+                      Saved on this device. Both restore on your next visit.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <button
+            type="button"
+            id="theme-toggle"
+            class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-ui border border-transparent focus-visible:border-control-edge focus-visible:text-ink bg-transparent px-2.5 py-1.5 font-sans text-ui font-medium leading-none text-ink-muted transition-colors hover:border-control-edge hover:text-accent"
+            aria-label="Switch to light theme"
+          >
+            <svg
+              data-theme-icon="dark"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <svg
+              data-theme-icon="light"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+            </svg>
+            <span class="theme-label hidden sm:inline">Theme</span>
+          </button>
+        </div>
+      </header>
+    )}
+
+    <slot />
+
+    <script>
+      import { createRouteFocusController } from '../lib/route-focus.mjs';
+
+      /*
+       * The focus handoff, and nothing else.
+       *
+       * There is no loading state here any more. A route loader was removed, along
+       * with the three pulsing bars, the 180ms reveal gate, the 8000ms cap, the
+       * `aria-busy` bookkeeping and the `event.loader` wrapper. What survives is
+       * the one line of it that was ever about the reader rather than about the
+       * request: after a client-side swap the focused element no longer exists, so
+       * focus falls to <body> and a keyboard or screen-reader user is given no
+       * signal that the document was replaced. See `src/lib/route-focus.mjs`.
+       */
+      if (!Object.prototype.hasOwnProperty.call(document, 'routeFocusInitialized')) {
+        const controller = createRouteFocusController({ document });
+        document.addEventListener('astro:before-preparation', () => controller.begin());
+        document.addEventListener('astro:page-load', () => controller.pageLoad());
+        Object.defineProperty(document, 'routeFocusInitialized', { value: true });
+      }
+    </script>
+    <script>
+      /*
+       * Which KIND of navigation is this.
+       *
+       * A route swap has two choreographies and the difference is the reader's
+       * intent, not the destination:
+       *
+       *   `data-nav="jump"`  — home to a section, section to section, any link that
+       *     is not a pager cell. The page's furniture scatters: the left rail leaves
+       *     leftward, the home metadata margin leaves rightward, the centre
+       *     dissolves, and the new page reassembles in the reverse order.
+       *
+       *   `data-nav="pager"` — the next/previous cell. A deliberate step along a
+       *     linear book, so the new page is anchored on its own title and the
+       *     reading column cascades down out of it.
+       *
+       * Read from `astro:before-preparation` rather than from a `click` listener, so
+       * it works for a keyboard Enter, for a middle-click, and for anything the
+       * browser synthesises — `event.sourceElement` is the element the router
+       * itself resolved the navigation from.
+       *
+       * The key is `rel`. It is the only marker that distinguishes a pager hop from
+       * every other navigation, it needs no new markup, and it is already load-
+       * bearing in four test files. An `aria-label` is deliberately NOT added for
+       * the same reason `PrevNext.astro` keeps its name as visible-derived text: a
+       * label would break the voice-control contract where the accessible name
+       * must begin with the visible word.
+       *
+       * Default is `jump`, not `pager`. Every unmarked navigation — in-article
+       * cross-references, the breadcrumb, the header section menu, the home
+       * contributions list, "Book home", the 404 recovery links — scatters, and a
+       * reader who follows an in-article link across the book is making a section
+       * jump far more often than they are pressing a pager cell.
+       *
+       * It is written twice, because the router deletes it once. Astro re-applies the
+       * incoming document's `<html>` attributes on `astro:after-swap`, and the
+       * document being swapped in is a freshly parsed page that has never heard of
+       * `data-nav`. Writing it in `before-preparation` alone therefore works right up
+       * until the moment it matters: the attribute is present when this code runs and
+       * gone by the time the view-transition pseudo tree is built and its custom
+       * properties are read, so every pager hop silently runs the jump choreography.
+       * Measured, the clearing happens between `astro:before-swap` and
+       * `astro:after-swap`, and the re-write on `after-swap` lands in the same task
+       * as the clear, ahead of any style resolution. Pinned by
+       * `test/e2e/route-transition.spec.mjs`.
+       */
+      if (!Object.prototype.hasOwnProperty.call(document, 'routeKindInitialized')) {
+        let kind = 'jump';
+
+        const write = () => {
+          document.documentElement.dataset['nav'] = kind;
+        };
+
+        document.addEventListener('astro:before-preparation', (event) => {
+          const source = event.sourceElement;
+          const fromPager =
+            source instanceof Element && source.closest('a[rel="prev"], a[rel="next"]') !== null;
+          kind = fromPager ? 'pager' : 'jump';
+          write();
+        });
+
+        document.addEventListener('astro:after-swap', write);
+
+        Object.defineProperty(document, 'routeKindInitialized', { value: true });
+      }
+    </script>
+    <script>
+      if (!Object.prototype.hasOwnProperty.call(document, 'routeAnnouncerSweepInitialized')) {
+        /*
+         * Astro announces the new title from an `aria-live="assertive"` node it
+         * appends to <body> on every completed navigation, and never removes it.
+         * The focus handoff above already conveys the change, so the assertive
+         * announcement is a duplicate at best and an unbounded DOM leak at worst.
+         * It is created after `astro:page-load` fires, hence the defer.
+         *
+         * An earlier version also observed insertions with a `MutationObserver`.
+         * It was removed: it made three Firefox route-loader tests fail that had
+         * been passing, and the leak it guarded against is already closed by this
+         * sweep on every navigation the reader actually completes.
+         */
+        document.addEventListener('astro:page-load', () => {
+          setTimeout(() => {
+            for (const stale of document.querySelectorAll('.astro-route-announcer')) {
+              stale.remove();
+            }
+          }, 150);
+        });
+        Object.defineProperty(document, 'routeAnnouncerSweepInitialized', { value: true });
+      }
+    </script>
+    <script>
+      import { bindThemeController } from '../lib/theme-controller.mjs';
+
+      bindThemeController({ document });
+    </script>
+    <script>
+      import { bindReadingPrefs } from '../lib/reading-prefs-controller.mjs';
+
+      bindReadingPrefs({ document });
+    </script>
+    <script>
+      import { bindDisclosureController } from '../lib/disclosure-controller.mjs';
+
+      bindDisclosureController({ document });
+    </script>
+    <script>
+      import { bindDropdownDismiss } from '../lib/dropdown-dismiss.mjs';
+
+      bindDropdownDismiss({ document });
+    </script>
+    <script>
+      /*
+       * The title-block entrance plays once per document.
+       *
+       * `data-title-entrance` is written by the inline bootstrap in `<head>` and
+       * cleared here, on the first `astro:page-load` that is not the initial
+       * load. Clearing it after the first completed navigation — rather than
+       * before, or on `astro:before-swap` — keeps the first paint animated and
+       * every arrival after it at rest.
+       */
+      if (!Object.prototype.hasOwnProperty.call(document, 'titleEntranceInitialized')) {
+        let initial = true;
+        document.addEventListener('astro:page-load', () => {
+          if (initial) {
+            initial = false;
+            return;
+          }
+          delete document.documentElement.dataset['titleEntrance'];
+        });
+        Object.defineProperty(document, 'titleEntranceInitialized', { value: true });
+      }
+    </script>
+  </body>
+</html>

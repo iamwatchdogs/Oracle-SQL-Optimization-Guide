@@ -1,0 +1,1928 @@
+/*
+ * `source(none)` is load-bearing, not stylistic.
+ *
+ * Without it Tailwind v4 crawls the project root for class names. `@source not`
+ * only subtracts from the EXPLICIT set — it does not switch automatic detection
+ * off — so with the plain `@import` form the scanned set was the union of the
+ * declared globs and everything auto-detected: `test/**` (1800+ lines), the
+ * config files, `PRODUCT.md`, `AGENTS.md`, `bun.lock`, `public/**`.
+ *
+ * The consequence was that Tailwind generated utilities from words that only
+ * ever appear in a TEST or in PROSE: the elevation-scale class from a spec
+ * whose title reads "the flat elevation contract and shadow vocabulary stay
+ * intact", a stacking-context class from a table cell in the freeze-with-STS
+ * recipe, and the two rotated-row classes from specs whose entire job was to
+ * assert those utilities were ABSENT.
+ *
+ * Note that this file is itself a source, so naming a banned utility anywhere
+ * in a comment here is enough to emit it. Keep the names out of this file;
+ * `test/integration/tailwind-source-closure.test.mjs` asserts their absence
+ * from the compiled bundle.
+ */
+@import 'tailwindcss' source(none);
+@plugin '@tailwindcss/typography';
+@source '../../src/**/*.astro';
+@source '../../src/**/*.{ts,js,mjs}';
+@source '../../contents/**/*.md';
+@source '../../contents/**/*.mdx';
+
+:root {
+  color-scheme: dark;
+
+  --paper: #0c0c0e;
+  --paper-raised: #141417;
+  --paper-sunken: #08080a;
+  --ink: #ece8e0;
+  --ink-muted: #a8a49c;
+  --ink-faint: #9a958c;
+  --rule: #2a2a2e;
+  --rule-strong: #3a3a40;
+
+  --accent: #8aa4ff;
+  --accent-hover: #a3b8ff;
+  --accent-ink: #0c0c0e;
+  --accent-soft: rgb(138 164 255 / 0.12);
+
+  --zone-a: #e0dbd2;
+  --zone-b: #b8b3a9;
+  --zone-c: #aaa59c;
+  --zone-d: #9e998f;
+  --zone-chip-bg: rgb(236 232 224 / 0.06);
+  --table-zebra: rgb(236 232 224 / 0.022);
+
+  --focus: #8aa4ff;
+  --selection-bg: rgb(138 164 255 / 0.28);
+  --selection-fg: var(--ink);
+  /* 3.14:1 on the dark track. `--rule-strong` was the previous value and read
+     1.73:1 — invisible at rest, then past 3:1 the instant the pointer landed on
+     it, which is an inverted affordance for the one control that tells a reader
+     how much of the book is left. A scrollbar thumb is a component boundary
+     under WCAG 1.4.11, unlike the decorative hairlines it sits beside, and the
+     hover step (`--ink-faint`, 6.56:1) still reads as a clear jump upward. */
+  --scrollbar-thumb: #606068;
+  /* 3.23:1 on the page. The base layer sets `border-color: var(--rule)` on every
+     element, so a control that did not override it inherited the decorative
+     hairline value at 1.73:1 — and WCAG 1.4.11 applies to a control's boundary,
+     where it does not to the table rules and code frames sitting beside it. Same
+     reasoning as `--scrollbar-thumb` above: the same value is right for both, so
+     both get their own token rather than borrowing a decorative one.
+
+     This is the value a control's border is DRAWN at, not a floor that every
+     control must always paint. A control that names itself — a text label, an
+     accessible name — is identified without its box, and 1.4.11 asks for the
+     contrast of the information *required* to identify it, so a control with a
+     label is not one of them. The three header triggers therefore sit at
+     `border-transparent` and draw this on hover, on open and on `focus-visible`,
+     which is what `ReadingTocToggle` has always done. The token still clears 3:1,
+     because every one of those states draws it. */
+  --control-edge: #62626a;
+  --scrollbar-track: var(--paper);
+
+  /*
+   * The reading scale.
+   *
+   * One multiplier, not one knob per step. A font-size control that moved only
+   * `--type-body` grew the prose and left every heading, TOC label, running head
+   * and mono metadata exactly where it was, so the page came apart into two type
+   * systems the moment a reader touched it. Every step in the ramp is now
+   * `calc(<base> * var(--type-scale))`, and `@theme inline` is what keeps the
+   * utility emitting the `var()` rather than freezing the value at build time.
+   *
+   * `--type-citation` and `--type-annotation` are the two exceptions. They are
+   * already `em`-relative, so they follow whatever they sit inside, and
+   * multiplying them again would square the effect on every inline chip.
+   */
+  --type-scale: 1;
+
+  --type-display-base: clamp(2.75rem, 6vw, 6rem);
+  --type-display: calc(var(--type-display-base) * var(--type-scale));
+  --type-title: calc(clamp(1.75rem, 3vw, 2.5rem) * var(--type-scale));
+  --type-h2: calc(clamp(1.35rem, 2vw, 1.75rem) * var(--type-scale));
+  --type-h3: calc(1.25rem * var(--type-scale));
+  --type-h4: calc(1.0625rem * var(--type-scale));
+  --type-body: calc(1.125rem * var(--type-scale));
+  --type-abstract-base: clamp(1.05rem, 1.5vw, 1.25rem);
+  --type-abstract: calc(var(--type-abstract-base) * var(--type-scale));
+  --type-ui-base: 0.875rem;
+  --type-ui: calc(var(--type-ui-base) * var(--type-scale));
+  --type-mono-base: 0.8125rem;
+  --type-mono: calc(var(--type-mono-base) * var(--type-scale));
+  --type-chip-base: 0.6875rem;
+  --type-chip: calc(var(--type-chip-base) * var(--type-scale));
+
+  /*
+   * Route-transition choreography — the shared vocabulary.
+   *
+   * Four numbers and two travel distances, and every delay in the block below is
+   * derived from them rather than typed out:
+   *
+   *   240ms per piece · 45ms between pieces · 70ms of nothing in the middle
+   *
+   * The third one is the load-bearing number. The pieces leave top-down and come
+   * back bottom-up, so nothing arrives until the last thing has gone, and the
+   * 70ms between the two is a real pause on a real blank page. It is called a dead
+   * beat because nothing is scheduled in it, not because nothing is in it.
+   */
+  /*
+   * Per-piece duration.
+   *
+   * This was 190ms, and 190ms reads as a cut rather than a change of page: the
+   * pieces are off and the new page is on before the reader has registered that
+   * anything was there, which is the same feeling as a slow network — the page
+   * went somewhere and you were not told. 240ms is the point at which the swap
+   * registers as a movement the reader caused. The stagger is unchanged, so the
+   * shape of the choreography is identical and only its pace moves.
+   */
+  --zone-dur: 240ms;
+  --zone-stagger: 45ms;
+  --zone-beat: 70ms;
+  --zone-travel: 60px;
+  --zone-drop: 36px;
+  --zone-out-ease: cubic-bezier(0.4, 0, 1, 1);
+  --zone-in-ease: cubic-bezier(0, 0, 0.2, 1);
+
+  /*
+   * The two variants, as delays and directions. Which one is live is decided by
+   * `data-nav` on `<html>`, written by the `astro:before-preparation` hook in
+   * `BaseLayout.astro`, and it arrives here as an inherited custom property rather
+   * than as a selector — see the note above the zone rules for why that is not a
+   * stylistic preference.
+   *
+   * The exit ladder is the page read top to bottom. The entrance ladder is that
+   * ladder reversed, and every one of its numbers is written as an offset from
+   * `--zone-enter-base` — the moment the last piece finishes leaving plus the dead
+   * beat. Retiming the swap is therefore a change to one of four numbers above, and
+   * there is no way for the two ladders to fall out of step with each other.
+   */
+  --zone-exit-rh: 0ms;
+  --zone-exit-rail: var(--zone-stagger);
+  --zone-exit-body: calc(2 * var(--zone-stagger));
+  --zone-exit-pager-prev: calc(3 * var(--zone-stagger));
+  --zone-exit-pager-next: calc(4 * var(--zone-stagger));
+
+  /*
+   * The home zones leave LAST, for the same reason they arrive first: `body-home` is the
+   * entire first viewport, and the home page is the first thing a reader sees on a cold
+   * arrival, so it should be the last thing to go when they leave it. The top-of-page
+   * slot it used to occupy — 90ms, alongside `body` — put the largest region of the site
+   * on screen for 90ms before the furniture had even started moving.
+   */
+  --zone-exit-body-home: calc(4 * var(--zone-stagger));
+  --zone-exit-meta: calc(4 * var(--zone-stagger));
+
+  /*
+   * 490ms: the pager cell at the foot of the page finishes leaving at 180 + 240,
+   * and the beat adds 70. The first thing to come back is the pager cell, because
+   * it was the last thing to go.
+   */
+  --zone-enter-base: calc(4 * var(--zone-stagger) + var(--zone-dur) + var(--zone-beat));
+  --zone-enter-pager-next: var(--zone-enter-base);
+  --zone-enter-pager-prev: calc(var(--zone-enter-base) + var(--zone-stagger));
+  --zone-enter-body: calc(var(--zone-enter-base) + 2 * var(--zone-stagger));
+  --zone-enter-rail: calc(var(--zone-enter-base) + 3 * var(--zone-stagger));
+  --zone-enter-rh: calc(var(--zone-enter-base) + 4 * var(--zone-stagger));
+
+  /*
+   * The home page arrives FIRST, and this is a change of mind rather than an oversight.
+   *
+   * On a section page the ladder is read bottom-up: the pager cells at the foot come back
+   * first and the running head at the top last, so the page builds from where the reader's
+   * eye already is. On the home page that reading inverts. `body-home` is the whole first
+   * viewport — title block, abstract, primary control and the contents list — and `meta` is
+   * nested inside it, so a ladder slot at the top of the page arrives after 670ms of
+   * staring at an empty frame for the largest, most important arrival in the whole site.
+   *
+   * So the home zones take the base, arriving at 490ms, and the two most prominent regions
+   * of a home→section swap therefore leave last rather than first. This is the one place
+   * the reverse ordering is deliberately inverted, and the reason is that the ordering is
+   * there to serve the reader's position, not to be a rule.
+   */
+  --zone-enter-body-home: var(--zone-enter-base);
+  --zone-enter-meta: var(--zone-enter-base);
+
+  /*
+   * Which way each piece comes back from, or whether it simply resolves in place.
+   * An edge leaves along its own axis and returns along the same one; the two
+   * centre pieces dissolve where they stand.
+   */
+  --zone-in-rh: zone-in;
+  --zone-in-rail: zone-in-left;
+  --zone-in-body: zone-in;
+  --zone-in-body-home: zone-in;
+  --zone-in-pager-prev: zone-in-left;
+  --zone-in-pager-next: zone-in-right;
+  --zone-in-meta: zone-in-right;
+
+  --type-running-head: calc(0.6875rem * var(--type-scale));
+  --type-pager: calc(1rem * var(--type-scale));
+  --type-contribution: calc(1.125rem * var(--type-scale));
+  --type-citation: 0.8125em;
+  --type-annotation: 0.875em;
+
+  /*
+   * The measure, in characters — and the track it sits in.
+   *
+   * Two independent caps sit between the reading column and the viewport, and
+   * the smaller one is always the one that shows. `70ch` of 18px Source Serif is
+   * 666px; the track is 736px. A width control pointed at the track alone
+   * therefore did nothing at all at every desktop size, and one pointed at the
+   * measure alone left the track stranded. They move together here.
+   *
+   * The steps are 60 / 70 / 75 because they are round numbers a reader can hold
+   * in their head and compare against a settings panel. The previous 62 / 68 / 74
+   * were not, and the middle one in particular was the number people read most
+   * often — it is the default, it is what `DESIGN.md` quotes as "the measure",
+   * and it was 68, which reads as an accident rather than a decision.
+   */
+  --measure: 70ch;
+  --width-reading-track: 46rem;
+
+  /*
+   * The gap between blocks of prose, as a LENGTH rather than an `em`.
+   *
+   * `1.25em` is the obvious way to write this and it is wrong in a way that only
+   * shows up in the elements nobody checks. `em` resolves against the element's OWN
+   * font-size, so on a paragraph — which is 18px, the same as the body — `1.25em`
+   * was 22.5px, and on a code frame, which sets its own `font-size`, the same
+   * declaration was 1.25 × 14.4 = 18px. The widest and heaviest block on the page
+   * was separated from its neighbours by less space than a paragraph got, and the
+   * rhythm quietly disagreed with itself in four places.
+   *
+   * Declaring it here, against `--type-body`, fixes both halves: a custom property's
+   * `em` is substituted where the property is DECLARED, so this resolves to 28.8px
+   * once and every consumer inherits a length, whatever size its own text is. And
+   * because it is built on `--type-body` it still moves with `--type-scale`, which
+   * is the one thing the `em` was getting right.
+   *
+   * 1.6 of the body is 28.8px against a 29.7px line box: a paragraph break is almost
+   * exactly one blank line, which is where a reader expects it and well short of the
+   * two where the blocks stop reading as one page. It was 1.25 — 0.76 of a line,
+   * close enough that a run of paragraphs reads as a wall.
+   */
+  --prose-rhythm: calc(var(--type-body) * 1.6);
+
+  /*
+   * The disclosure's small delay, in both directions.
+   *
+   * Every disclosure in the project already moves for 280ms, which is what keeps a
+   * dropdown from snapping shut. 280ms of travel and zero of latency is still a
+   * snap: the row is at full height on the frame the outside click is reported on,
+   * so the panel reads as having been removed rather than folded away, and a
+   * pointer that drifted a pixel out of the panel while the reader was reaching for
+   * a control is enough to trigger it.
+   *
+   * 40ms buys the travel a moment of lead-in without costing anything legible —
+   * the threshold below which a delay is not perceived as lag is about 100ms, so
+   * this is a quarter of the way there and well under the perceptual floor. It is
+   * applied to the ROW, the GLYPH and the PADDING from one variable, because the
+   * three are the same motion and a delay on one of them alone is a desync that
+   * costs more to explain than it is worth.
+   */
+  --disclosure-delay: 40ms;
+
+  /*
+   * The title block's metadata margin, and the interior TOC rail.
+   *
+   * Both were content-sized. The metadata margin was the `auto` track of a
+   * `1fr auto` grid, so it resolved to its own max-content width — and the
+   * evidence key's panel is 150px wider at its widest than the summary that
+   * closes it. Opening the disclosure handed those 150px to the `1fr` column,
+   * re-wrapped the display title onto an extra line, and moved the entire page.
+   * A fixed track is what makes the title block a title block.
+   */
+  --width-title-meta: 27.5rem;
+  --width-toc-rail: 280px;
+
+  --body-leading: 1.65;
+  --tight-leading: 1.2;
+  --radius-scrollbar: 5px;
+}
+/*
+ * The pager variant.
+ *
+ * The reading column RISES into place instead of resolving where it stands, so a
+ * next/previous cell reads as a step along a linear book rather than as a cut. It
+ * dissolves as well as travelling, because the dead beat is the point and a piece
+ * that is simply there through the pause is not participating in it.
+ *
+ * This is the ONLY difference between the two variants. The entrance ladder, the
+ * dead beat and the furniture's behaviour are shared, so a pager hop and a section
+ * jump take exactly as long and are legible in the same way.
+ *
+ * The heading is not a zone. It lives inside the reading column, so naming it would
+ * snapshot the same pixels twice and put a second copy of the title on top of the
+ * first for the length of the swap.
+ */
+html[data-nav='pager'] {
+  --zone-in-body: zone-in-up;
+}
+
+/*
+ * Reader preferences. Three independent, persisted choices, each one attribute
+ * on `<html>` written by the inline bootstrap in `BaseLayout.astro` before first
+ * paint and by `src/lib/reading-prefs-controller.mjs` after that.
+ *
+ * Attributes rather than classes so the stylesheet can be read top-down as the
+ * contract it is, and so an unknown value from a stale key falls through to the
+ * `:root` default instead of rendering nothing.
+ */
+/*
+ * The home hero is composed at a fixed size, and the reader's text size stops at
+ * its edge.
+ *
+ * `--type-scale` is a single multiplier on the whole ramp, which is right for a
+ * reading environment: prose, headings, TOC labels and mono metadata all move
+ * together, because a page where only the body moved is two type systems. The home
+ * hero is not part of that. It is a display composition, not text to be read at
+ * length — a 6rem display title that becomes 7.2rem is not a reader's text size
+ * preference being honoured, it is the one place on the site where the composition
+ * stops fitting its frame, and the first thing to break is the line count of the
+ * abstract under it, which is wrapped at `42ch` and so widens with the type.
+ *
+ * Freezing the multiplier rather than un-scaling the tokens is what keeps the rest
+ * of the ramp intact: every `--type-*` step is still `calc(<base> * var(--type-scale))`
+ * and still scales everywhere else, and the hero simply redeclares the multiplier
+ * to `1` for itself. `ch` units inside the hero stop moving too, which is the
+ * point — the hero is identical at every text size.
+ */
+.hero-composition {
+  --type-scale: 1;
+
+  /*
+   * These five have to be RE-DECLARED here, and that is the whole subtlety.
+   *
+   * `--type-scale` is a custom property, and a custom property's `var()`
+   * references are substituted where the property is DECLARED — not where it is
+   * used. The ramp is declared on `:root`, so `html[data-reading-text='1.2']` has
+   * already resolved `--type-display` to `calc(clamp(...) * 1.2)` by the time it
+   * inherits into the hero. Setting `--type-scale: 1` on the section changes
+   * nothing: it re-binds a variable that the inherited value no longer reads.
+   *
+   * The fix is to re-declare the ramp tokens at this scope, where the section's
+   * own `--type-scale: 1` is what gets substituted. Referencing the `-base` twins
+   * is what keeps that from becoming a second copy of the ramp: there is one
+   * authored value per step, and this block re-multiplies it rather than repeating
+   * it, so changing `--type-display-base` tomorrow moves the hero too.
+   *
+   * Five tokens, not fourteen, and the list is the hero's own type: the display
+   * title, the abstract, the primary control, the metadata margin and its grade
+   * chips. The other nine steps have no scope that opts out of the scale, and a
+   * `-base` twin with no consumer is indirection for its own sake.
+   */
+  --type-display: calc(var(--type-display-base) * var(--type-scale));
+  --type-abstract: calc(var(--type-abstract-base) * var(--type-scale));
+  --type-ui: calc(var(--type-ui-base) * var(--type-scale));
+  --type-mono: calc(var(--type-mono-base) * var(--type-scale));
+  --type-chip: calc(var(--type-chip-base) * var(--type-scale));
+}
+
+html[data-reading-text='0.9'] {
+  --type-scale: 0.9;
+}
+
+html[data-reading-text='1.1'] {
+  --type-scale: 1.1;
+}
+
+html[data-reading-text='1.2'] {
+  --type-scale: 1.2;
+}
+
+html[data-reading-measure='60'] {
+  --measure: 60ch;
+  --width-reading-track: 42rem;
+}
+
+html[data-reading-measure='75'] {
+  --measure: 75ch;
+  --width-reading-track: 52rem;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --paper: #f7f5f0;
+  --paper-raised: #fffefb;
+  --paper-sunken: #eceae3;
+  --ink: #1a1815;
+  --ink-muted: #5c574f;
+  --ink-faint: #6b665e;
+  --rule: #d9d4cb;
+  --rule-strong: #b8b3a9;
+  /* 3.36:1 on the paper. See the dark `--control-edge` note: the same base-layer
+     default put every control's boundary at 1.92:1, where a decorative hairline
+     sits at 1.37:1. */
+  --control-edge: #8b857c;
+
+  --accent: #2d4a9a;
+  --accent-hover: #1e3a7a;
+  --accent-ink: #fffefb;
+  --accent-soft: rgb(45 74 154 / 0.1);
+
+  --zone-a: #1a1815;
+  --zone-b: #4a463f;
+  --zone-c: #6b665e;
+  --zone-d: #6d685f;
+  --zone-chip-bg: rgb(26 24 21 / 0.05);
+  --table-zebra: rgb(26 24 21 / 0.03);
+
+  --focus: #2d4a9a;
+  --selection-bg: rgb(45 74 154 / 0.18);
+  --selection-fg: var(--ink);
+  /* 3.23:1 on the light track; see the dark note on `--scrollbar-thumb`. */
+  --scrollbar-thumb: #8e887e;
+  --scrollbar-track: var(--paper);
+}
+
+[data-theme='dark'] [data-theme-icon='light'],
+[data-theme='light'] [data-theme-icon='dark'] {
+  display: none;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  /* Exposed so a control can opt in from markup: Tailwind's `border-rule` and the
+     base-layer default are both outranked by an unlayered utility, so a control
+     whose border is its boundary has to ask for this one by name. */
+  --color-control-edge: var(--control-edge);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-zone-a: var(--zone-a);
+  --color-zone-b: var(--zone-b);
+  --color-zone-c: var(--zone-c);
+  --color-zone-d: var(--zone-d);
+  --color-zone-chip-bg: var(--zone-chip-bg);
+
+  /* Astro's `<Font>` declares `--face-serif/-sans/-mono` from the font
+     pipeline. Without a fallback, a blocked or deferred font pipeline leaves
+     these empty, `font-family` becomes invalid at computed-value time, and the
+     page silently drops to the UA's initial serif instead of the designed
+     fallback in DESIGN.md. */
+  --font-serif: var(--face-serif, 'Source Serif 4', Georgia, serif);
+  --font-sans: var(--face-sans, Inter, system-ui, sans-serif);
+  --font-mono: var(--face-mono, 'JetBrains Mono', ui-monospace, monospace);
+
+  --radius-ui: 2px;
+
+  --text-display: var(--type-display);
+  --text-title: var(--type-title);
+  --text-h2: var(--type-h2);
+  --text-h3: var(--type-h3);
+  --text-h4: var(--type-h4);
+  --text-body: var(--type-body);
+  --text-abstract: var(--type-abstract);
+  --text-ui: var(--type-ui);
+  --text-mono: var(--type-mono);
+  --text-chip: var(--type-chip);
+  --text-pager: var(--type-pager);
+  --text-contribution: var(--type-contribution);
+  --text-annotation: var(--type-annotation);
+
+  --leading-body: var(--body-leading);
+  --leading-tight: var(--tight-leading);
+
+  --width-shell: min(100% - 2rem, 72rem);
+  --width-shell-wide: min(100% - 2rem, 80rem);
+  /* Through a variable, not a literal. `@theme inline` inlines whatever is here,
+     so a bare `46rem` would be frozen into the emitted `max-w-reading` and the
+     reader's measure control would have nothing to move. */
+  --container-reading: var(--width-reading-track);
+  --container-contributions: 52rem;
+  --container-measure: var(--measure);
+
+  --spacing-title-block: clamp(2.5rem, 6vw, 4.5rem);
+  --spacing-toc-indent: 1.5rem;
+  --spacing-toc-indent-4: 2.75rem;
+  --spacing-prose-sibling: var(--prose-rhythm);
+  --spacing-prose-h2-top: 2.5em;
+  --spacing-prose-h2-bottom: 0.75em;
+  --spacing-prose-h2-padding-bottom: 0.5em;
+  --spacing-prose-h3-top: 2em;
+  --spacing-prose-h3-bottom: 0.5em;
+  /*
+   * `1.5em` of its own 17px is 25.5px, which is LESS than the 1.6-of-body rhythm a
+   * paragraph gets — so the h4 would be separated from the text above it by less
+   * space than two paragraphs are from each other. And the token was dead anyway:
+   * the `>*+*` rule did not exclude `h4`, so at (0,3,6) against the plugin's (0,1,0)
+   * the sibling gap won and h4 measured 21.25px.
+   *
+   * So the h4 is expressed against the same rhythm as everything else, one step
+   * above it. That keeps the descending order the h2 and h3 already have —
+   * 2.5em, 2em, 1.1 × the rhythm, the rhythm — and makes it impossible for a
+   * heading's leading to fall below a block's by editing a number in one place.
+   */
+  --spacing-prose-h4-top: calc(var(--prose-rhythm) * 1.1);
+  --spacing-prose-h4-bottom: 0.35em;
+}
+
+@utility primary-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-ui);
+  background-color: var(--accent);
+  padding: 0.875rem 1.5rem;
+  color: var(--accent-ink);
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: normal;
+  text-decoration: none;
+  cursor: pointer;
+  transition-property: background-color, translate;
+  transition-duration: 280ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+
+  &:hover {
+    background-color: var(--accent-hover);
+    color: var(--accent-ink);
+    translate: 0 -1px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+}
+
+@utility running-head {
+  font-family: var(--font-mono);
+  font-size: var(--type-running-head);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+@utility meta {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+@utility disclosure-flow {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 0fr;
+  overflow: visible;
+  transition: grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1) var(--disclosure-delay);
+
+  details[open]:not([data-disclosure-closing]) > & {
+    grid-template-rows: 1fr;
+  }
+}
+
+@utility disclosure-flow-inner {
+  min-height: 0;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+@utility nav-overlay-viewport {
+  max-height: calc(100vh - 6rem);
+}
+
+@utility toc-viewport {
+  max-height: calc(100vh - 5rem);
+}
+
+@utility toc-mobile-viewport {
+  max-height: calc(100vh - 8rem);
+}
+
+/*
+ * The collapsible TOC rail.
+ *
+ * The rail is the first track of `grid-cols-[var(--width-toc-rail)_minmax(0,1fr)]`,
+ * so collapsing it is a track-width change and nothing else. The reading column
+ * is already `flex justify-center` inside that track and already capped by
+ * `--container-reading`, so it re-centres on its own — and because its own width
+ * is capped by `--container-measure` first, the collapse is a pure translate of
+ * the text block, not a re-wrap of the prose.
+ *
+ * `grid-template-columns` and `gap` are both animatable, and both are in the
+ * transition list, so the track and the gutter between the tracks close together
+ * in one beat. Two tracks at both ends, never one: interpolating a two-track
+ * template to a single-track one is not a transition, it is a snap.
+ */
+.toc-rail-grid {
+  transition:
+    grid-template-columns 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.toc-rail-cell {
+  /* Clips the rail's contents as the track narrows, so the links slide out of
+     the layout rather than hanging out of it. */
+  overflow: hidden;
+  transition: visibility 0s;
+}
+
+@media (min-width: 64rem) {
+  html[data-reading-toc='collapsed'] .toc-rail-grid {
+    grid-template-columns: 0px minmax(0, 1fr);
+    gap: 0px;
+  }
+
+  /*
+   * With the rail gone, the reading column is the page.
+   *
+   * `--container-reading` (46rem) is wider than the measure (70ch), so closing
+   * the track centres the COLUMN and left the 666px of text hanging 44px to
+   * the left of the page's axis inside it. Capping the column at the measure
+   * while the rail is shut makes the text block itself the centred object —
+   * which is what "close the TOC and centre the content" means — and it is why
+   * this rule is scoped to the collapsed state and not made the default. The
+   * right-hand alignment between the prose and the pager is untouched: both are
+   * still inside this one column.
+   */
+  html[data-reading-toc='collapsed'] .reading-column {
+    max-width: var(--measure);
+  }
+
+  /* Hidden when the collapse FINISHES, not when it starts, so the links are
+     still visible for exactly as long as they have somewhere to be seen — and
+     the delay is gone the instant the rail opens again, which is why the base
+     rule carries the un-delayed `transition: visibility 0s`. */
+  html[data-reading-toc='collapsed'] .toc-rail-cell {
+    visibility: hidden;
+    transition: visibility 0s 280ms;
+  }
+}
+
+/*
+ * The rail's toggle: one control, and it never leaves.
+ *
+ * There were two, and they were the two ends of the same control. A button at the
+ * rail's right edge closed the rail; an "edge tab" on the shell's left edge
+ * reopened it. Pressing the first put the second 232px to the left and 65px down —
+ * measured at 1280×900 — so the control under the reader's cursor was replaced by
+ * one somewhere else, and the chevron swapped between two static glyphs while the
+ * one thing a reader watches during a state change did nothing at all.
+ *
+ * Now there is one button, fixed to the rail's right edge, and it slides into the
+ * gutter as the rail closes. It is never hidden and never re-created, so the
+ * press and its consequence are one object moving. `position: fixed` is what lets
+ * it escape the rail's cell, which clips to zero width as the track closes.
+ *
+ * Both positions are derived from the tokens the rail itself is built from:
+ *
+ *   open       the rail's right edge, less the control and the header's own 1rem
+ *   collapsed  the shell's left edge, which is the only part of the margin that is
+ *              free once the rail is shut — the running head owns the band from the
+ *              header down to 97px at the left, so the collapsed position also
+ *              steps down to clear it
+ *
+ * `top` is the rail's own sticky offset. The control therefore lines up with the
+ * rail header whenever the rail is sticking, which is whenever the reader is far
+ * enough down the page to want it gone; at the very top of a page the rail sits at
+ * its natural position 19px lower and the control is above its label rather than
+ * beside the running head's text.
+ *
+ * The move is `translate` and the arrow is `transform`, so the whole interaction is
+ * on the compositor and shares the project's one motion curve.
+ */
+/*
+ * Below `lg` there is no rail to toggle, so there is no control — the mobile
+ * disclosure is the outline on a phone. `display: none` rather than
+ * `visibility`, because a fixed element with no size and no paint is not something
+ * a keyboard user should be able to tab to.
+ */
+.toc-rail-toggle {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .toc-rail-toggle {
+    display: flex;
+    position: fixed;
+    top: 4rem;
+    left: calc(max(0px, calc((100% - var(--width-shell)) / 2)) + var(--width-toc-rail) - 3rem);
+    translate: 0 0;
+    transition: translate 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html[data-reading-toc='collapsed'] .toc-rail-toggle {
+    translate: calc(-1 * (var(--width-toc-rail) - 3rem)) 5.25rem;
+  }
+}
+
+/*
+ * The arrow turns to face the way the rail went.
+ *
+ * One glyph for both states rather than two: `rotate(180deg)` turns the collapse
+ * chevron into the expand chevron, so the rotation is the transition. The previous
+ * pair of controls swapped between two hard-coded paths, which is the one thing in
+ * the interaction a reader could not follow.
+ */
+.toc-rail-chevron {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html[data-reading-toc='collapsed'] .toc-rail-chevron {
+  transform: rotate(180deg);
+}
+
+/* Unlayered with the rest of the viewport caps: a second `@layer utilities`
+   block placed after `components` would land between the Typography plugin's
+   `utilities` and this file's `base`, which is neither first nor last and makes
+   the emitted layer order depend on authoring accidents. */
+@supports (height: 100dvh) {
+  .nav-overlay-viewport {
+    max-height: calc(100dvh - 6rem);
+  }
+
+  .toc-viewport {
+    max-height: calc(100dvh - 5rem);
+  }
+
+  .toc-mobile-viewport {
+    max-height: calc(100dvh - 8rem);
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--rule);
+  }
+
+  /*
+   * Controls get their own boundary colour.
+   *
+   * Scoped to controls and not to `a`, because an inline link is identified by its
+   * text — a border on one is a separator, not the control's edge, and restyling
+   * every bordered link in the prose would put a 1px box around running text. A
+   * button, a `summary` or a form field has no such fallback: remove its border
+   * and the control is gone, which is exactly the case 1.4.11 covers.
+   */
+  button,
+  summary,
+  input,
+  select,
+  textarea,
+  [role='button'] {
+    border-color: var(--control-edge);
+  }
+
+  html {
+    font-family: var(--font-serif);
+    background: var(--paper);
+    color: var(--ink);
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100dvh;
+    /* Flex column so `mt-auto` on the footer actually pushes it to the
+       bottom edge on short pages instead of leaving a dead zone. */
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: var(--type-body);
+    line-height: var(--body-leading);
+    font-variant-numeric: tabular-nums;
+    hanging-punctuation: first;
+  }
+
+  ::selection {
+    background: var(--selection-bg);
+    color: var(--selection-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-ui);
+  }
+
+  /* Standard properties alongside the WebKit pseudo-elements below.
+     `::-webkit-scrollbar*` is Chromium-only, so Firefox was shipping a light
+     system scrollbar against a near-black ground in dark mode — a browser
+     surface that belonged to no design system. `auto` (not `thin`) keeps the
+     standard track the same 10px as the pseudo-elements so the two engines
+     agree on the reading column's usable width. */
+  html {
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: auto;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-scrollbar);
+    border: 2px solid var(--scrollbar-track);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--ink-faint);
+  }
+
+  /* On the root, not on `input, textarea, select`. Every editable surface
+     inherits a caret, so a `contenteditable` region or a future control the
+     form-control selector does not name still gets the themed caret instead
+     of the UA default. */
+  :where(html) {
+    caret-color: var(--accent);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-serif);
+    line-height: var(--tight-leading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    color: var(--ink);
+    scroll-margin-top: 5rem;
+  }
+
+  /* Any hash target, not just headings. `/#evidence-key` is a `<details>` that
+     would otherwise land flush under the 48px sticky header. */
+  :target,
+  [id] {
+    scroll-margin-top: 5.5rem;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  a {
+    color: inherit;
+    text-decoration-color: var(--rule-strong);
+    text-underline-offset: 0.15em;
+    transition:
+      color 150ms ease,
+      text-decoration-color 150ms ease;
+  }
+
+  a:hover {
+    color: var(--accent);
+    text-decoration-color: var(--accent);
+  }
+
+  button,
+  [role='button'],
+  nav,
+  label,
+  summary,
+  figcaption,
+  table,
+  input,
+  select,
+  textarea {
+    font-family: var(--font-sans);
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * Prose typography — unlayered on purpose.
+ *
+ * `@tailwindcss/typography` emits its whole `.prose` block into the
+ * `utilities` cascade layer, which outranks anything declared in
+ * `@layer components` *regardless of selector specificity*. Everything below
+ * therefore stays unlayered so the authored rules actually reach the browser:
+ * a `.prose td { padding }` in `components` loses to the plugin's
+ * `:where(tbody td:first-child) { padding-inline-start: 0 }` in `utilities`.
+ *
+ * Consequence to respect when adding rules here: an unlayered `.prose X` beats
+ * a Tailwind `prose-*` utility or an arbitrary-variant utility that targets the
+ * same element. Reach for `prose-*` utilities on the container in
+ * `[...slug].astro` for anything that must win, and keep this block for the
+ * base reading surface.
+ */
+/*
+ * Disclosure (accordion).
+ *
+ * Scoped to the `details` element, NOT to `.prose`. Every disclosure this
+ * project ships lives outside the article body — the site nav, the evidence
+ * key, and the mobile table of contents — so a `.prose details` prefix matched
+ * nothing in production and the whole component was dead weight. Base
+ * presentation is now structural; the framed variant (hairline rules plus
+ * running inner padding) is opt-in via `.disclosure` and also applied to
+ * `.prose details` so authored content gets the same treatment.
+ */
+details::details-content {
+  translate: 0 -0.35rem;
+  transition:
+    translate 280ms cubic-bezier(0.22, 1, 0.36, 1) var(--disclosure-delay),
+    content-visibility 280ms cubic-bezier(0.22, 1, 0.36, 1) var(--disclosure-delay) allow-discrete;
+}
+
+details[open]::details-content {
+  translate: 0 0;
+}
+
+details > summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  list-style: none;
+  text-wrap: pretty;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::marker {
+  content: '';
+}
+
+details > summary:hover {
+  color: var(--accent);
+}
+
+details[open]:not([data-disclosure-closing]) > summary {
+  color: var(--ink);
+}
+
+details[open]:not([data-disclosure-closing]) > summary:hover {
+  color: var(--accent);
+}
+
+/* The framed disclosure. Adjacent disclosures collapse to a single hairline
+   instead of stacking two 1px rules into a 2px band. Vertical rhythm is left
+   to the caller: `.prose` supplies it, and components use their own layout
+   spacing, so a `.disclosure` inside a `gap-*` grid does not double up. */
+details.disclosure,
+.prose details {
+  border: 0;
+  border-block: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  overflow-wrap: anywhere;
+}
+
+.prose details {
+  margin-block: 1.5rem;
+}
+
+details.disclosure + details.disclosure,
+.prose details + details {
+  margin-block-start: 0;
+  border-block-start: 0;
+}
+
+details.disclosure > summary,
+.prose details > summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 44px;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/*
+ * The framed disclosure's panel inset.
+ *
+ * The summary has always carried `padding: 0.7rem 0.9rem`, so its label sits
+ * 14.4px inside the frame. The panel carried `padding-block` only, so its first
+ * line sat flush against the frame edge — measured 14.4px to the LEFT of the
+ * label it explains. On the home page's evidence key that read as a list that
+ * had drifted out of its own border; in the body it read as a paragraph that
+ * had escaped the disclosure.
+ *
+ * It is on the FLOW rather than on the inner for two reasons that are both
+ * load-bearing. The inner must rest at exactly zero padding, because the close
+ * animates its row to `0fr` and any block padding would leave a residual band —
+ * inline padding costs no height, but the invariant is cleaner to hold when the
+ * inner declares nothing at all. And the flow is the panel's own frame, so
+ * insetting its content box is the panel's job rather than the content's.
+ *
+ * Scoped to the framed variant. The header's section list has no `.disclosure`
+ * class and its panel is a bordered dropdown, not a framed disclosure.
+ */
+details.disclosure > .disclosure-flow,
+.prose details > .disclosure-flow {
+  padding-inline: 0.9rem;
+}
+
+.disclosure-content-inner {
+  min-height: 0;
+  /*
+   * `transition: padding-block` here is deliberate, and the Impeccable detector
+   * flags it as a layout-thrash pattern. Keeping it anyway, with the reasoning,
+   * so the next person does not "fix" a specified behaviour on a heuristic.
+   *
+   * The finding is true on the letter and false in consequence. Animating a layout
+   * property is only expensive when it forces layout passes the frame was not
+   * already doing. This subtree is ALREADY laid out on every frame of the reveal,
+   * because `.disclosure-flow` transitions `grid-template-rows` between `0fr` and
+   * `1fr` — an auto-height disclosure cannot be animated any other way. One
+   * layout for the frame covers both properties; the padding does not add a
+   * second one.
+   *
+   * Removing it was tried and reverted. The measured collapse curve is the same
+   * shape either way (16 intermediate heights, monotonic to 0 — see
+   * `test/probe/probe-collapse-samples.mjs`), so the transition buys no visible
+   * smoothness, BUT the release of the inner padding is specified behaviour:
+   * `test/integration/disclosure-native-fallback.test.mjs` asserts this exact
+   * declaration exists, and DESIGN.md specifies the inner releasing its padding as
+   * part of the close. Silently dropping a specified animation because a linter
+   * dislikes the property is not a trade this project should make by accident.
+   */
+  transition: padding-block 280ms cubic-bezier(0.22, 1, 0.36, 1) var(--disclosure-delay);
+  color: var(--ink-muted);
+  font-family: var(--font-serif);
+  font-size: var(--type-body);
+  line-height: var(--body-leading);
+}
+
+details.disclosure[open] .disclosure-content-inner,
+.prose details[open] .disclosure-content-inner {
+  padding-block: 0.2rem 0.85rem;
+}
+
+details.disclosure[data-disclosure-closing] .disclosure-content-inner,
+.prose details[data-disclosure-closing] .disclosure-content-inner {
+  padding-block: 0;
+}
+
+.disclosure-content-inner > :first-child {
+  margin-block-start: 0;
+}
+
+.disclosure-content-inner > :last-child {
+  margin-block-end: 0;
+}
+
+/*
+ * Break opportunities for long unbreakable runs.
+ *
+ * A GFM list item chains bare identifiers with `/` and no spaces:
+ * `sql_id`/`child_number`/`parsing_schema_name`/`con_id`. Neither
+ * `overflow-wrap: anywhere` nor `break-word` on the `<code>` chips helps,
+ * because each individual chip is narrower than the column and so "fits on a
+ * line by itself" — the unbreakable unit is the whole 373px `/`-joined run,
+ * and only the CONTAINER can see that. Inheriting `break-word` here lets the
+ * browser break that run instead of pushing 51px past the column.
+ */
+.prose {
+  overflow-wrap: break-word;
+}
+
+/*
+ * Measure, not hyphenation, carries a narrow column.
+ *
+ * `hyphens: auto` is right at desktop measure, where a 68ch line has room to
+ * absorb the extra characters. At 390px the shell is 358px — about 40ch — and
+ * the long technical words in this corpus are short enough to fit unbroken, so
+ * the hyphenator fires on nearly every line break and the page reads as broken
+ * typesetting rather than as a rag: four breaks in five consecutive lines
+ * ("ex-/otic", "ac-/cidental", "col-/umn", "fetch shape"). Turning the
+ * hyphenator off below `sm` loses nothing — no word in the corpus exceeds the
+ * measure — and hands the rag back to the line-breaker.
+ */
+@media (max-width: 39.999rem) {
+  .prose,
+  .prose p {
+    hyphens: none;
+  }
+}
+
+.prose ul:has(> .task-list-item) {
+  list-style-type: none;
+  padding-inline-start: 0;
+}
+
+/*
+ * A GFM task-list item is a flat run of inline content — text, `<code>`,
+ * `<strong>`, more text — after a single checkbox. Making the `<li>` a flex or
+ * grid container promoted every one of those inline runs to its own item and
+ * laid them out as a single side-by-side ROW. On the handoff-checklist items
+ * (eight `<code>` spans in one sentence) that row reached 868px inside a 358px
+ * column and dragged the whole document to 884px on a 390px phone.
+ *
+ * The checkbox is taken out of flow instead, and the sentence stays ordinary
+ * inline content that wraps.
+ */
+.prose .task-list-item {
+  position: relative;
+  padding-inline-start: 1.55em;
+}
+
+.prose .task-list-item input[type='checkbox'] {
+  position: absolute;
+  left: 0;
+  top: 0.44em;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.prose a.citation {
+  display: inline-block;
+  margin-inline: 0.08em;
+  font-family: var(--font-mono);
+  font-size: var(--type-citation);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--ink-muted);
+  /* `nowrap` is load-bearing: a citation is an evidence marker, and `[S29]`
+     split across a line break reads as two different references. */
+  white-space: nowrap;
+}
+
+.prose a.citation::before {
+  content: '[';
+}
+
+.prose a.citation::after {
+  content: ']';
+}
+
+.prose a.citation:hover {
+  color: var(--accent);
+}
+
+.prose .measured {
+  font-family: var(--font-mono);
+  font-size: var(--type-annotation);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  /*
+   * `nowrap`, not `normal`. These are the force annotations — `E-Rows`,
+   * `100,000`, `5ms` — and the longest one in the corpus is seven characters,
+   * so nothing can overflow. What it does overflow is the LINE: at 390px the
+   * browser happily broke `E-Rows 1,000` at the hyphen into "E-" / "Rows 1,000",
+   * separating the label from the value it annotates. A measured value is only
+   * evidence if it stays one token.
+   */
+  white-space: nowrap;
+}
+
+.prose > p:has(> strong:only-child) {
+  padding: 1rem 1.25rem;
+  background: var(--accent-soft);
+  /* `--rule-strong`, not `--rule`. The tint is composited onto paper in both
+     themes, and `--rule` sat 1.09:1 against its own background in dark and
+     1.02:1 in light — the hairline this block is specified to carry was
+     arithmetically present and visually absent, which left a borderless
+     full-measure slab: the card the flat-elevation contract bans. */
+  border-block: 1px solid var(--rule-strong);
+  font-style: italic;
+  margin-block: 2rem;
+}
+
+/*
+ * Tables.
+ *
+ * The scroll container is the WRAPPER (`rehypeTableScroll` builds it), not the
+ * table. See `src/lib/rehype-table-scroll.mjs`: making the table itself
+ * `display: block` bought the overflow but cost the measure, because the row
+ * groups fell into an anonymous fit-content table box and the header rule and
+ * every row rule stopped at the content width instead of the column edge. The
+ * table keeps its real `display: table` box, so header, rows and cells are laid
+ * out as a table, and the wrapper owns `overflow`.
+ *
+ * Cell padding is uniform. The Typography plugin zeroes the inline padding of
+ * the first and last cell in a row; these rules are unlayered so they win, and
+ * nothing is left glued to the column edge.
+ */
+.prose .prose-table-scroll {
+  display: block;
+  max-width: 100%;
+  margin-block: var(--prose-rhythm);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.prose table {
+  display: table;
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  margin-block: 0;
+}
+
+.prose caption {
+  caption-side: top;
+  padding-block-end: 0.6rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-chip);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: start;
+  color: var(--ink-faint);
+}
+
+.prose thead th {
+  font-family: var(--font-sans);
+  font-size: var(--type-chip);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: start;
+  vertical-align: bottom;
+  hyphens: none;
+  text-wrap: balance;
+  padding: 0 0.9rem 0.6rem;
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--ink);
+}
+
+/*
+ * `vertical-align: top` on body cells, `bottom` on header cells.
+ *
+ * The Typography plugin sets `:where(tbody td) { vertical-align: baseline }`,
+ * which won the utilities layer until the authored prose rules were unlayered.
+ * Baseline aligns the FIRST BASELINE of each cell, so a row mixing a one-word
+ * `<code>` chip with a three-line SQL snippet comes out visibly ragged. `top`
+ * aligns every cell's first line, which is what makes a wide table scannable.
+ * The header sits `bottom` so it rests on the rule it underlines.
+ */
+.prose tbody td,
+.prose tfoot td {
+  vertical-align: top;
+  hyphens: none;
+  text-wrap: pretty;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-muted);
+}
+
+.prose tbody th {
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  font-weight: 600;
+  text-align: start;
+  hyphens: none;
+  text-wrap: pretty;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+}
+
+/* Tonal zebra — depth is tonal, never a shadow. Odd rows lift 2% so a wide
+   table stays scannable across a 300px column without a card or a rule. */
+.prose tbody tr:nth-child(odd) {
+  background: var(--table-zebra);
+}
+
+.prose tbody tr:last-child td,
+.prose tbody tr:last-child th,
+.prose tfoot tr:last-child td {
+  border-bottom: 0;
+}
+
+.prose :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: var(--type-annotation);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-ui);
+  /* Narrow horizontal padding on purpose. At 0.35em the chip's own gutter sat
+     between an identifier and the punctuation that follows it, so
+     `SELECT` , `JOIN` , `WHERE` , read as five detached commas rather than four
+     keywords in a list. */
+  padding: 0.1em 0.25em;
+  color: var(--ink);
+  hyphens: none;
+  /*
+   * `break-word`, not `anywhere`. `anywhere` only shrinks the element's
+   * min-content size (which matters for flex/grid items) and refuses to break a
+   * token that would fit on a line by itself — so a 318px path sitting after
+   * other inline content stayed whole and pushed the line 25px past the
+   * column. `break-word` breaks precisely to prevent that line overflow.
+   */
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.prose pre {
+  margin-block: 1.5em;
+  border-radius: var(--radius-ui);
+}
+
+.prose figcaption,
+.prose .frame > figcaption {
+  margin-block-start: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+/*
+ * A hairline frame around every code block.
+ *
+ * The frames plugin's default drop shadow is already suppressed at the source
+ * in `astro.config.mjs`, which left the frame with no edge of its own: a
+ * full-measure `#24292e` slab, and — measured — within ten luminance points of
+ * the takeaway tint, so the two read as the same box when they stacked. The
+ * hairline is what makes a plan or SQL sample read as a figure on the page
+ * rather than as a gap in it. It sits outside the frame's own padding, so the
+ * code's measure is unchanged.
+ */
+.prose .expressive-code,
+.prose figure.frame {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-ui);
+}
+
+/*
+ * `1.5em` here was 1.5 × this element's OWN 14.4px — 21.6px, the tightest gap in the
+ * article, on the block that is widest, darkest and carries the most ink. `em` on a
+ * top-level block is the wrong unit for the same reason it was the wrong unit for
+ * the rhythm: these elements have their own type, and a gap is not part of their
+ * type.
+ */
+.prose .expressive-code {
+  margin-block: var(--prose-rhythm);
+}
+
+.prose .MathJax,
+.prose mjx-container {
+  font-size: 1.05em;
+}
+
+.prose .mermaid {
+  margin-block: var(--prose-rhythm);
+}
+
+[data-theme='light'] .prose .mermaid,
+[data-theme='light'] .mermaid {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/*
+ * Unlayered on purpose: the Typography plugin emits its `.prose` token
+ * defaults into the `utilities` cascade layer, which outranks anything
+ * declared in `@layer components` regardless of selector specificity.
+ * A single unlayered `.prose` rule therefore beats the plugin defaults.
+ * No per-theme enumeration is needed: every token points at a theme
+ * variable, so the value re-resolves from `--ink`, `--accent`, `--rule`,
+ * and friends on each `[data-theme]` state.
+ */
+.prose {
+  --tw-prose-body: var(--ink);
+  --tw-prose-headings: var(--ink);
+  --tw-prose-lead: var(--ink-muted);
+  --tw-prose-links: var(--accent);
+  --tw-prose-bold: var(--ink);
+  --tw-prose-counters: var(--ink-faint);
+  --tw-prose-bullets: var(--ink-faint);
+  --tw-prose-hr: var(--rule);
+  --tw-prose-quotes: var(--ink-muted);
+  --tw-prose-quote-borders: var(--rule);
+  --tw-prose-captions: var(--ink-muted);
+  --tw-prose-kbd: var(--ink);
+  --tw-prose-code: var(--ink);
+  --tw-prose-pre-code: var(--ink);
+  --tw-prose-pre-bg: var(--paper-sunken);
+  --tw-prose-th-borders: var(--rule-strong);
+  --tw-prose-td-borders: var(--rule);
+  --tw-prose-kbd-shadows: transparent;
+}
+
+/*
+ * The glyph shares the row's delay, in one rule rather than in four class strings.
+ *
+ * The icon and the row are the same motion — a disclosure opening is a control
+ * turning plus a panel unfolding — and if only one of them waits, the control
+ * either leads the panel by 40ms or the panel outruns the control. Declaring it
+ * here rather than adding a `delay-` utility to every `disclosure-icon` class in
+ * the templates means a disclosure added tomorrow inherits it for free and cannot
+ * be the one that drifts.
+ */
+.disclosure-icon {
+  transition-delay: var(--disclosure-delay);
+}
+
+details[data-disclosure-closing] .disclosure-icon {
+  rotate: 0deg;
+}
+
+@keyframes rise-in {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/*
+ * Route transition choreography.
+ *
+ * What is below is TWO staggers with a pause between them, one variant, and the reason
+ * it is written the way it is comes from three defects that each looked like something
+ * else. All three were measured on the built site with `document.getAnimations()`
+ * during a real navigation, and all three are pinned by
+ * `test/e2e/route-transition.spec.mjs` and
+ * `test/e2e/route-transition-compositing.spec.mjs`.
+ *
+ * **A zone rule must be BARE.** Astro writes its default per-zone animation inside
+ * `@layer astro`:
+ *
+ *     @layer astro { ::view-transition-old(body) { animation-name: astroFadeOut } }
+ *
+ * and an ancestor-qualified `html[data-nav='jump'] ::view-transition-old(body)` does
+ * not match the view-transition pseudo tree at all — those pseudo-elements hang off
+ * the document element, not off `<html>`'s box, so an ancestor-qualified selector
+ * never reaches them. Such a rule parses, appears in the CSSOM with the right
+ * declared value, and never applies; the swap silently runs Astro's plain 180ms
+ * fade. Unlayered, a bare `::view-transition-old(body)` outranks the layer outright.
+ * The variant then has to travel by another route, and inherited custom properties
+ * do reach the pseudo tree.
+ *
+ * **The router deletes `data-nav`.** It is written on `astro:before-preparation` and
+ * then re-applied away on `astro:after-swap`, because the document being swapped in
+ * is a freshly parsed page that has never heard of the attribute. Set once and left
+ * alone it is reliably present when the CSS author writes it and reliably gone when
+ * the browser evaluates it, and every pager hop runs the jump choreography. See
+ * `BaseLayout.astro`, which writes it twice for that reason.
+ *
+ * **`plus-lighter` cannot composite a stagger.** The UA puts two animations on
+ * `::view-transition-old/new(root)` — the fade, and `-ua-mix-blend-mode-plus-lighter`
+ * — and Astro's `astroFadeIn`/`astroFadeOut` bake `plus-lighter` into their own
+ * keyframes as well, so the two snapshots are ADDED rather than stacked. Addition is
+ * only correct while the two opacities sum to 1, which a symmetric cross-fade
+ * satisfies and a stagger never does: between the exit finishing and a zone's
+ * entrance starting, the sum is under 1. Under-exposed frames show the paper
+ * through, and this paper is `#0c0c0e`, so the middle of every chapter change dimmed
+ * the page and brought it back. (vtbag.dev, "Flickering during Cross-Fade
+ * Animations?": with a dark background plus-lighter does not merely fail to help, it
+ * goes the other way — the combined image renders darker than either snapshot.
+ * w3c/csswg-drafts#9276 is still open on fixing this for
+ * `prefers-color-scheme: dark`, so it will not be fixed for us.) Every keyframe
+ * below therefore states `mix-blend-mode: normal` outright rather than merely
+ * un-animating the property, so a UA that applies it at a different specificity
+ * still loses.
+ *
+ * The declarations are the `animation` SHORTHAND rather than longhands, because the
+ * UA's blend animation is a _second_ animation on the same pseudo-element and a
+ * longhand cannot reach a second animation — only the shorthand replaces both.
+ *
+ * `z-index` does the paint-order flip, because the two snapshots are siblings inside
+ * `::view-transition-image-pair` and default to tree order, which paints the new one
+ * on top. Every old half is 2 and every new half is 1, so each zone is a draw of the
+ * departing piece over the arriving one, and the composite is an ordinary source-over
+ * against this paper however little of either half is showing. What the middle of the
+ * swap therefore shows is the `root` snapshot underneath — the page background and the
+ * chrome, which is where the header's steady hand during a swap comes from.
+ *
+ * The gap between the two ladders is `--zone-beat`. It is not padding: the arrival
+ * delays are written as offsets from `--zone-enter-base`, which is the last exit's
+ * end PLUS the beat, so the beat cannot be edited away by moving a delay and cannot
+ * silently collapse to zero if someone sets it that way without noticing.
+ *
+ * Group geometry is off. `animation: none` below means no zone is moved, scaled or
+ * resized between the two snapshots. A shared-element group morphs from the old box
+ * to the new one, and on this site those boxes have nothing in common: the home
+ * `<main>` is the full shell width while an interior one is a reading column inside
+ * a two-track grid, and the h1 is `text-display` at up to 6rem on one and
+ * `text-title` at up to 2.5rem on the other. Animating between them is the
+ * page-assembles-itself artifact a 96px-to-40px title fly produced — the UA was
+ * moving and scaling the shared `page-title` snapshot on its own 250ms linear curve
+ * while the page it belonged to cross-faded on 180ms, a 70ms tail of title still in
+ * flight over a page that had already arrived. Every zone here cross-dissolves in
+ * place, and the only thing that moves is a deliberate translate on the two edge
+ * directions.
+::view-transition-group(*) {
+  animation: none;
+}
+
+/*
+ * Two choreographies, chosen by what the reader did rather than by where they
+ * landed. `data-nav` is written on `<html>` by the `astro:before-preparation` hook
+ * in `BaseLayout.astro` and reaches these rules as an inherited custom property.
+ *
+ *   jump  — home to a section, section to section, any link that is not a pager
+ *           cell. The page's furniture SCATTERS: the left rail leaves leftward, the
+ *           home metadata margin leaves rightward, the running head and the reading
+ *           column dissolve where they are. Then, after a short dead beat, the new
+ *           page reassembles in the REVERSE of the order the pieces left — pager
+ *           cell first, running head last.
+ *
+ *   pager — the next/previous cell. A deliberate step along a linear book. The same
+ *           ladder and the same dead beat as a jump; the one difference is that the
+ *           reading column RISES into place from 36px above rather than resolving
+ *           where it stands, so the page arrives from slightly ahead of the reader
+ *           rather than under their feet. The rail and the pager cells still come in
+ *           from their own edges, so the divergence survives.
+ *
+ * Four decisions here are load-bearing, and each of them is a bug this design has
+ * already had once.
+ *
+ * **These selectors are BARE, and that is not a shortcut.** Astro writes its default
+ * per-zone animation inside `@layer astro`:
+ *
+ *     @layer astro { ::view-transition-old(body) { animation-name: astroFadeOut } }
+ *
+ * A qualified `html[data-nav='jump'] ::view-transition-old(body)` does NOT match the
+ * view-transition pseudo tree at all — those pseudo-elements hang off the document
+ * element, not off `<html>`'s box, so an ancestor-qualified selector never reaches
+ * them — which means a qualified rule loses to the layer by default rather than by
+ * specificity, and the whole stagger silently does nothing. Unlayered, a bare
+ * `::view-transition-old(body)` outranks `@layer astro` outright, and the variant is
+ * selected by the inherited custom properties instead. Both halves of that are
+ * load-bearing: qualify the selector and the choreography dies; move the variant
+ * into the layer and Astro's default wins again.
+ *
+ * **No group geometry.** `animation: none` above means no zone is moved, scaled or
+ * resized between the two snapshots. A shared-element group morphs from the old box
+ * to the new one, and on this site those boxes have nothing in common: the home
+ * `<main>` is the full shell width while an interior one is a reading column inside
+ * a two-track grid, and the h1 is `text-display` at up to 6rem on one and
+ * `text-title` at up to 2.5rem on the other. Animating between them is the
+ * page-assembles-itself artifact a 96px-to-40px title fly produced. Every zone here
+ * cross-dissolves in place instead, and the only thing that moves is a deliberate
+ * translate on the two edge directions.
+ *
+ * **`mix-blend-mode: normal` in every keyframe.** The UA puts TWO animations on
+ * `::view-transition-old/new(root)` — the fade and a `mix-blend-mode` one — and
+ * Astro's `astroFadeIn`/`astroFadeOut` bake `plus-lighter` into their own keyframes
+ * as well, so the snapshots are ADDED rather than stacked. Addition is only correct
+ * while the two opacities sum to 1, which a staggered sequence cannot hold for a
+ * single frame: during the dead beat they sum to ZERO. Under those frames the paper
+ * shows through, and this paper is `#0c0c0e`, so the middle of every chapter change
+ * used to dim the page and bring it back. Stating `normal` per keyframe is the fix,
+ * and it matters more on the arrival than on the departure, because the arrival is
+ * the half whose opacity actually reaches zero.
+ *
+ * **The `animation` shorthand, not longhands.** For the opposite reason to the
+ * previous version: the UA's blend animation is a SECOND animation on the same
+ * pseudo-element, and a longhand cannot reach a second animation.
+ */
+@keyframes zone-out {
+  from {
+    opacity: 1;
+    mix-blend-mode: normal;
+  }
+
+  to {
+    opacity: 0;
+    mix-blend-mode: normal;
+  }
+}
+
+@keyframes zone-out-left {
+  from {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(calc(-1 * var(--zone-travel)));
+  }
+}
+
+@keyframes zone-out-right {
+  from {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(var(--zone-travel));
+  }
+}
+
+@keyframes zone-in {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+  }
+}
+
+@keyframes zone-in-left {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(calc(-1 * var(--zone-travel)));
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+}
+
+@keyframes zone-in-right {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateX(var(--zone-travel));
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateX(0);
+  }
+}
+
+@keyframes zone-in-up {
+  from {
+    opacity: 0;
+    mix-blend-mode: normal;
+    transform: translateY(calc(-1 * var(--zone-drop)));
+  }
+
+  to {
+    opacity: 1;
+    mix-blend-mode: normal;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * The ROOT zone, which is not a zone like the others: it is whatever the named
+ * pieces do not cover, and it has to be neutralised rather than choreographed.
+ *
+ * The UA puts `-ua-mix-blend-mode-plus-lighter` on `::view-transition-old/new(root)`
+ * and nowhere else, so the additive blend the rest of this block works to cancel
+ * survives on precisely the one pseudo that was never given a keyframe. `root` is
+ * only ever the gutter between the named pieces — the page background showing around
+ * a rail, inside a shell — and adding a black gutter to an already-black paper is
+ * what darkened the middle of a swap before the named zones were covered at all.
+ *
+ * A duration of zero plus `both` fill pins the blend at its first keyframe for the
+ * whole pseudo's life, and the declaration has to be the `animation` shorthand: the
+ * blend is a second animation on the same element and no longhand reaches it.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation: 0s linear 0s both root-fill;
+}
+
+@keyframes root-fill {
+  from {
+    mix-blend-mode: normal;
+  }
+
+  to {
+    mix-blend-mode: normal;
+  }
+}
+
+/*
+ * The exit, and it is the same for both kinds: read down the page, and each piece
+ * leaves the way it sits. Running head, rail, reading column, pager.
+ */
+::view-transition-old(rh) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-rh) both zone-out;
+}
+
+::view-transition-old(rail) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-rail) both zone-out-left;
+}
+
+::view-transition-old(body),
+::view-transition-old(body-home) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-body) both zone-out;
+}
+
+::view-transition-old(pager-prev) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-pager-prev) both zone-out-left;
+}
+
+::view-transition-old(pager-next) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-pager-next) both zone-out-right;
+}
+
+/* The metadata margin only exists on the home page, so only a jump can carry it. */
+::view-transition-old(meta) {
+  z-index: 2;
+  animation: var(--zone-dur) var(--zone-out-ease) var(--zone-exit-meta) both zone-out-right;
+}
+
+/*
+ * Every zone's arrival: a second stagger, in the REVERSE of the order the pieces
+ * left, starting only once every exit has finished.
+ *
+ * Reverse order is the whole effect. A reader who watches the running head go
+ * first and the pager cell go last sees a page come apart, and then sees that same
+ * page build itself back up from the bottom. Forward order would read as the two
+ * pages sliding past one another, which is a transition between documents; reverse
+ * order reads as one document opening and closing.
+ *
+ * It is also why the middle of the swap is blank. A zone that leaves first arrives
+ * last, so the zones are absent longest in the middle and their absences stack: at
+ * the centre of every jump there is a genuine moment when nothing is painted, and
+ * that is deliberate. It is the beat a reader feels as a page changing rather than
+ * as pixels moving, and it is the reason this choreography does not overlap the
+ * two ladders — an overlapping entrance closes that hole and buys only a shorter
+ * version of the same effect.
+ *
+ * `z-index` still does the paint-order flip, so each zone is a draw of the
+ * departing piece over the arriving one. Because both halves of a zone are inside
+ * the same isolated `::view-transition-image-pair` and the keyframes below state
+ * `mix-blend-mode: normal` outright, that draw is an ordinary composite and cannot
+ * go darker than the paper underneath it, however little of either half is showing.
+ */
+::view-transition-new(rh) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rh) both var(--zone-in-rh);
+}
+
+::view-transition-new(rail) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-rail) both var(--zone-in-rail);
+}
+
+::view-transition-new(body) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-body) both var(--zone-in-body);
+}
+
+::view-transition-new(body-home) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-body-home) both
+    var(--zone-in-body-home);
+}
+
+::view-transition-new(pager-prev) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-prev) both
+    var(--zone-in-pager-prev);
+}
+
+::view-transition-new(pager-next) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-pager-next) both
+    var(--zone-in-pager-next);
+}
+
+/* The metadata margin only exists on the home page, so only a jump can carry it. */
+::view-transition-new(meta) {
+  z-index: 1;
+  animation: var(--zone-dur) var(--zone-in-ease) var(--zone-enter-meta) both var(--zone-in-meta);
+}
+
+/*
+ * The `animation` SHORTHAND, not longhands, for the same reason the exit halves use
+ * it: the UA's additive blend is a SECOND animation on the same pseudo-element and
+ * no longhand can reach it.
+ *
+ * BARE selectors throughout, with the pager variant arriving through the inherited
+ * `--zone-in-body` rather than through a qualified selector. An
+ * `html[data-nav='pager'] ::view-transition-new(body)` does not match the
+ * view-transition pseudo tree at all — those pseudo-elements hang off the document
+ * element, not off `<html>`'s box — so it parses, reaches the CSSOM, and never
+ * applies, and Astro's own `astroFadeIn` wins instead.
+ */
+
+/*
+ * `.rise` is the title block's entrance and it belongs to the FIRST VIEWPORT of a
+ * document, not to every arrival at one. The router re-creates the home page's
+ * markup on each client navigation, so the animation restarted with it: a 500ms
+ * rise with up to a 240ms stagger, finishing 740ms after a cross-fade that was
+ * over at 180ms. The reader watched the abstract and the metadata margin drift
+ * into place long after the page had already changed.
+ *
+ * `data-title-entrance` is set on `<html>` by the inline bootstrap in
+ * `BaseLayout.astro` and removed by the same bootstrap's sibling script the
+ * first time a client navigation completes, so the entrance plays once per
+ * document and the resting state is every arrival after it.
+ */
+.rise {
+  animation: rise-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+html:not([data-title-entrance]) .rise {
+  animation: none;
+}
+
+.rise-1 {
+  animation-delay: 0ms;
+}
+
+.rise-2 {
+  animation-delay: 80ms;
+}
+
+.rise-3 {
+  animation-delay: 160ms;
+}
+
+.rise-4 {
+  animation-delay: 240ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  /* The list markers this stylesheet styles (`prose-li:marker:font-mono` and
+     `text-annotation`) and the scrollbar-adjacent `::backdrop` are the two
+     pseudo-elements `*` alone does not reach. Neither animates today; the
+     selector list is here so adding motion to either is neutralised by
+     construction rather than by remembering. */
+  ::marker,
+  ::backdrop,
+  details::details-content {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
+  /*
+   * The view-transition pseudo-elements, which `*` does not reach.
+   *
+   * This block is redundant on the native path and load-bearing on the fallback
+   * one, and it is worth being honest about which is which. `<ClientRouter />`
+   * ships its own `@media (prefers-reduced-motion)` rule that sets
+   * `animation: none !important` on the same three selectors, so a reduced-motion
+   * reader on a view-transition browser already gets nothing — the `!important`
+   * outranks the unlayered retiming above, and has done since Astro 3.6.
+   *
+   * What Astro's rule does NOT cover is `fallback="animate"`. Without native view
+   * transitions the router drives the same visual through
+   * `[data-astro-transition-scope]` elements on the live DOM rather than through
+   * these pseudos, and those are the selectors above it does name — but only for the
+   * pseudos half. Authoring it here as well means the two paths cannot drift, and
+   * means a browser that loses native view transitions later does not silently gain
+   * 280ms of motion for the readers who asked for none.
+   */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* Without JS there is no controller to hold a disclosure open while it collapses.
+   Disabling the grid transition makes the row snap to 0fr on close, so the flow
+   fully collapses in every engine (WebKit otherwise freezes a discrete
+   content-visibility transition mid-collapse and leaves a full-height gap). */
+@media (scripting: none) {
+  .disclosure-flow {
+    transition: none;
+  }
+}

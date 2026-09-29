@@ -37,7 +37,47 @@
       "rules": {
         "no-unused-vars": "off",
         "typescript/no-unused-vars": "off",
+        "sort-vars": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "no-ternary": "off",
+        "unicorn/prefer-spread": "off",
+        "unicorn/no-array-callback-reference": "off",
+        "unicorn/no-array-sort": "off",
+        "require-unicode-regexp": "off",
+        "unicorn/prefer-number-coercion": "off",
+        "no-promise-executor-return": "off",
         "import/no-unassigned-import": "off"
+      }
+    },
+    {
+      "files": ["test/e2e/**/*.mjs"],
+      "rules": {
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/prefer-number-coercion": "off",
+        "no-await-in-loop": "off"
+      }
+    },
+    {
+      "files": ["test/probe/**/*.mjs"],
+      "rules": {
+        "no-console": "off",
+        "max-lines": "off",
+        "max-lines-per-function": "off",
+        "import/no-absolute-path": "off",
+        "no-await-in-loop": "off",
+        "curly": "off",
+        "no-shadow": "off",
+        "no-unused-vars": "off",
+        "typescript/no-unused-vars": "off",
+        "sort-vars": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "no-ternary": "off",
+        "unicorn/prefer-spread": "off",
+        "unicorn/no-array-callback-reference": "off",
+        "unicorn/no-array-sort": "off",
+        "require-unicode-regexp": "off",
+        "unicorn/prefer-number-coercion": "off",
+        "no-promise-executor-return": "off"
       }
     }
   ],

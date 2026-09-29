@@ -1,5 +1,8 @@
 This is an astro project that using `bun` as runtime & package management.
 
+content management: agent update -> md/mdx files in contents; md/mdx files gets rendered by astro project.
+Only user will turn on the dev server. by default the dev server will be turned on by the user, if you detected it's not on then ask the user to turn it on.
+
 Read package.json for executing dev/build/lint/format/type-check scripts.
 Use ripgrep instead of grep.
 Changes must pass pre commit checks.

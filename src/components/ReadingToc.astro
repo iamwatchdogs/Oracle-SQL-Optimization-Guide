@@ -1,0 +1,149 @@
+---
+/**
+ * Sticky section TOC with scroll-spy (desktop) and collapsible disclosure (mobile).
+ * Cue states: active heading is deep-linkable via hash.
+ */
+interface Heading {
+  id: string;
+  text: string;
+  depth: number;
+}
+
+interface Props {
+  headings: Heading[];
+  /** Label shown above the list. */
+  label?: string;
+}
+
+const { headings, label = 'On this page' } = Astro.props;
+const mobileLandmarkLabel = `${label} list`;
+// `min-w-0` on the row and `flex-1 min-w-0` on the label are load-bearing:
+// a flex item's automatic minimum size is its min-content width, and with
+// `truncate`'s `white-space: nowrap` that equals the full heading width, so
+// without them the text physically cannot shrink and the ellipsis never
+// appears — 137 of 356 shipped links overflowed the 280px rail.
+const tocLinkClass =
+  'group flex min-h-11 min-w-0 items-baseline gap-3 rounded-r-ui border-l border-transparent px-3 py-[0.4rem] font-sans text-ui leading-[1.4] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-ink data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:font-medium data-[active=true]:text-accent';
+const tocNumClass =
+  // The ordinal is a visual index, not part of the destination's name. Hiding it
+  // from the accessibility tree makes the link's accessible name exactly the
+  // heading text, which is also its visible label (WCAG 2.5.3).
+  'w-6 shrink-0 font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent';
+---
+
+{/* Desktop: sticky aside */}
+<aside
+  class="toc-viewport hidden lg:block sticky top-16 self-start overflow-y-auto overflow-x-hidden"
+  aria-label={label}
+>
+  {/*
+    The rail header is a row, not a bare label, and the label stays flush with the
+    ordinals below it at x=76. The control that closes the rail is not in this row
+    and never was, in this version: it is a page-level control that has to outlive
+    the rail, so `ReadingTocToggle.astro` renders it as a sibling of the grid.
+    `pr-12` reserves the 44px it covers at the rail's right edge, so a long label
+    ("Contents · 9 sections") can never run underneath it.
+  */}
+  <div class="mb-3 flex items-center gap-2 pr-12 pl-3">
+    <p class="running-head m-0 min-w-0 truncate">{label}</p>
+  </div>
+  {/* `aria-label` on the inner `<nav>` as well as on the `<aside>`. A `<nav>` is
+      a landmark, and a landmark with no name is a destination a screen-reader
+      user cannot pick from — the browser's landmark menu listed "navigation"
+      three times on an interior page. The mobile disclosure already names its
+      own `<nav>`; this closes the desktop half. The names differ on purpose so
+      the two never collide when the disclosure is open above the `lg` breakpoint
+      in a resized window. */}
+  <nav id="toc-desktop" class="flex flex-col gap-0.5" aria-label={`${label} — in-page outline`}>
+    {headings.map((h, i) => (
+      <a
+        href={`#${h.id}`}
+        class:list={[
+          tocLinkClass,
+          { 'pl-toc-indent': h.depth === 3, 'pl-toc-indent-4': h.depth === 4 },
+        ]}
+        data-toc-link={h.id}
+        data-active="false"
+        title={h.text}
+      >
+        <span class={tocNumClass} aria-hidden="true">
+          {String(i + 1).padStart(2, '0')}
+        </span>
+        <span class="min-w-0 flex-1 truncate">{h.text}</span>
+      </a>
+    ))}
+  </nav>
+</aside>
+
+{/* Mobile: disclosure */}
+<details class="disclosure group lg:hidden" data-toc-mobile>
+  <summary class="min-h-11 list-none [&::-webkit-details-marker]:hidden marker:content-none">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      class="disclosure-icon shrink-0 text-ink-faint transition-transform duration-[280ms] ease-[cubic-bezier(.22,1,.36,1)] group-open:rotate-45 motion-reduce:transition-none"
+    >
+      <path d="M12 5v14M5 12h14"></path>
+    </svg>
+    {/*
+      `shrink-0 whitespace-nowrap` on the label, `min-w-0 truncate` on the
+      position readout, and neither may be allowed to win the free space.
+
+      A flex item's automatic minimum size is its min-content width, so the
+      readout — which carries a running section title, up to 240px of it — was
+      pushing the label out of the row. Measured at 390px: the label collapsed to
+      52px, broke after "Section", and dropped a lone "s" onto a third line, while
+      the band grew by 18px and pushed everything below it down. On other pages
+      the same row truncated, on others it wrapped, on others it fit, so the
+      position of the breadcrumb varied page to page. The label is two words and
+      must never wrap; the readout is the part that yields.
+    */}
+    <span class="shrink-0 whitespace-nowrap font-sans text-ui font-medium">{label}</span>
+    <span
+      class="meta ml-auto min-w-0 truncate text-right"
+      data-toc-mobile-current
+      aria-hidden="true"
+    ></span>
+  </summary>
+  <div class="disclosure-flow">
+    <div class="disclosure-content-inner disclosure-flow-inner">
+      <nav
+        class="toc-mobile-viewport flex flex-col gap-0.5 overflow-y-auto overscroll-contain py-2"
+        aria-label={mobileLandmarkLabel}
+      >
+        {headings.map((h, i) => (
+          <a
+            href={`#${h.id}`}
+            class:list={[
+              tocLinkClass,
+              { 'pl-toc-indent': h.depth === 3, 'pl-toc-indent-4': h.depth === 4 },
+            ]}
+            data-toc-link={h.id}
+            data-active="false"
+          >
+            <span class={tocNumClass} aria-hidden="true">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <span class="min-w-0 flex-1">{h.text}</span>
+          </a>
+        ))}
+      </nav>
+    </div>
+  </div>
+</details>
+
+<script>
+  import { createReadingTocController } from '../lib/reading-toc-controller.mjs';
+
+  if (!Object.prototype.hasOwnProperty.call(document, 'readingTocInitialized')) {
+    createReadingTocController({ document, window });
+    Object.defineProperty(document, 'readingTocInitialized', { value: true });
+  }
+</script>

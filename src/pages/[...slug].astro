@@ -1,34 +1,550 @@
 ---
 import { type CollectionEntry, getCollection, render } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ReadingToc from '../components/ReadingToc.astro';
+import ReadingTocToggle from '../components/ReadingTocToggle.astro';
+import PrevNext from '../components/PrevNext.astro';
+import HomeTitleBlock from '../components/HomeTitleBlock.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 
 type Props = {
   entry: CollectionEntry<'notebook'>;
+  prevEntry?: CollectionEntry<'notebook'>;
+  nextEntry?: CollectionEntry<'notebook'>;
 };
 
-export async function getStaticPaths() {
-  const entries = await getCollection('notebook', ({ data }) => !data.draft);
+function toUrl(id: string): string {
+  if (id === 'index') {
+    return '/';
+  }
+  const clean = id.replace(/\.mdx?$/u, '').replace(/\/index$/u, '');
+  return `/${clean}/`;
+}
 
-  return entries.map((entry) => ({
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replaceAll(/[^\w\s-]/gu, '')
+    .trim()
+    .replaceAll(/\s+/gu, '-');
+}
+
+export async function getStaticPaths() {
+  const all = (await getCollection('notebook', ({ data }) => !data.draft)).toSorted(
+    (a, b) => (a.data.order ?? 9999) - (b.data.order ?? 9999),
+  );
+
+  return all.map((entry, idx) => ({
     params: { slug: entry.id === 'index' ? undefined : entry.id },
-    props: { entry },
+    props: {
+      entry,
+      prevEntry: idx > 0 ? all[idx - 1] : undefined,
+      nextEntry: idx < all.length - 1 ? all[idx + 1] : undefined,
+    },
   }));
 }
 
-const { entry } = Astro.props;
-const { Content } = await render(entry);
+const { entry, prevEntry, nextEntry } = Astro.props;
+const { Content, headings } = await render(entry);
+const isHome = entry.id === 'index';
+
+const all = (await getCollection('notebook', ({ data }) => !data.draft)).toSorted(
+  (a, b) => (a.data.order ?? 9999) - (b.data.order ?? 9999),
+);
+const contributions = all
+  .filter((e) => {
+    const id = e.id.replace(/\/index$/u, '');
+    return id !== '' && id !== 'index' && !id.includes('/');
+  })
+  .map((e) => ({
+    href: toUrl(e.id),
+    title: e.data.title,
+    description: e.data.description,
+  }));
+const currentSection = isHome
+  ? undefined
+  : contributions.find((section) => {
+      const sectionId = section.href.replaceAll(/^\/|\/$/gu, '');
+      return entry.id === sectionId || entry.id.startsWith(`${sectionId}/`);
+    });
+const sectionPosition = currentSection ? contributions.indexOf(currentSection) + 1 : undefined;
+/*
+ * What the running head says on the right. The chapter title, EXCEPT where the
+ * chapter IS this page — the eight section indexes — where it would be a third
+ * copy of the h1 and the breadcrumb's last crumb.
+ */
+const runningHeadChapter =
+  currentSection && currentSection.title !== entry.data.title ? currentSection.title : undefined;
+const breadcrumbItems = isHome
+  ? []
+  : currentSection &&
+      entry.id.replaceAll(/\/index$/gu, '') !== currentSection.href.replaceAll(/^\/|\/$/gu, '')
+    ? [
+        { href: currentSection.href, title: currentSection.title },
+        { href: toUrl(entry.id), title: entry.data.title },
+      ]
+    : currentSection
+      ? [{ href: currentSection.href, title: currentSection.title }]
+      : [{ href: toUrl(entry.id), title: entry.data.title }];
+
+// Display-grade headings for TOC. h4 is included because the flagship page
+// ("How to Prove a Win") carries 18 procedural `####` steps that were
+// otherwise unreachable from the margin apparatus.
+const tocHeadings = headings
+  .filter((h) => h.depth >= 2 && h.depth <= 4)
+  .map((h) => ({
+    id: h.slug || slugify(h.text),
+    text: h.text,
+    depth: h.depth,
+  }));
+
+const description = entry.data.description;
+const proseClass = [
+  'max-w-measure',
+  '[&>*+*:not(h2):not(h3):not(h4):not(details):not(p:has(>strong:only-child)):not(pre):not(.expressive-code)]:mt-prose-sibling',
+  'min-w-0',
+  'font-serif',
+  'text-body',
+  'leading-body',
+  'hyphens-auto',
+  'prose-headings:font-serif',
+  'prose-headings:font-semibold',
+  'prose-headings:tracking-[-0.02em]',
+  'prose-headings:text-ink',
+  'prose-h2:hyphens-none',
+  'prose-h3:hyphens-none',
+  'prose-li:marker:font-mono',
+  'prose-li:marker:text-annotation',
+  'prose-h2:text-h2',
+  'prose-h2:mt-prose-h2-top',
+  'prose-h2:mb-prose-h2-bottom',
+  'prose-h2:pb-prose-h2-padding-bottom',
+  'prose-h2:border-b',
+  'prose-h2:border-rule',
+  'prose-h3:text-h3',
+  'prose-h3:mt-prose-h3-top',
+  'prose-h3:mb-prose-h3-bottom',
+  'prose-h4:text-h4',
+  'prose-h4:mt-prose-h4-top',
+  'prose-h4:mb-prose-h4-bottom',
+  'prose-h4:hyphens-none',
+  '[&>p:not(:has(>strong:only-child))]:mb-0',
+  '[&_blockquote_p]:m-0',
+  '[&_li_p]:m-0',
+  '[&_td_p]:m-0',
+  '[&_details_p]:m-0',
+  'prose-p:text-ink',
+  '[&_blockquote_p]:text-ink-muted',
+  'prose-p:leading-body',
+  'prose-p:hyphens-auto',
+  'prose-a:font-normal',
+  'prose-a:wrap-anywhere',
+  'prose-a:text-accent',
+  'prose-a:decoration-accent/40',
+  'prose-a:decoration-[0.06em]',
+  'prose-a:hover:decoration-accent',
+  'prose-strong:font-bold',
+  'prose-strong:text-ink',
+  'prose-blockquote:mb-prose-sibling',
+  'prose-blockquote:font-normal',
+  'prose-blockquote:rounded-ui',
+  'prose-blockquote:border',
+  'prose-blockquote:border-rule',
+  'prose-blockquote:bg-paper-raised',
+  'prose-blockquote:px-[1.1rem]',
+  'prose-blockquote:py-[0.85rem]',
+  'prose-blockquote:not-italic',
+  '[&_blockquote_p:first-of-type::before]:content-none',
+  '[&_blockquote_p:last-of-type::after]:content-none',
+  'prose-blockquote:text-ink-muted',
+  'prose-code:before:content-none',
+  'prose-code:after:content-none',
+].join(' ');
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>{entry.data.title}</title>
-  </head>
-  <body>
-    <main>
-      <h1>{entry.data.title}</h1>
-      <Content />
-    </main>
-  </body>
-</html>
+<BaseLayout
+  title={entry.data.title}
+  description={description}
+  sections={contributions}
+  sectionPosition={sectionPosition}
+>
+  {isHome ? (
+    <div transition:name="body-home">
+      {/*
+       * `transition:name="body-home"` is on THIS WRAPPER, and it has to be.
+       *
+       * It used to be on the `<main>` below, which is the home page's prose — and the
+       * prose begins at y=1535, below the fold. Everything a reader actually sees on
+       * arrival lives in the title block and the contributions list, and both are
+       * siblings of `<main>`, not children of it. So 93.0% of the first viewport fell
+       * into `root` instead of into any named zone, and `root` is pinned at opacity 1
+       * (see `global.css`): the home page was painted at full strength from t=0 of the
+       * swap, underneath a section page that was still visibly coming apart. Measured,
+       * the nominal 420→580ms dead beat was entirely occupied by an opaque `new(root)`,
+       * so the page was never blank and the two layouts were interleaved glyph for
+       * glyph. A section page is the mirror image — 80.3% of its viewport is named —
+       * which is why only the section→home direction showed it.
+       *
+       * A section page's `<main>` DOES hold its whole reading column, which is why the
+       * bug was invisible there and why nothing about the ladder's timing was ever at
+       * fault. The zone was on the wrong element.
+       *
+       * The second reason for a separate name is unchanged and still holds: the home
+       * column is 1152px wide at x=64 and a section's is 824px at x=392, so naming both
+       * `body` hands the browser a shared-element group whose job is to morph one box
+       * into the other — which it does over the UA's 250ms geometry animation, sliding
+       * the page 328px sideways and narrowing it by the same amount on the way. Section
+       * to section both boxes are identical and the group has nothing to do. Two names
+       * means two unpaired groups, each of which can only cross-dissolve where it
+       * stands. Measured on the dev server at 1280px:
+       *
+       *   home     1152px wide, x=64
+       *   section   824px wide, x=392
+       *
+       * `meta` stays a separate zone nested inside this one. That is the same structure
+       * as a section page, where the pager cells are named inside the named `<main>`,
+       * and it is what carries the divergence: the margin leaves rightward while the
+       * section's TOC rail leaves leftward.
+       */}
+      <HomeTitleBlock
+        title={entry.data.title}
+        description={
+          description ??
+          'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.'
+        }
+        contributions={contributions}
+        meta={[
+          { kind: 'text', value: `${all.length} catalog entries` },
+          { kind: 'grades' },
+          { kind: 'text', value: `${all.length} pages · ${contributions.length} sections` },
+          { kind: 'text', value: 'compiled 2026-09-22' },
+        ]}
+      />
+
+      <main id="main" tabindex="-1" class="mx-auto w-shell pb-20 focus:outline-none">
+        <div class={`mx-auto prose ${proseClass} pt-8`}>
+          <Content />
+        </div>
+      </main>
+    </div>
+  ) : (
+    <>
+      <div class="mx-auto w-shell pt-4">
+        {/*
+          A running head is margin apparatus, so it names the BOOK on the left
+          and the CHAPTER on the right. It used to carry the page title here,
+          which put the same string on the page three times inside 130px — once
+          here, once in the breadcrumb directly below, and once as the h1 — and
+          the full title of the longest pages ran most of the width of the shell
+          on the line immediately above the breadcrumb that repeats it.
+
+          On a section INDEX the chapter title and the page title are the same
+          string, so the right-hand half is suppressed rather than repeated. The
+          left half still carries the book; there is simply nothing else to say
+          that the breadcrumb is not already saying.
+        */}
+        <div
+          class="running-head flex items-center justify-between gap-4"
+          aria-hidden="true"
+          transition:name="rh"
+        >
+          <span class="shrink-0">Oracle SQL Optimization</span>
+          {runningHeadChapter && (
+            <span class="min-w-0 truncate text-right">{runningHeadChapter}</span>
+          )}
+        </div>
+      </div>
+
+      <div class="mx-auto w-shell">
+        {/* `minmax(0,1fr)` on BOTH tracks is load-bearing. A bare `1fr` (or the
+            single implicit column below `lg`) resolves its automatic minimum
+            size to the article's min-content width, so one wide markdown table
+            pushed the whole document to 914px inside a 390px viewport.
+
+            The first track is `--width-toc-rail` rather than a literal `280px`,
+            because it is also the thing the reader collapses. The controller sets
+            `data-reading-toc="collapsed"` on `<html>` and `global.css` closes the
+            track and the gutter together; the reading column is already
+            `flex justify-center` inside the second track, so it re-centres with
+            no rule of its own. */}
+        <div class="toc-rail-grid grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--width-toc-rail)_minmax(0,1fr)] gap-6 lg:gap-12 items-start">
+          {/* Margin apparatus — sticky section TOC (first on mobile for wayfinding) */}
+          {/* `transition:name="rail"`. The left-hand item of a route swap, and the
+              reason the swap diverges: the rail leaves LEFTWARD while the right
+              margin on the home page leaves RIGHTWARD. It is a named zone rather
+              than a wrapper because `<main>`'s `parentElement` is asserted to be
+              this grid in `mobile-layout.spec.mjs`, and because the rail cell
+              already contains both the desktop aside and the mobile outline —
+              one name covers both without duplicating the choreography. */}
+          <div class="toc-rail-cell order-1 min-w-0" transition:name="rail">
+            {tocHeadings.length > 0 && <ReadingToc headings={tocHeadings} label="Sections" />}
+          </div>
+
+          {/* Reading column — centered in remaining track (preprint margin balance) */}
+          <main
+            id="main"
+            tabindex="-1"
+            transition:name="body"
+            class="order-2 flex min-w-0 justify-center pb-16 focus:outline-none"
+          >
+            <div class="reading-column w-full min-w-0 max-w-reading">
+              {/*
+                Three alignment defects lived here, and all three are about the
+                LAST crumb rather than about the separator.
+
+                **One.** Its label carried `display: block`, so the separator was
+                left alone at the end of flex line 1 and the title dropped to line
+                2. That is exactly what the note above says must never happen, and
+                it was happening: a 41.4px row for a 21.4px label, the `/` sitting
+                on a line of its own. `inline-block` keeps the title on the
+                separator's line box and still gives it the formatting context that
+                `truncate` needs — `overflow` does nothing on a plain inline box, so
+                the previous `block` was there to make truncation work at all.
+
+                **Two.** It was the only element in the trail off the mono
+                register: Source Serif at Tailwind's unscaled `text-sm`, 14px,
+                `normal-case`. So the separator sat on one line box — mono,
+                `--type-mono`, leading 1.65, which moves with the reader's text
+                size — and the title on another — serif, a raw default that does
+                not. Two boxes, two families, two leadings, and a gap between them
+                that grew from 1.45px at the default size to 5.74px at 120%. One
+                register for the whole trail is what keeps it to one line box, and
+                that is the alignment. The register is now the UI face — see the
+                note on the `<ol>` below for why the trail left mono entirely, and
+                what carries "you are here" in its place.
+
+                **Three.** The separator has to live INSIDE the label, not beside it.
+                The note this replaced said the invariant held "by construction",
+                because separator and label share a flex item. They do share one —
+                and the label is an `inline-block`, which is an ATOMIC inline-level
+                box. An atomic box cannot be split across lines, so a label too long
+                for the space left on the current line moves to the next line whole,
+                and the separator is left alone at the head of the line above it. One
+                flex item does not prevent that; being in the same inline formatting
+                context does not either, because the break happens between the two
+                atomic boxes. The separator is therefore the label's own first
+                child, so the two cannot come apart: the label wraps internally and
+                the `/` is on its first line with the first words of the title.
+                Capping the trail at the measure is what made this reachable at all —
+                at 46rem the long titles still fitted after the separator, and at
+                70ch "Appendix Sources - How Every Claim Is Checked" did not.
+
+                **Four.** The trail is a child of the reading COLUMN, so it was
+                capped at `--width-reading-track` (46rem) while the h1 and the prose
+                below it are capped at `--measure` (70ch) — 70px wider, and growing
+                to ~101px and ~119px at the other two measure steps. Its left edge
+                matched and its right edge did not, so a long title truncated at an x
+                nothing else on the page ever reached. `max-w-measure` puts the whole
+                reading surface on one right edge, which is the invariant the pager
+                and the h2 rules already keep.
+              */}{' '}
+              {/*
+                `font-serif` is not a typo and it changes nothing you can see: the
+                `ol` below sets `font-sans`, so no glyph on this trail is drawn in
+                the body face.
+
+                It is here for `ch`. `--measure` is `70ch`, and `ch` resolves against
+                the element's OWN font. `@layer base` puts `nav { font-family:
+                var(--font-sans) }` on every nav in the project, so this one measured
+                70 characters of Inter — 794.88px — while the `h1` and the prose under
+                it, in a `font-serif` article, measured 70 characters of Source Serif
+                — 666.54px. The cap was 128px too loose and the 46rem parent won it,
+                so `max-w-measure` on the trail did nothing at all: it stayed at the
+                track's 736px, 70px wider than the text it sits above. Declaring the
+                body face on the nav puts both `ch` measurements in the same font,
+                which is what makes one cap mean the same width in both places.
+
+                This is why the trail's TYPEFACE moved but the nav's did not. `ch` is
+                a measuring instrument here, and the instrument is the article's
+                face whatever the trail is drawn in.
+              */}
+              <nav aria-label="Breadcrumb" class="mb-4 max-w-measure font-serif">
+                {/*
+                  THE TRAIL IS CHROME, NOT EVIDENCE.
+
+                  It was `.meta` — JetBrains Mono, uppercase, tracked out — which is
+                  the register this project reserves for things that carry a value:
+                  grade chips, `[S##]` citations, `E-Rows`, running heads. A
+                  breadcrumb carries no value, it carries a path, and borrowing the
+                  evidence register made the loudest false signal on the page.
+
+                  It was loud in three compounding ways, all visible at once in the
+                  top 100px. It was BIGGER than the running head directly above it
+                  (`--type-mono` 13px against `--type-running-head` 11px), so the
+                  page opened with two stacked uppercase mono bands and the second
+                  one shouted. It duplicated the `h1` sitting 16px below it in a
+                  second family, weight and case — and on a section index the
+                  duplication is total, `PROVEN TECHNIQUES — CHOOSE BY SYMPTOM` over
+                  the identical `h1`. And its last crumb was the only `--ink`
+                  element in the top band, a full-ink false climax directly above
+                  the one element that is supposed to be the page's voice. On a
+                  390px phone it took THREE full lines, and the third of them was
+                  the h1's own title.
+
+                  So: `font-sans` at `text-ui`, which is what DESIGN.md assigns to
+                  nav, TOC labels and buttons — the chrome register the trail was
+                  always a member of in intent. That drops it below the running head
+                  in presence, breaks the two-band stack, and lets the h1 be the
+                  loudest thing in the first viewport without anyone having to
+                  ask which thing is the title.
+
+                  The ink steps down with it. Ancestors carry `--ink-faint`, the
+                  same 6.6:1 the running head carries, because they are the part of
+                  the trail that is information you do not have yet. The current
+                  page is `--ink-muted` at `font-medium`: one step UP, not the four
+                  up to `--ink` it was, and a weight step rather than a colour
+                  jump — the "you are here" signal, held inside one register. It is
+                  also the last crumb in a trail whose last crumb is never a link,
+                  and that plus `aria-current` is what identifies it; colour is the
+                  third signal, not the only one.
+                */}
+                <ol class="m-0 flex list-none flex-wrap items-baseline gap-x-1 gap-y-1 p-0 font-sans text-ui text-ink-faint">
+                  <li class="min-w-0">
+                    <a
+                      href="/"
+                      class="inline-block min-h-6 min-w-6 no-underline transition-colors hover:text-accent"
+                    >
+                      Home
+                    </a>
+                  </li>
+                  {breadcrumbItems.map((item, i) => {
+                    const isLast = i === breadcrumbItems.length - 1;
+                    return (
+                      /*
+                       * The LAST crumb truncates; the others do not. The truncation
+                       * lives on the `<li>`, not on the label, and that placement is
+                       * load-bearing.
+                       *
+                       * The trail aligns its items with `items-baseline`, so a label
+                       * has to contribute a TEXT baseline. An `inline-block` does —
+                       * except when its overflow is not visible, at which point the
+                       * spec makes its baseline its bottom margin edge instead.
+                       * `truncate` is `overflow: hidden`, so putting it on the label
+                       * silently cost this crumb its text baseline and the flex row
+                       * aligned its bottom edge to the other crumbs' baselines: a
+                       * measured 6.4px, with the title riding visibly high and the
+                       * trail's first line no longer level.
+                       *
+                       * The `<li>` is a block-level flex item, and a block container
+                       * takes its baseline from its first line box regardless of
+                       * overflow — so the ellipsis stays and the baseline is honest.
+                       * The label inside is then plain inline, which also keeps the
+                       * `/` and the title sharing one line box.
+                       */
+                      <li class={isLast ? 'min-w-0 truncate' : 'min-w-0'}>
+                        {isLast ? (
+                          <span aria-current="page" class="font-medium text-ink-muted">
+                            <span aria-hidden="true" class="mr-1 select-none">
+                              /
+                            </span>
+                            {item.title}
+                          </span>
+                        ) : (
+                          <a
+                            href={item.href}
+                            class="inline-block min-h-6 min-w-6 no-underline transition-colors hover:text-accent"
+                          >
+                            <span aria-hidden="true" class="mr-1 select-none">
+                              /
+                            </span>
+                            {item.title}
+                          </a>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </nav>
+              <article class={`prose ${proseClass}`}>
+                <header class="mb-8 border-b border-rule-strong pb-6">
+                  <h1 class="m-0 font-serif text-title font-semibold leading-tight tracking-[-0.025em]">
+                    {entry.data.title}
+                  </h1>
+                  {description && (
+                    <p class="mt-3 mb-0 max-w-[55ch] font-sans text-ui leading-relaxed text-ink-muted">
+                      {description}
+                    </p>
+                  )}
+                  {/* A description list, not a labelled div: `aria-label` is
+                      name-prohibited on the `generic` role, so the attribute
+                      was shipping without reaching the accessibility tree. */}
+                  <dl class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-[0.45rem] border-t border-rule pt-3 text-left">
+                    <dt class="running-head">Evidence grades</dt>
+                    <dd class="m-0 font-mono text-mono leading-[1.45] text-ink-muted">
+                      A1/A2 Oracle · B1/B2 research · C1/C2 tools · D context only
+                    </dd>
+                    <dd class="m-0">
+                      <a
+                        href="/#evidence-key"
+                        class="inline-flex min-h-6 min-w-6 items-center text-ui text-accent underline-offset-[0.2em] transition-colors hover:text-accent-hover"
+                      >
+                        Full key
+                      </a>
+                    </dd>
+                  </dl>
+                </header>
+
+                <Content />
+              </article>
+              {/*
+                The pager and the return link sit on the SAME measure as the prose.
+
+                The article's `70ch` measure is 70px narrower than the 46rem reading
+                track it sits in, so anything sized to the track broke the page's
+                single right edge in two: prose, h2 rules, the takeaway and the
+                title block all ended at one x while the pager ran 70px past it.
+                Two right edges on one page reads as a mistake even when both are
+                individually correct.
+
+                The measure is applied by a WRAPPER, not by the components, and that
+                is load-bearing rather than incidental: `ch` resolves against the
+                element's OWN font. The article is 18px Source Serif; `<nav>` is
+                Inter by the base layer's `nav { font-family: var(--font-sans) }`.
+                Putting `max-w-measure` on the pager itself gave it a 70ch of
+                Inter — 14% narrower than the prose it was supposed to align with —
+                and it overhung by exactly that much. A plain wrapper inherits the
+                body font, so its `ch` is the same `ch` the article's is.
+              */}
+              <div class="max-w-measure">
+                <PrevNext
+                  prev={
+                    prevEntry
+                      ? { href: toUrl(prevEntry.id), title: prevEntry.data.title }
+                      : undefined
+                  }
+                  next={
+                    nextEntry
+                      ? { href: toUrl(nextEntry.id), title: nextEntry.data.title }
+                      : undefined
+                  }
+                />
+              </div>
+              <p class="meta mt-8">
+                <a
+                  href="/"
+                  class="inline-flex min-h-6 min-w-6 items-center whitespace-nowrap no-underline transition-colors hover:text-accent"
+                >
+                  <span aria-hidden="true">←</span> Book home
+                </a>
+              </p>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/*
+        The rail's control, outside the grid and outside the rail.
+
+        It is `position: fixed`, so where it sits in the flow is a formality — but it
+        has to be a formality and not a lie. Inside the rail's cell it was a fixed
+        element inside an `overflow: hidden` box that collapses to zero width: still
+        painted, but clipped away from the tools, and a control whose position is
+        decided by its ancestor's clipping is not a page-level control. Here it just
+        follows the grid.
+      */}
+      {tocHeadings.length > 0 && <ReadingTocToggle label="Sections" expanded={true} />}
+    </>
+  )}
+
+  <SiteFooter />
+</BaseLayout>
