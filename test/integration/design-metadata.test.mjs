@@ -53,31 +53,40 @@ const baseLayout = await readRepoFile('src/layouts/BaseLayout.astro');
 const markup = (source) =>
   source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/^\s*\/\/.*$/gmu, '');
 
-test('motion names exactly one sanctioned opacity transition, the route fade', () => {
+test('motion names exactly one sanctioned opacity transition, the route swap', () => {
   /*
    * This said "two" while there were two. The route loader's reveal was the second
-   * and it is gone, along with the loader, so the whole-page route fade is now the
-   * only opacity transition this design system sanctions anywhere.
+   * and it is gone, along with the loader, so the route swap is now the only opacity
+   * transition this design system sanctions anywhere.
    *
    * The count is the part that must not drift. A second sanctioned opacity is a
    * permission slip, and the check that would have caught it is this one.
    */
   expect(motionSection).toMatch(/exactly one sanctioned opacity transition/iu);
-  expect(motionSection).toMatch(/whole-page route fade/iu);
+  expect(motionSection).toMatch(/route swap's zone choreography/iu);
   expect(motionSection).not.toMatch(/loader state reveal/iu);
   expect(motionSection).toMatch(/no prose, disclosure, or reading element may fade in/iu);
   expect(motionSection).toMatch(/navigation/iu);
   expect(motionSection).not.toMatch(/one opacity exception|single opacity exception/iu);
 });
 
-test('the route fade is documented as uncovering the new page, not cross-fading', () => {
+test('the route swap is documented as uncovering the new page, not cross-fading', () => {
   expect(motionSection).toMatch(/uncovered, not faded through the paper/iu);
-  /* out, delay, geometry, and the one value that carries the whole mechanism. Each
-     is a number a reader of this file would otherwise have to take on trust. */
-  expect(motionSection).toMatch(/out 230ms/iu);
-  expect(motionSection).toMatch(/\*\*50ms\*\* beat/iu);
-  expect(motionSection).toMatch(/230ms\*\*/u);
-  expect(motionSection).toMatch(/\*\*280ms\*\*/iu);
+  /* The exit and entrance windows matter as much as the per-zone duration: the
+     reverse order and the dead beat are the effect, and both are invisible in a
+     settled screenshot. */
+  expect(motionSection).toMatch(/190ms/iu);
+  expect(motionSection).toMatch(/45ms/iu);
+  expect(motionSection).toMatch(/70ms/iu);
+  expect(motionSection).toMatch(/810ms/iu);
+  /* Both variants, and what selects between them. */
+  expect(motionSection).toMatch(/`jump`/iu);
+  expect(motionSection).toMatch(/`pager`/iu);
+  expect(motionSection).toMatch(/data-nav/iu);
+  /* The zones are named, so the count is checkable rather than rhetorical. */
+  for (const zone of ['rh', 'rail', 'body', 'pager-prev', 'pager-next', 'meta']) {
+    expect(motionSection, `zone ${zone} is undocumented`).toContain(zone);
+  }
   /* The compositing rule, and why it is not a style preference: plus-lighter adds
      the two opacities, which is only correct while they sum to 1, and a sequence
      cannot hold that. On this paper the broken frames render darker. */
@@ -191,13 +200,16 @@ test('the one sanctioned opacity bullet stays in Motion', () => {
 
   expect(first).toBeDefined();
   expect(first).toMatch(/no element on a page may fade in from `opacity: 0`/iu);
-  expect(first).toMatch(/280ms/iu);
+  /* The per-zone duration, not a whole-swap total: the zones are what animate, and a
+     single number for the whole page is the shape the old design had. */
+  expect(first).toMatch(/190ms/iu);
+  expect(first).toMatch(/45ms/iu);
   /* The loader used to be bullet #2. If a second sanctioned opacity reappears in
      the metadata, this catches the number drifting before the prose does. */
   expect(bulletWith(motionLines, 'sanctioned opacity #2')).toBeUndefined();
 });
 
-test("the Don't list keeps both sanctioned opacity transitions consistent", () => {
+test("the Don't list keeps the sanctioned opacity transition consistent", () => {
   const opacityDont = bulletWith(dontList, 'opacity');
 
   expect(opacityDont).toBeDefined();
@@ -210,28 +222,38 @@ test("the Don't list keeps both sanctioned opacity transitions consistent", () =
 test('design metadata motion mirrors the documented motion values', () => {
   const motion = designMetadata.extensions.motion;
   const rise = motion.find((entry) => entry.name === 'rise-in');
-  const route = motion.find((entry) => entry.name === 'route-fade');
+  const jump = motion.find((entry) => entry.name === 'route-zones-jump');
+  const pager = motion.find((entry) => entry.name === 'route-zones-pager');
   const disclosure = motion.find((entry) => entry.name === 'disclosure');
   const rail = motion.find((entry) => entry.name === 'rail-collapse');
 
   expect(rise.value).toMatch(/500ms/u);
   expect(rise.value).toMatch(/translateY\(10px\)/u);
   expect(rise.purpose).toMatch(/transform-only/u);
-  expect(route.value).toMatch(/opacity 1 → 0, 230ms/u);
-  expect(route.value).toMatch(/50ms beat/u);
-  expect(route.value).toMatch(/z-index 2/u);
-  /* The geometry curve is written without spaces after the commas here, unlike
-     everywhere else in this project — matching how the other `design.json` values
-     are spelled, so a reader comparing the two does not think it is a different
-     curve. */
-  expect(route.value).toMatch(/view-transition groups 230ms cubic-bezier\(0\.22,1,0\.36,1\)/u);
-  expect(route.purpose).toMatch(/opacity #1/iu);
-  /* The metadata has to name the mechanism, or it reads as a generic page fade and
-     the next person to touch this reaches for the cross-fade that caused the dip. */
-  expect(route.purpose).toMatch(/opaque snapshot UNDERNEATH/iu);
-  expect(route.purpose).toMatch(/plus-lighter/iu);
-  expect(route.purpose).toMatch(/animation shorthand, not longhands/iu);
-  expect(route.value).toMatch(/new: animation none/u);
+  /* The stagger, per zone, with the exit and the reversed entrance both spelled out
+     in the order they run. A single number for the whole page is the shape the old
+     design had, and it is exactly the shape that hid the reverse-order arrival. */
+  expect(jump.value).toMatch(/190ms/u);
+  expect(jump.value).toMatch(/0\/45\/90\/135\/180ms/u);
+  expect(jump.value).toMatch(/530\/575\/440\/485\/620ms/u);
+  expect(jump.value).toMatch(/z-index 2/u);
+  expect(jump.value).toMatch(/groups animation none/u);
+  /* The pager's point is the title arriving first and the column following it down. */
+  expect(pager.value).toMatch(/title 440ms and body 485ms/u);
+  expect(pager.value).toMatch(/translateY\(-36px\)/u);
+  for (const route of [jump, pager]) {
+    expect(route.purpose).toMatch(/opacity #1/iu);
+  }
+  /* The compositing rationale lives once, on the jump entry: one mechanism shared by
+     both variants, and the swap's first entry is where a reader will look for it. */
+  expect(jump.purpose).toMatch(/opaque snapshot UNDERNEATH/iu);
+  expect(jump.purpose).toMatch(/plus-lighter/iu);
+  expect(jump.purpose).toMatch(/animation shorthand, not longhands/iu);
+  /* The two traps that cost the most time, recorded where a reader will find them. */
+  expect(jump.purpose).toMatch(/reapplies the incoming document's <html> attributes/u);
+  expect(jump.purpose).toMatch(/BARE/u);
+  expect(jump.purpose).toMatch(/810ms/u);
+  expect(pager.value).toMatch(/data-nav='pager'/u);
   expect(disclosure.value).toMatch(/280ms/u);
   /* The rail's control is one control that moves, and the metadata has to say so —
      an "edge tab" in the motion table is a description of a control that no longer
@@ -240,13 +262,22 @@ test('design metadata motion mirrors the documented motion values', () => {
   expect(rail.purpose).toMatch(/One control, not two/u);
 });
 
-test('exactly two metadata motion entries are opacity-bearing', () => {
+test('the metadata has exactly one sanctioned opacity mechanism, and it is the swap', () => {
+  /*
+   * This said "two" and asserted one. The route loader's reveal was the second, and it
+   * went with the loader — but the swap then split into two variants, so a count of
+   * one is no longer the shape to check. What has to hold is that the opacity-bearing
+   * entries are exactly the two halves of one mechanism, and nothing else claims
+   * opacity.
+   */
   const opacityEntries = designMetadata.extensions.motion.filter((entry) =>
-    /opacity/iu.test(entry.purpose),
+    /opacity #1/u.test(entry.purpose),
   );
 
-  expect(opacityEntries).toHaveLength(1);
-  expect(opacityEntries.map((entry) => entry.name)).toEqual(['route-fade']);
+  expect(opacityEntries.map((entry) => entry.name)).toEqual([
+    'route-zones-jump',
+    'route-zones-pager',
+  ]);
 });
 
 test('design metadata donts mirror the documented opacity contract', () => {
