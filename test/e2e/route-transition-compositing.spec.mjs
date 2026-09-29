@@ -18,7 +18,7 @@
 import { expect, test } from '@playwright/test';
 import { DESKTOP_VIEWPORT } from './support/toc.mjs';
 import { navigateTo } from './support/navigation.mjs';
-import { EXIT_ORDER, PROOF, half, recordSwap } from './support/zone-swap.mjs';
+import { EXIT_ORDER, PROOF, half, recordSwap, splitZone } from './support/zone-swap.mjs';
 
 /**
  * Assert that the root pseudo is present in the trace and is not being driven by the
@@ -36,7 +36,9 @@ import { EXIT_ORDER, PROOF, half, recordSwap } from './support/zone-swap.mjs';
  * it, and the test names the trap better than a nested loop does.
  */
 function expectNeutralRoot(entries) {
-  const root = entries.filter((entry) => entry.zone.startsWith('root'));
+  /* The recorded zone is `old(root)` / `new(root)`, not `root` — `splitZone` is what
+     separates the half from the name, and a filter on the raw string finds neither. */
+  const root = entries.filter((entry) => splitZone(entry)[1] === 'root');
   expect(root, 'the root pseudo did not appear in the trace at all').not.toEqual([]);
   for (const entry of root) {
     expect(entry.name, 'the UA blend is still driving the root pseudo').not.toContain(
