@@ -190,6 +190,7 @@ async function evidenceKeyOpensOnClientSideNavigation({ page }) {
   // `open` means anything.
   await page.waitForFunction((home) => location.pathname === home, deployed('/'), {
     timeout: 15_000,
+    polling: 200,
   });
   await expect(page.locator(EVIDENCE_KEY)).toHaveAttribute('open', '');
 }

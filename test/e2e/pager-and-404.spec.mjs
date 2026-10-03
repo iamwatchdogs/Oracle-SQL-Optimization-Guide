@@ -66,6 +66,7 @@ async function rendersBothOnAMiddlePage({ page }) {
   await next.click();
   await page.waitForFunction((target) => location.pathname === target, nextHref, {
     timeout: 15_000,
+    polling: 200,
   });
   await expect(page.locator('h1')).toHaveText(nextTitle);
 }
