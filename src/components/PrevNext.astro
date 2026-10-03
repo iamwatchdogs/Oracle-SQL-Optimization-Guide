@@ -1,4 +1,6 @@
 ---
+import { withBase } from '../lib/site.mjs';
+
 interface Link {
   href: string;
   title: string;
@@ -109,7 +111,7 @@ const NameSeparator = 'sr-only';
   </nav>
 ) : (
   <p class="meta mt-10 border-t border-rule pt-8">
-    <a href="/" class="no-underline transition-colors hover:text-accent">
+    <a href={withBase('/')} class="no-underline transition-colors hover:text-accent">
       <span aria-hidden="true">←</span> End of notebook — return to contents
     </a>
   </p>

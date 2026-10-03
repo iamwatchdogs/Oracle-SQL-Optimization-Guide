@@ -119,7 +119,12 @@ export function reanchorAfterSettle({ container, resolveTarget, windowRef }) {
     resolveTarget()?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
   };
 
-  const timeoutId = windowRef.setTimeout?.(jump, REANCHOR_FALLBACK_MS);
+  const timeoutId = windowRef.setTimeout?.(() => {
+    jump();
+    if (flow) {
+      armDeadlineCorrections(resolveTarget, windowRef);
+    }
+  }, REANCHOR_FALLBACK_MS);
   if (timeoutId !== undefined) {
     release.push(() => windowRef.clearTimeout?.(timeoutId));
   }
@@ -141,6 +146,10 @@ export function reanchorAfterSettle({ container, resolveTarget, windowRef }) {
     whenHeightSettles(flow, windowRef, jump, isClosing(container));
   }
 
+  armSettleTrigger(flow, windowRef, settle);
+}
+
+function armSettleTrigger(flow, windowRef, settle) {
   if (!flow) {
     /* No row to watch, so there is nothing to wait for: the next frame is also the
      * end state. The deadline is already armed, so a starved frame loop is covered
@@ -151,6 +160,29 @@ export function reanchorAfterSettle({ container, resolveTarget, windowRef }) {
 
   /* The next-frame path is only armed under reduced motion; see `armNextFrame`. */
   armNextFrame(windowRef, settle);
+}
+
+/* The deadline's jump can have been computed against a stale layout: when the
+ * frame loop is starved the forced re-layout never ran, so the browser scrolls
+ * with the pre-collapse geometry. Nothing about the row's height changes
+ * afterwards, so the correction checks the target's own position, not the
+ * flow's height. Two passes bound the loop. */
+function armDeadlineCorrections(resolveTarget, windowRef) {
+  const arm = (pass) => {
+    if (pass >= 2) {
+      return;
+    }
+    windowRef.setTimeout?.(() => {
+      const target = resolveTarget?.();
+      const top = target?.getBoundingClientRect?.().top;
+      const limit = (windowRef.innerHeight ?? 600) * 0.8;
+      if (typeof top === 'number' && (top < 0 || top > limit)) {
+        target.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+      }
+      arm(pass + 1);
+    }, REANCHOR_FALLBACK_MS);
+  };
+  arm(0);
 }
 
 /**

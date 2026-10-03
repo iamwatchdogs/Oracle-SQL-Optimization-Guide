@@ -6,6 +6,7 @@ import ReadingTocToggle from '../components/ReadingTocToggle.astro';
 import PrevNext from '../components/PrevNext.astro';
 import HomeTitleBlock from '../components/HomeTitleBlock.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import { withBase, withoutBase } from '../lib/site.mjs';
 
 type Props = {
   entry: CollectionEntry<'notebook'>;
@@ -13,12 +14,17 @@ type Props = {
   nextEntry?: CollectionEntry<'notebook'>;
 };
 
+/*
+ * A document id to the route that serves it. Prefixed here, once, so the pager,
+ * the breadcrumb, the contributions list and the section nav all inherit it —
+ * these five surfaces are the same link written five times otherwise.
+ */
 function toUrl(id: string): string {
   if (id === 'index') {
-    return '/';
+    return withBase('/');
   }
   const clean = id.replace(/\.mdx?$/u, '').replace(/\/index$/u, '');
-  return `/${clean}/`;
+  return withBase(`/${clean}/`);
 }
 
 function slugify(text: string): string {
@@ -61,10 +67,17 @@ const contributions = all
     title: e.data.title,
     description: e.data.description,
   }));
+/*
+ * The document id a section href stands for. `href` carries the deployment
+ * prefix, `entry.id` never does, so the prefix comes off before the two are
+ * compared — otherwise nothing matches and every chapter loses its section.
+ */
+const sectionIdOf = (href: string): string => withoutBase(href).replaceAll(/^\/|\/$/gu, '');
+
 const currentSection = isHome
   ? undefined
   : contributions.find((section) => {
-      const sectionId = section.href.replaceAll(/^\/|\/$/gu, '');
+      const sectionId = sectionIdOf(section.href);
       return entry.id === sectionId || entry.id.startsWith(`${sectionId}/`);
     });
 const sectionPosition = currentSection ? contributions.indexOf(currentSection) + 1 : undefined;
@@ -77,8 +90,7 @@ const runningHeadChapter =
   currentSection && currentSection.title !== entry.data.title ? currentSection.title : undefined;
 const breadcrumbItems = isHome
   ? []
-  : currentSection &&
-      entry.id.replaceAll(/\/index$/gu, '') !== currentSection.href.replaceAll(/^\/|\/$/gu, '')
+  : currentSection && entry.id.replaceAll(/\/index$/gu, '') !== sectionIdOf(currentSection.href)
     ? [
         { href: currentSection.href, title: currentSection.title },
         { href: toUrl(entry.id), title: entry.data.title },
@@ -401,7 +413,7 @@ const proseClass = [
                 <ol class="m-0 flex list-none flex-wrap items-baseline gap-x-1 gap-y-1 p-0 font-sans text-ui text-ink-faint">
                   <li class="min-w-0">
                     <a
-                      href="/"
+                      href={withBase('/')}
                       class="inline-block min-h-6 min-w-6 no-underline transition-colors hover:text-accent"
                     >
                       Home
@@ -475,7 +487,7 @@ const proseClass = [
                     </dd>
                     <dd class="m-0">
                       <a
-                        href="/#evidence-key"
+                        href={withBase('/#evidence-key')}
                         class="inline-flex min-h-6 min-w-6 items-center text-ui text-accent underline-offset-[0.2em] transition-colors hover:text-accent-hover"
                       >
                         Full key
@@ -521,7 +533,7 @@ const proseClass = [
               </div>
               <p class="meta mt-8">
                 <a
-                  href="/"
+                  href={withBase('/')}
                   class="inline-flex min-h-6 min-w-6 items-center whitespace-nowrap no-underline transition-colors hover:text-accent"
                 >
                   <span aria-hidden="true">←</span> Book home

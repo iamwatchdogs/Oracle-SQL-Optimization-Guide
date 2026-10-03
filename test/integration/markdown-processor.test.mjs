@@ -1,11 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
 import { unified } from '@astrojs/markdown-remark';
+import { rehypeBaseLinks } from '../../src/lib/rehype-base-links.mjs';
 import {
   markdownProcessor,
   rehypePlugins,
   remarkPlugins,
 } from '../../src/lib/markdown-processor.mjs';
+import { resolveBase } from '../../src/lib/site.mjs';
 
 const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.url), 'utf8');
 
@@ -258,4 +260,20 @@ test('renders the home primer as visible prose, not behind a disclosure wrapper'
     /<div class=\{`mx-auto prose \$\{proseClass\} pt-8`\}>\s*<Content \/>\s*<\/div>/u,
   );
   expect(page).toMatch(/<article class=\{`prose \$\{proseClass\}`\}>[\s\S]*?<Content \/>/u);
+});
+
+test('the production chain is what applies the deployment prefix', async () => {
+  /*
+   * Asserted on the exported list, not on a plugin invoked directly, so the
+   * transform cannot be dropped from the chain while `base-links.test.mjs` — which
+   * exercises the plugin on its own — stays green.
+   */
+  const code = (await (await markdownProcessor.createRenderer({})).render('[a](/04-recipes/)', {}))
+    .code;
+
+  /* The exact link, whatever the prefix is. `SITE_BASE=/` is a supported build, and
+     what is being checked is that the production chain rewrote the link at all —
+     true both with and without a prefix. */
+  expect(code).toBe(`<p><a href="${resolveBase()}/04-recipes/">a</a></p>`);
+  expect(rehypePlugins).toContain(rehypeBaseLinks);
 });

@@ -1,7 +1,24 @@
 import { defineConfig, devices } from '@playwright/test';
+import { resolveBase } from './src/lib/site.mjs';
 
 const PORT = Number(process.env.E2E_PORT ?? 4322);
-const baseURL = `http://localhost:${PORT}`;
+const ORIGIN = `http://localhost:${PORT}`;
+
+/*
+ * The suite drives the site the way it is deployed: under the repository prefix.
+ *
+ * `ORIGIN` and `baseURL` are separate because they answer different questions.
+ * Playwright resolves every root-relative `page.goto` against `baseURL`, so that
+ * needs the prefix. Probing `ORIGIN` instead would either 404 — a readiness
+ * timeout with no clue why — or, worse, resolve the unprefixed root and let a link
+ * missing its prefix pass here and 404 in production.
+ *
+ * The static server is told the prefix by importing `resolveBase` from the same
+ * module the build used, rather than by an argument. An argument would be a third
+ * place to state the same fact, and this is the second time in this change that a
+ * value handed to something by hand disagreed with the value the build produced.
+ */
+const baseURL = `${ORIGIN}${resolveBase()}/`;
 
 export default defineConfig({
   testDir: './test/e2e',

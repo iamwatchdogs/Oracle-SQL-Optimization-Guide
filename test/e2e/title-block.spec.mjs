@@ -17,6 +17,7 @@
 import { expect, test } from '@playwright/test';
 import { DESKTOP_VIEWPORT, PHONE_VIEWPORT } from './support/toc.mjs';
 import { READING_PREFS } from './support/disclosure.mjs';
+import { deployed } from './support/deployed.mjs';
 
 const KEY = '#evidence-key';
 const KEY_SUMMARY = `${KEY} > summary`;
@@ -191,8 +192,8 @@ async function opensSingleColumnOnAPhone({ page }) {
 async function reachesTheSameContentFromADeepLink({ page }) {
   await page.setViewportSize(DESKTOP_VIEWPORT);
   await page.goto('/00-preface/');
-  await page.click('a[href="/#evidence-key"]');
-  await page.waitForURL('**/#evidence-key');
+  await page.click(`a[href="${deployed('/#evidence-key')}"]`);
+  await page.waitForURL(`**${deployed('/#evidence-key')}`);
   await expect.poll(async () => (await geometry(page)).open, { timeout: 5000 }).toBe(true);
 }
 
