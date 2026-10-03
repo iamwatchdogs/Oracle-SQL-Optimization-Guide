@@ -13,7 +13,13 @@ function collectEntries(documentRef) {
   });
 }
 
-function setActiveState(entries, id, currentLabel) {
+function setActiveState(entries, id, currentLabel, cache) {
+  if (cache?.lastId === id) {
+    return;
+  }
+  if (cache) {
+    cache.lastId = id;
+  }
   for (const entry of entries) {
     const match = entry.id === id;
     entry.link.dataset.active = match ? 'true' : 'false';
@@ -31,24 +37,12 @@ function setActiveState(entries, id, currentLabel) {
 }
 
 /*
- * Resolve which section is current from geometry alone.
- *
- * The previous implementation drove the highlight entirely from
- * IntersectionObserver callbacks. Two problems followed from that:
- *
- * 1. The callback is asynchronous. After a programmatic or fast scroll the
- *    highlight lagged the scroll position by a frame or more, so the TOC could
- *    name a section the reader had already left.
- * 2. The observer only fires when the SET of intersecting elements changes. At
- *    the bottom of a page whose last heading sits below the `-65%` band, the
- *    previous heading leaves the band and nothing enters it — the callback runs
- *    with nothing visible and no id to apply, so the highlight silently stayed
- *    on whatever it was at load time. A reader who scrolled to the end of a
- *    chapter saw the FIRST section marked current.
- *
- * Resolving from geometry and calling it on scroll fixes both, and an explicit
- * page-bottom case states the rule directly: at the end of the document the
- * last section is the current one, because that is the text being read.
+ * Resolve which section is current from geometry alone. Calling it on scroll
+ * (coalesced to one frame) fixes the old IntersectionObserver-driven spy,
+ * which lagged a programmatic scroll by a frame and, at the bottom of a page
+ * whose last heading sits below the band, silently kept the FIRST section
+ * marked current. An explicit page-bottom case: at the end of the document
+ * the last section is the current one, because that is the text being read.
  */
 function resolveActiveId(entries, windowRef, documentRef) {
   if (entries.length === 0) {
@@ -88,20 +82,37 @@ function resolveActiveId(entries, windowRef, documentRef) {
   return inBand ?? lastAbove?.id ?? null;
 }
 
+function inputsChanged(lastInputs, scrollY, innerHeight, scrollHeight) {
+  return (
+    lastInputs === null ||
+    lastInputs.scrollY !== scrollY ||
+    lastInputs.innerHeight !== innerHeight ||
+    lastInputs.scrollHeight !== scrollHeight
+  );
+}
+
 /*
  * Recompute on every scroll, coalesced to one read per frame. A passive,
- * rAF-throttled scroll handler is the standard way to keep a scroll-spy honest;
- * the observer is kept as a second trigger because it is cheaper than measuring
- * every heading on fast programmatic scrolls.
+ * rAF-throttled scroll handler is the standard way to keep a scroll-spy
+ * honest; the observer is a second trigger for content-driven reflows, and
+ * both skip the geometry scan when nothing that feeds it changed.
  */
 function observeSections(entries, onActive, ObserverRef, windowRef, documentRef) {
+  let frame = null;
+  let lastInputs = null;
   const sync = () => {
+    const scrollY = windowRef?.scrollY ?? 0;
+    const innerHeight = windowRef?.innerHeight ?? 0;
+    const scrollHeight = documentRef?.documentElement?.scrollHeight ?? 0;
+    if (!inputsChanged(lastInputs, scrollY, innerHeight, scrollHeight)) {
+      return;
+    }
+    lastInputs = { scrollY, innerHeight, scrollHeight };
     const id = resolveActiveId(entries, windowRef, documentRef);
     if (id) {
       onActive(id);
     }
   };
-  let frame = null;
   const onScroll = () => {
     if (frame !== null) {
       return;
@@ -194,6 +205,9 @@ function createPageLoad({
   return () => {
     teardown();
     const entries = collectEntries(documentRef);
+    /* Fresh per page: the last active id belongs to the document that was
+       just swapped out. */
+    const activeCache = { lastId: null };
     if (entries.length === 0) {
       return;
     }
@@ -208,11 +222,11 @@ function createPageLoad({
       initialId = resolveActiveId(entries, windowRef, documentRef);
     }
     if (initialId) {
-      setActiveState(entries, initialId, currentLabel);
+      setActiveState(entries, initialId, currentLabel, activeCache);
     }
     state.observer = observeSections(
       entries,
-      (id) => setActiveState(entries, id, currentLabel),
+      (id) => setActiveState(entries, id, currentLabel, activeCache),
       ObserverRef,
       windowRef,
       documentRef,
