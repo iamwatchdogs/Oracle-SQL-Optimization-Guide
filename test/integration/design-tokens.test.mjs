@@ -8,7 +8,7 @@
  * shipping.
  */
 import { expect, test } from 'vitest';
-import { compileProjectStylesheet } from '../../src/lib/tailwind-compile.mjs';
+import { compileProjectStylesheet } from '../../test/support/css/tailwind-compile.mjs';
 import {
   composite,
   contrast,

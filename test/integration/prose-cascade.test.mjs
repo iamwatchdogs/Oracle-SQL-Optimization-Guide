@@ -6,8 +6,8 @@ import {
   parseCompiledStylesheet,
   resolveToken,
   selectorsDeclaring,
-} from '../../src/lib/css-cascade.mjs';
-import { compileProjectStylesheet } from '../../src/lib/tailwind-compile.mjs';
+} from '../../test/support/css/css-cascade.mjs';
+import { compileProjectStylesheet } from '../../test/support/css/tailwind-compile.mjs';
 
 const typographyTokens = [
   '--tw-prose-body',

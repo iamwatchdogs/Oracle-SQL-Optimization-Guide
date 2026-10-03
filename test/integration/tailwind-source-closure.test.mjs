@@ -4,8 +4,8 @@ import { expect, test } from 'vitest';
 import {
   compileMirroredStylesheet,
   compileProjectStylesheet,
-} from '../../src/lib/tailwind-compile.mjs';
-import { parseCompiledStylesheet } from '../../src/lib/css-cascade.mjs';
+} from '../../test/support/css/tailwind-compile.mjs';
+import { parseCompiledStylesheet } from '../../test/support/css/css-cascade.mjs';
 
 const repoRoot = new URL('../../', import.meta.url).pathname;
 const stylesheetUrl = new URL('../../src/styles/global.css', import.meta.url);
