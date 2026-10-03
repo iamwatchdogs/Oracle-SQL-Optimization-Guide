@@ -90,6 +90,8 @@ const fullTitle =
    on one line only meant a page without frontmatter `description` shipped a
    human-readable description and no social one at all. */
 const metaDescription = description ?? SITE_DESCRIPTION;
+/* og:locale wants language_TERRITORY; the site's BCP 47 tag is a bare 'en'. */
+const ogLocale = SITE_LOCALE === 'en' ? 'en_US' : SITE_LOCALE;
 
 /* Canonical must never carry a query string or fragment, and must resolve
    against the configured site origin rather than whatever host served the page. */
@@ -158,12 +160,12 @@ const feedHref = new URL('rss.xml', siteRoot).href;
     <meta property="og:description" content={metaDescription} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE_TITLE} />
-    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale" content={ogLocale} />
     <meta property="og:image" content={socialImage} />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={SITE_DESCRIPTION} />
+    <meta property="og:image:alt" content={`${SITE_TITLE} — social card`} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={metaDescription} />
