@@ -2,7 +2,6 @@ import { defineConfig, fontProviders } from 'astro/config';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import astroExpressiveCodePlugin from 'astro-expressive-code';
-import mermaid from 'astro-mermaid';
 import tailwindcss from '@tailwindcss/vite';
 import { markdownProcessor } from './src/lib/markdown-processor.mjs';
 import { resolveBase, SITE_ORIGIN } from './src/lib/site.mjs';
@@ -61,10 +60,6 @@ export default defineConfig({
     },
   ],
   integrations: [
-    // Mermaid first: registers its markdown transform before the other
-    // markdown-processing integrations (see astro-mermaid README).
-    // Diagrams render dark by default; light mode flips them via CSS filter.
-    mermaid({ theme: 'dark', autoTheme: false }),
     // Expressive Code must come before mdx() to own code-block rendering.
     // It automatically disables Astro's built-in Shiki highlighting.
     // github-dark works in both modes: code blocks stay dark on light pages.
@@ -85,10 +80,8 @@ export default defineConfig({
   ],
   markdown: {
     // Astro 7 defaults to the Satteri (Rust) processor, which silently
-    // ignores remark/rehype plugins. Pin the unified pipeline so
-    // remark-math + rehype-mathjax actually run for .md and .mdx.
-    // rehype-mathjax default renders SVG at build time: no client JS,
-    // no extra CSS, works offline.
+    // ignores remark/rehype plugins. Pin the unified pipeline so the
+    // remark/rehype plugins in `markdownProcessor` actually run.
     // remarkMeasuredValues: force annotation — wraps E-Rows/A-Rows/elapsed
     // tokens in .measured spans (presentation only; wording unchanged).
     processor: markdownProcessor,
