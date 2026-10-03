@@ -217,10 +217,67 @@ const feedHref = new URL('rss.xml', siteRoot).href;
         },
       })}
     ></script>
-    {/* Fonts — Astro Fonts API */}
-    <Font cssVariable="--face-serif" preload />
+    {/*
+      Fonts — Astro Fonts API — and which of them the parser is told to fetch first.
+
+      `preload` is not a boolean. `FontPreloadFilter` is
+      `boolean | Array<{ weight?, style?, subset? }>`
+      (`node_modules/astro/dist/assets/fonts/types.d.ts`), the `<Font>` component types its prop
+      that way (`node_modules/astro/components/Font.astro:10`), and `filterPreloads` matches the
+      array entry-by-entry (`dist/assets/fonts/core/filter-preloads.js:8-21`) — so `{ style: 'normal' }`
+      names exactly one of a family's files. Written as the bare `true` it means "every file this
+      family owns" (`filter-preloads.js:5-7`), and this family owns two: `styles: ['normal',
+      'italic']` in `astro.config.mjs`. That is why the serif prop below is a filter and not a flag,
+      and it is not a workaround — it is the documented shape of the prop, evaluated per render
+      (`Font.astro:22`), so one layout gets per-style control it appears not to offer.
+
+      WHAT EACH LINE IS FOR, measured in Chromium against this build rather than argued.
+
+      - `--face-serif`, UPRIGHT ONLY. The `<h1>` is 50,952 bytes, is on every page, and was the
+        largest-contentful-paint element on 69 of 74 page-and-viewport pairs. There is no argument
+        against it.
+      - `--face-sans`. Unchanged, and unchanged for the reason c7a3785 recorded: it paints every
+        visible control in the running head (`Contents`, `Repo`, `Reading`, `Theme`) on all 37 pages.
+      - `--face-mono`, NEW. This was the one face with no preload, and it is the face the running
+        head is set in — the wordmark (`class="running-head"`, this file's header) and the
+        `Section 02 / 09` counter in the nav summary — inside a `sticky top-0` header, so it is in
+        the first viewport on every page. At 31,340 bytes it is also the smallest of the four.
+        Chromium found it from the CSSOM rather than the parser, so `ResourceTiming.initiatorType`
+        read `css` where the other three read `link`: under an emulated Slow 4G link (1.6 Mbps,
+        150 ms RTT) its `responseEnd` was 1817 ms against 1365-1410 ms for the trio, so the header
+        painted in `ui-monospace` and swapped about 400 ms later.
+
+      WHY THE ITALIC FACE IS NOT ON THAT LIST, since it is the larger decision. 51,720 bytes — the
+      largest file the site ships — and nothing in the first viewport uses it on 30 of the 37 content
+      pages. It is not unused: all 37 render italic text, so the browser still downloads the file,
+      and it is the largest-contentful-paint element on 4 of them. What the preload bought was the
+      PARSER asking for it before the document existed, which is a bad trade when the file is also
+      the largest one in flight and the three faces a reader is actually looking at are behind it.
+      Dropping it does not remove a byte — it moves that file out of the group resolved before first
+      paint and into the group resolved after layout, behind the three the reader is looking at. The
+      cost is that the italic glyphs arrive later; `font-display: swap` on all 24 faces is what makes
+      that a swap rather than a blank. Asserted by `test/integration/font-preload.test.mjs` and
+      `test/e2e/font-preload.spec.mjs`.
+
+      REJECTED, and why, so nobody re-runs them:
+
+      - `preload` on all four. 182,444 bytes of font handed to the parser, on a heaviest page whose
+        document is 186,369 bytes; the fonts would nearly double the cold load, for a face 30 of 37
+        pages cannot see in the first screenful.
+      - Leave the serif prop alone and add `preload` to the mono one. Fixes the half that is easiest
+        to see and leaves the half that costs the most bytes. The italic preload would still be
+        sitting in front of every reader.
+      - Drop serif and let the `<h1>` fall back. The `<h1>` is the site's own title, and it is the
+        largest contentful paint on both pages a reader can land on directly.
+
+      ONE THING THAT IS NOT CLAIMED: the cost. Preloading is site-wide here because these three tags
+      are unconditional, and the italic face is in the first viewport on 7 of 37 pages — so on those
+      the swap lands a little later than it used to. Per-page preload would mean the layout inspecting
+      its own content, which is a worse contract than the one line it replaces.
+    */}
+    <Font cssVariable="--face-serif" preload={[{ style: 'normal' }]} />
     <Font cssVariable="--face-sans" preload />
-    <Font cssVariable="--face-mono" />
+    <Font cssVariable="--face-mono" preload />
 
     {/*
       Theme and reading preferences init — dark default; everything else from
