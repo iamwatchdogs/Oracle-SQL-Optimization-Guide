@@ -30,8 +30,25 @@ export default defineConfig({
   // A linear book: every pager cell and nav link is a likely next read.
   // Prefetch once a link scrolls into view, not only on hover.
   prefetch: { prefetchAll: true, defaultStrategy: 'viewport' },
+  // 'jsx' (default) preserves some whitespace; the full pass trims inter-tag
+  // whitespace in 38 HTML documents a first-paint visitor downloads.
+  compressHTML: true,
   vite: {
     plugins: [tailwindcss()],
+    build: {
+      // Inline the small per-route stylesheets Astro emits; the two large
+      // ones (global, expressive-code) stay external and cacheable.
+      assetsInlineLimit: 4096,
+      cssMinify: true,
+    },
+    css: {
+      transformer: 'lightningcss',
+      lightningcss: { minify: true },
+    },
+  },
+  build: {
+    // Inline <4KB stylesheets as <style> on cold load; larger stay cacheable.
+    inlineStylesheets: 'auto',
   },
   fonts: [
     {
