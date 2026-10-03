@@ -29,18 +29,28 @@
  *      intended and leave a page that reads as unstyled.
  *   3. It lands inside `<head>`, not appended to the body. A stylesheet that arrives
  *      with the prose paints the page twice.
- *   4. Nothing carrying the global sheet is discovered late — with one deliberate,
- *      documented exception for the sheet expressive-code still writes itself.
+ *   4. Nothing carrying the global sheet is discovered late — with no exception. This
+ *      assertion used to end at the global sheet and carry a documented carve-out for
+ *      expressive-code's body link, and pinned that carve-out with a tripwire asserting
+ *      the link was STILL THERE.
  *   5. A ceiling on the inlined bytes. Astro inlines with no size cap of its own, so
  *      this is the only bound in the pipeline.
  *
- * The exception in (4) is the honest part. Thirty-four of the thirty-eight built pages
- * still carry a stylesheet link emitted into the BODY, hundreds of kilobytes into the
- * document. expressive-code writes that link itself, into the markdown AST, through
- * its own bundler; it never passes through Astro's stylesheet pipeline, so no setting
- * in this config can move it. It is a separate defect with a separate fix, and this
- * commit does not make it — so the test says exactly how far the invariant reaches
- * and pins the remainder instead of pretending it is not there.
+ * ON THE DELETED EXCEPTION IN (4), because a diff that only removes a test invites the reading that a
+ * guard was quietly dropped. expressive-code emitted its own stylesheet as a `<link rel="stylesheet">`
+ * written into the markdown AST, putting it inside `<body>` on thirty-four of the thirty-eight built
+ * pages, 80.7% of the way into a representative document. It bypassed Astro's pipeline entirely, so no
+ * setting in this config could move it, and the honest thing was to pin it. The tripwire existed so a
+ * change that moved the link as a side effect would fail HERE rather than be credited in a later diff
+ * review; its own comment said it was "the test to delete when expressive-code's sheet is hoisted".
+ *
+ * That happened, by a different route than the test's name anticipated: the sheet is not hoisted into
+ * `<head>`, it is INLINED (`emitExternalStylesheet: false` in `astro.config.mjs`), so there is no link
+ * left to be late. The tripwire had nothing left to assert — its first line required the defect to
+ * still exist — and is deleted rather than inverted, because the invariant it protected is now asserted
+ * at full strength by the test above it and, for the wider claim, by
+ * `test/integration/code-block-css.test.mjs`. Nothing about the global sheet's own behaviour changed.
+ * What changed is the scope of this file's claims, and it now makes them without a carve-out.
  */
 import { beforeAll, expect, test } from 'vitest';
 import {
@@ -72,12 +82,22 @@ const GLOBAL_MARKERS = ['.running-head', '--paper', '.disclosure-flow'];
 /**
  * The ceiling on inlined CSS bytes per page, and the arithmetic is the point.
  *
- * After the fix a page carries roughly 63 KB of global sheet plus roughly 19 KB of
- * Astro's own inlined styles — the `@font-face` blocks and the view-transition layer
- * — so a real page sits near 82 KB and this bound leaves about 1.6x headroom: room
- * for a chapter to grow, and none for a second copy. A duplicated global sheet would
- * put a page near 145 KB and fail, which is the regression this is actually watching
- * for. Measured, the range across the thirty-eight built pages is 73-83 KB.
+ * After the fix a page carries roughly 63 KB of global sheet, roughly 19 KB of Astro's
+ * own inlined styles — the `@font-face` blocks and the view-transition layer — and, on
+ * the thirty-four pages that have a code block, expressive-code's 15.8 KB. A real page
+ * sits near 98 KB and this bound leaves about 1.3x headroom: room for a chapter to grow,
+ * and none for a second copy. A duplicated global sheet would put a page near 145 KB and
+ * fail, which is the regression this is actually watching for. Measured after expressive-
+ * code's sheet joined the page, the range across the thirty-eight built pages is 89-98 KB;
+ * the four code-free pages sit at the bottom of it, which is the same four pages
+ * `code-block-css.test.mjs` asserts carry none of expressive-code's rules.
+ *
+ * The bound itself is unchanged from when it was written against a 73-83 KB range, and
+ * that is deliberate rather than lucky: 128 KiB was chosen as a multiple of the global
+ * sheet, not as a function of the current total, so a second stylesheet arriving did not
+ * require re-tuning it. Had it been a round number above the measurement instead, this
+ * commit would have had to raise it — and a ceiling that has to move every time the site
+ * grows is a ceiling that stops being a check.
  *
  * It is deliberately generous in the other direction too. This is not a byte budget
  * for the stylesheet; it is a bound on the size of the thing being inlined, so that an
@@ -86,13 +106,9 @@ const GLOBAL_MARKERS = ['.running-head', '--paper', '.disclosure-flow'];
  */
 const INLINE_CSS_CEILING = 128 * 1024;
 
-/** The container expressive-code writes around every rendered code block. */
-const CODE_BLOCK_FRAME = '<figure class="frame"';
-
 const byteLength = (text) => Buffer.byteLength(text, 'utf8');
 const inlinedBytes = (html) =>
   inlineStyleBlocks(html).reduce((total, block) => total + byteLength(block.body), 0);
-const isLateStylesheet = (html) => stylesheetLinks(afterHead(html)).length > 0;
 
 let pages = [];
 let stylesheets = new Map();
@@ -144,16 +160,31 @@ test('no stylesheet left on disk is the global sheet any more', () => {
   /*
    * Inlined, not duplicated.
    *
-   * The assertion above is satisfied just as well by a `<style>` holding a token
+   * The assertion below is satisfied just as well by a `<style>` holding a token
    * handful of the sheet plus a `<link>` to all of it, so this closes the other
    * half: the three markers never appear TOGETHER in any file the build emitted.
    * Astro deletes an inlined asset from the bundle, so if this fails the sheet is
    * still on disk and something is being fetched as well as inlined.
    *
-   * The guard is what keeps the sweep from passing on an empty list, which is what a
-   * renamed assets directory would produce.
+   * The guard used to be `expect(stylesheets.size).toBeGreaterThan(0)`, on the reasoning that an empty
+   * sweep proves nothing. That was sound while expressive-code emitted `_astro/ec.*.css`, and stopped
+   * being true when its sheet was inlined too: this build now emits NO stylesheet files at all, and the
+   * correct value of this count became zero. Asserting it positive would have gone red on a build more
+   * correct than the one it was written for.
+   *
+   * So the guard is a POSITIVE CONTROL rather than a non-empty list: the markers are asserted to be
+   * findable, inline, on a page. That establishes they are discriminable — a sheet carrying all three
+   * would be caught, and the sweep is known to work because the same markers were just located in the
+   * markup. A vacuous sweep and a working one are distinguishable, which is all the old assertion was
+   * trying to establish.
    */
-  expect(stylesheets.size, 'the build emitted no stylesheet files at all').toBeGreaterThan(0);
+  const inlineCarrier = pages.find(({ html }) =>
+    inlineStyleBlocks(html).some((b) => carriesGlobalSheet(b.body, GLOBAL_MARKERS)),
+  );
+  expect(
+    inlineCarrier,
+    'no built page inlines the global sheet, so a sweep of the emitted files cannot be trusted',
+  ).toBeDefined();
 
   const carriers = [...stylesheets.values()].filter((css) =>
     carriesGlobalSheet(css, GLOBAL_MARKERS),
@@ -211,15 +242,18 @@ test('the global sheet is never discovered after the head', () => {
   /*
    * The invariant THIS commit is about, held to the sheets this commit is about.
    *
-   * The defect fixed here is a stylesheet in `<head>` that blocks first paint. The
-   * defect still open is a different one: a stylesheet link emitted into the body,
-   * where a scanner meets it hundreds of kilobytes into the document.
-   * expressive-code writes that link itself, into the markdown AST, through its own
-   * bundler — it never passes through Astro's stylesheet pipeline, so no setting in
-   * this config can move it. It gets its own commit.
+   * The defect fixed here was a stylesheet in `<head>` that blocks first paint. A
+   * different defect was open alongside it — a stylesheet link emitted into the body,
+   * where a scanner meets it hundreds of kilobytes into the document — and it is
+   * CLOSED now, by `emitExternalStylesheet: false` in `astro.config.mjs`.
    *
-   * So the rule is stated as far as the fix reaches: nothing carrying the global
-   * sheet's markers is ever linked from after `</head>`, on any page.
+   * So the exception this test used to carry is gone, and the rule is stated at full
+   * strength: nothing carrying the global sheet's markers is ever linked from after
+   * `</head>`, on any page. The wider claim — that no stylesheet link at all appears
+   * after `</head>`, expressive-code's included — lives in
+   * `test/integration/code-block-css.test.mjs`, which is where a code-block regression
+   * should fail. What is left here is the global sheet's own version of it, unchanged
+   * in meaning and now stricter in reach.
    */
   const lateCarriers = pages.flatMap(({ file, html }) =>
     stylesheetLinks(afterHead(html))
@@ -228,38 +262,6 @@ test('the global sheet is never discovered after the head', () => {
   );
 
   expect(lateCarriers).toEqual([]);
-});
-
-test("the remainder that is still late is expressive-code's own link, and only its own", () => {
-  /*
-   * What is left over, pinned rather than pretended away — and the test to delete
-   * when expressive-code's sheet is hoisted.
-   *
-   * The first assertion is the tripwire, and it is the reason this is a separate
-   * test rather than a comment. It asserts that the remainder is STILL THERE and
-   * STILL LATE. If a change to this config ever moved expressive-code's link into
-   * the head as well — which no setting here should be able to do, but which is
-   * exactly the kind of thing that happens when an integration's injection point
-   * moves — then this test stops being a scoped statement about an open defect and
-   * becomes a false claim about a fixed one, and it fails here rather than in the
-   * diff review of a later commit.
-   *
-   * The second assertion holds the remainder to what it is supposed to be: a body
-   * link on a page that has a code block to style, and on no other page. Both
-   * directions are asserted, because a body link on a page with no code would be a
-   * link with no reason to exist. Thirty-four of the thirty-eight built pages carry a
-   * code block and a body link; the four that do not — the home page, the 404, and
-   * two code-free pages — carry neither.
-   */
-  const late = pages.filter(({ html }) => isLateStylesheet(html));
-  expect(late.length, 'expressive-code no longer emits a body stylesheet link').toBeGreaterThan(0);
-
-  for (const { file, html } of pages) {
-    expect(
-      isLateStylesheet(html),
-      `${file} has a body stylesheet link but no rendered code block`,
-    ).toBe(html.includes(CODE_BLOCK_FRAME));
-  }
 });
 
 test('nothing is fetched for CSS, and what was inlined is under the ceiling', () => {
