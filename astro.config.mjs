@@ -90,13 +90,12 @@ export default defineConfig({
      * stylesheet request cost to transfer anyway — and it arrives inside a response
      * the browser is already fetching rather than in a request it must wait for.
      *
-     * Scope: the global stylesheet only. expressive-code writes its own stylesheet
-     * link into the markdown it renders, through its own bundler, so it never
-     * passes through this setting — its `<link>` is still emitted into the body,
-     * hundreds of kilobytes into the document. That is a separate defect with its
-     * own fix; see the scoped tests in
-     * `test/integration/render-blocking-css.test.mjs`, which pin the remainder so
-     * this change cannot quietly be credited with fixing it.
+     * Scope: the global stylesheet. expressive-code writes its own stylesheet link into
+     * the markdown it renders, through its own bundler, so it never passes through this
+     * setting — see `emitExternalStylesheet` in `integrations` below, which is where that
+     * sheet is dealt with. Nothing here moves it and nothing here should: an inline
+     * `<style>` in the body is a page-level decision, and the two settings have no
+     * interaction beyond both ending up as `<style>` elements on the same page.
      */
     inlineStylesheets: 'always',
   },
@@ -134,6 +133,77 @@ export default defineConfig({
     // It automatically disables Astro's built-in Shiki highlighting.
     // github-dark works in both modes: code blocks stay dark on light pages.
     astroExpressiveCodePlugin({
+      /*
+       * Inline expressive-code's stylesheet instead of linking it. Changed from the
+       * default, `true`.
+       *
+       * WHAT WAS WRONG, and it is a different defect from the one `inlineStylesheets`
+       * above addressed, which is why it needed its own option. expressive-code does not
+       * hand Astro a stylesheet to bundle. Its rehype hook writes a finished `<link
+       * rel="stylesheet">` tag into the markdown AST — `renderData.groupAst.children
+       * .unshift(...extraElements)` at
+       * `node_modules/astro-expressive-code/dist/index.js:135-166` — and Astro serialises
+       * the content AST wherever the layout puts it. So the tag landed inside `<body>`, at
+       * the position of the first code block, and nothing in Astro's pipeline could move
+       * it: by the time Astro looks, the decision has been made and there is only a string
+       * of HTML to print. Measured on `/00-preface/01-why-evidence-grades/` before this
+       * change: the tag sat at offset 137,618 of a 170,536-byte document, 80.7% of the
+       * way in. Thirty-four of the thirty-eight built pages had one; a parser had to
+       * consume two thirds of the page before it found a render-blocking stylesheet, then
+       * pay a second round-trip for 15,817 bytes raw / 3,823 gzip.
+       *
+       * `false` takes the branch already in the package for exactly this case
+       * (`dist/index.js:186-191`), which writes the identical CSS into a `<style>` element
+       * in the same AST slot (`dist/index.js:148-155`). The ruleset is byte-for-byte the
+       * one that was being fetched — verified against the old `ec.b93kz.css`, 15,817
+       * bytes, an exact match — and the rendered code blocks are byte-for-byte the same
+       * markup with the link tag removed. This is a change of delivery and nothing else.
+       *
+       * It also stays conditional per page, which is the second reason to prefer it to any
+       * arrangement that injects the sheet from a layout. The hook is guarded by
+       * `isFirstGroupInDocument` (`dist/index.js:136`), so a page with no code block never
+       * runs it and never carries a byte of these rules. Inlining a stylesheet into a
+       * `<head>` in `BaseLayout.astro` would have put 15.8 KB of markup on the home page
+       * and the 404, neither of which can ever select a `.expressive-code` rule.
+       *
+       * WHAT THIS DOES NOT DO, stated here because the temptation is to read the change as
+       * more than it is. The `<style>` is in the body, at the first code block — 73.9% of
+       * the document on that page, after the `<h1>` and the opening paragraphs. It is not
+       * in `<head>`. What is gone is the render-blocking request and the round-trip; what
+       * remains is the distance the parser walks before it has the rules. Before this
+       * line existed, that distance cost a reader a blocking fetch; now it costs a restyle
+       * of one element.
+       *
+       * So: three ways to get the sheet into `<head>`, and why none of them is here.
+       *
+       *   - A rehype plugin in `src/lib/markdown-processor.mjs`, moving the node. It cannot
+       *     see the node: expressive-code PUSHES ITSELF onto the end of the rehype array
+       *     the config already built (`dist/index.js:512`), so every plugin declared in
+       *     `markdown-processor.mjs` has already run by the time the `<style>` exists. And
+       *     it would achieve nothing a reader could see — the prose above the first code
+       *     block is styled entirely by the global sheet in the head, so hoisting the
+       *     code-block sheet above the heading changes no paint and costs a plugin.
+       *   - Astro's `head` config option, which is how a raw tag used to reach every page.
+       *     Removed; `node_modules/astro/dist/types/public/config.d.ts` has no `head`.
+       *   - Astro's propagated-assets channel, which is the real mechanism
+       *     (`content/vite-plugin-content-assets.js` builds a `__astroPropagation` module
+       *     and `content/runtime.js:445-530` renders its collected styles through
+       *     `createHeadAndContent`, i.e. into the head). It is driven by the content
+       *     entry's MODULE GRAPH — it crawls what the compiled markdown IMPORTS
+       *     (`vite-plugin-content-assets.js:124-165`). expressive-code injects raw hast,
+       *     so the compiled entry imports nothing and there is nothing to crawl. Getting
+       *     the CSS into that graph means bypassing Astro's public option and hand-building
+       *     the renderer through `customCreateAstroRenderer`, re-implementing the package's
+       *     own hook to learn a string the public API deliberately does not return — and the
+       *     result would land in `<head>` on all thirty-eight pages, four of which have no
+       *     code block.
+       *
+       * The residual is pinned rather than forgotten: `code-block-css.test.mjs` has a test
+       * named "the code-block sheet is a body element, and this test says so out loud",
+       * which fails if the sheet ever moves into the head. When that happens, delete the
+       * test and this paragraph — not before.
+       */
+      emitExternalStylesheet: false,
       themes: ['github-dark'],
       defaultProps: { wrap: true },
       // Flat by contract: the frames plugin ships a drop shadow on `.frame`

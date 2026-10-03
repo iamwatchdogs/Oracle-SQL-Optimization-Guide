@@ -30,10 +30,11 @@
  * `load` would additionally wait on fonts and on the code-block renderer's sheet —
  * neither of which this assertion is about, and one of which is a known open defect.
  *
- * The code-block renderer (expressive-code) still emits its own stylesheet link into
- * the body. This spec does not claim otherwise about it; `render-blocking-css.test.mjs`
- * pins that remainder in two scoped tests. Everything asserted here is scoped to the
- * global sheet, so refusing all CSS cannot produce a false failure on a code frame.
+ * expressive-code's stylesheet is asserted by `code-block-css.spec.mjs`, not here. It used to
+ * be an external `<link>` in the body, which meant this spec had to scope every assertion to the
+ * global sheet so that refusing all CSS could not produce a false failure on a code frame. Both
+ * stylesheets are inline now, so the whole site is stylable without the network and the two specs
+ * divide the work by stylesheet rather than by worry.
  */
 import { expect, test } from '@playwright/test';
 import { FIRST_PAGE } from './support/pages.mjs';
@@ -51,19 +52,22 @@ const toRgb = (hex) =>
     .join(', ')})`;
 
 /**
- * Refuse every stylesheet request the page makes, and report what was refused.
+ * Refuse every stylesheet request the page makes, and report what it asked for.
  *
  * The glob matches on the URL, so it covers the hashed `_astro` assets whatever the
  * deployment prefix is — no `deployed()` needed here, and no way for a prefix change to
  * quietly turn this into a spec that blocks nothing and passes vacuously.
+ *
+ * Renamed from `refused` to `requested` when expressive-code's sheet was inlined and the
+ * list stopped being able to be non-empty; see the note in `completeWithoutNetwork`.
  */
 const refuseStylesheets = async (page) => {
-  const refused = [];
+  const requested = [];
   await page.route('**/*.css', (route) => {
-    refused.push(new URL(route.request().url()).pathname);
+    requested.push(new URL(route.request().url()).pathname);
     return route.abort();
   });
-  return refused;
+  return requested;
 };
 
 /**
@@ -127,7 +131,7 @@ const headLinksNothing = async ({ page }) => {
 };
 
 const completeWithoutNetwork = async ({ page }) => {
-  const refused = await refuseStylesheets(page);
+  const requested = await refuseStylesheets(page);
 
   /*
    * No network idle, no settle helper, no timeout. The claim is that a reader never
@@ -154,15 +158,24 @@ const completeWithoutNetwork = async ({ page }) => {
   expect(facts.disclosureDisplay, '.disclosure-flow did not apply').toBe('grid');
 
   /*
-   * And the request log agrees with the rendering. Whatever CSS was refused here
-   * cannot have been what styled the page — which is the whole claim of this spec,
-   * stated once more as a count rather than as prose. Without it the test would pass
-   * just as well if the route handler were never installed.
+   * And the request log agrees with the rendering: this site fetches NO stylesheet at
+   * all, so whatever the route refused cannot have been what styled the page — which is
+   * the whole claim of this spec, stated once more as a count rather than as prose.
+   *
+   * The assertion used to be `refused.length > 0`, and its reason for existing is worth
+   * keeping: without any check on the log, this test would pass just as well if the route
+   * handler were never installed. That reason holds; the DIRECTION does not. expressive-code's
+   * sheet used to be a second external sheet (see `code-block-css.spec.mjs`), which gave the handler
+   * something to refuse. With it inlined there is nothing left to fetch, so `> 0` asserted the
+   * regression this repository had just removed, and the correct value became zero. An exact `[]`,
+   * for the same reason `render-blocking-css.test.mjs` uses one: a bound permitting one permits the
+   * defect. The anti-vacuity work is re-pointed, not dropped — the counterfactual is asserted by
+   * `code-block-css.spec.mjs`'s own no-network run.
    */
   expect(
-    refused.length,
-    'the spec proved nothing: no stylesheet was ever requested',
-  ).toBeGreaterThan(0);
+    requested,
+    'the page asked for a stylesheet, so the global sheet is being fetched rather than inlined',
+  ).toEqual([]);
 };
 
 const sameWithAndWithout = async ({ page }) => {

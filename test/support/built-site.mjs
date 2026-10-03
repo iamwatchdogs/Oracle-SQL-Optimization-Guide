@@ -34,11 +34,39 @@
  * deliberately: this commit is about one stylesheet, and rewriting an unrelated
  * spec's helpers would put a second concern in the diff. Folding that walk in
  * here is the obvious follow-up once a third reader needs it.
+ *
+ * ── LATER ──
+ *
+ * The freshness rule above is necessary and it is not sufficient, and the gap opened
+ * when expressive-code's stylesheet came into scope: `astro build` caches the RENDERED
+ * MARKDOWN of every content entry in `node_modules/.astro/data-store.json`, keyed on the
+ * CONTENT FILE'S BYTES alone. `content/loaders/glob.js:91` digests `contents` and nothing
+ * else; `content/mutable-data-store.js:334-337` skips re-ingesting a matching entry, so
+ * `entry.rendered.html` survives; and the one change that WOULD invalidate it is
+ * excluded — `content-layer.js:178-194` hashes the Astro config for its own cache key
+ * with `vite`, `integrations` and `adapter` destructured away.
+ *
+ * So flipping an option ON `astroExpressiveCodePlugin({...})` re-runs the build, re-emits
+ * `_astro/ec.*.css`, and then serves last time's markdown. Measured, not hypothesised:
+ * with the option flipped back and nothing deleted, the build wrote a stylesheet no page
+ * linked while every page still carried the previous configuration's inlined sheet. Both
+ * halves applied, in different builds — a test reading that build cannot tell a working
+ * fix from a broken one.
+ *
+ * Hence two changes below, both failing towards reporting a change that was never made:
+ * `src/lib/**\/*.mjs` joins `BUILD_INPUTS`, because the markdown pipeline is assembled out
+ * of remark and rehype plugins that reshape the built HTML as surely as a config edit; and
+ * a rebuild DELETES the data store first, since it is a cache inside `node_modules/`,
+ * costs about two seconds to refill, and not deleting it makes "rebuilt from the current
+ * sources" a false claim about the markdown. Deleting a cache rather than trusting a
+ * timestamp is the whole disagreement with the rule above: an mtime comparison can be
+ * fooled by a cache whose key omits the thing that changed, and this one demonstrably is.
  */
 import { execFile } from 'node:child_process';
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { withBuildLock } from './build-lock.mjs';
 
 const run = promisify(execFile);
 
@@ -60,11 +88,32 @@ const BUILD_STAMP = path.join(distRoot, 'index.html');
  * `<link>`; `src/styles/global.css` is where every selector asserted against the
  * build is authored. A build older than either of them is describing a state
  * this repository is no longer in.
+ *
+ * `src/lib` is here for the reason in the header: a rehype plugin rewrites the
+ * built HTML, so `markdown-processor.mjs` and the plugins it assembles decide the
+ * shape of the document as much as the config does. Discovered by walking rather
+ * than listed by hand, because a hand-written list is a list that goes stale the
+ * day a plugin is added — and a stale list fails open, which is the direction this
+ * module exists to prevent.
  */
-const BUILD_INPUTS = [
+const STATIC_BUILD_INPUTS = [
   path.join(repoRoot, 'astro.config.mjs'),
   path.join(repoRoot, 'src/styles/global.css'),
 ];
+
+const buildInputs = async () => [
+  ...STATIC_BUILD_INPUTS,
+  ...(await walk(path.join(repoRoot, 'src', 'lib'))).filter((file) => file.endsWith('.mjs')),
+];
+
+/**
+ * Astro's rendered-markdown cache, deleted rather than trusted.
+ *
+ * See the header for the three places in Astro that make it stale-proof against a change
+ * it cannot see. `force: true` is what makes this a no-op on a clean checkout, where the
+ * file does not exist yet — so the common path pays nothing for the honesty.
+ */
+const CONTENT_DATA_STORE = path.join(repoRoot, 'node_modules', '.astro', 'data-store.json');
 
 const newestMtime = async (targets) => {
   const times = await Promise.all(
@@ -82,7 +131,7 @@ const newestMtime = async (targets) => {
 export const buildIsCurrent = async () => {
   const [built, inputs] = await Promise.all([
     newestMtime([BUILD_STAMP]),
-    newestMtime(BUILD_INPUTS),
+    newestMtime(await buildInputs()),
   ]);
   return built >= 0 && built >= inputs;
 };
@@ -94,28 +143,44 @@ export const buildIsCurrent = async () => {
  * in its own failure message: "this passed against a build" and "this passed
  * against the sources" are different claims, and a reader of a red test should
  * not have to guess which one they are looking at.
+ *
+ * The freshness check is INSIDE the lock and repeated after it is taken. Two test
+ * files that both find `dist/` stale would otherwise both decide to build; taking
+ * the lock first and asking again means the second one waits, then finds the first
+ * one's build and reuses it — which is both cheaper and the only version of the
+ * answer that is true.
  */
 export const ensureBuild = async () => {
   if (await buildIsCurrent()) {
     return 'reused the build already in dist/';
   }
 
-  try {
-    await run('bun', ['run', 'build'], { cwd: repoRoot, maxBuffer: 64 * 1024 * 1024 });
-  } catch (failure) {
-    /*
-     * `execFile`'s rejection carries the streams but no useful message, and a
-     * build that fails here fails for the same reason it would fail in
-     * `bun run build` — so the output is the whole diagnosis and it must survive
-     * into the test failure rather than arriving as a bare "Command failed".
-     * `cause` keeps the original attached so the stack is not lost.
-     */
-    throw new Error(`astro build failed while preparing the built site.\n${failure.stderr ?? ''}`, {
-      cause: failure,
-    });
-  }
+  return withBuildLock(async () => {
+    if (await buildIsCurrent()) {
+      return 'waited for another test file to build, then reused its dist/';
+    }
 
-  return 'built dist/ from the current sources';
+    try {
+      await rm(CONTENT_DATA_STORE, { force: true });
+      await run('bun', ['run', 'build'], { cwd: repoRoot, maxBuffer: 64 * 1024 * 1024 });
+    } catch (failure) {
+      /*
+       * `execFile`'s rejection carries the streams but no useful message, and a
+       * build that fails here fails for the same reason it would fail in
+       * `bun run build` — so the output is the whole diagnosis and it must survive
+       * into the test failure rather than arriving as a bare "Command failed".
+       * `cause` keeps the original attached so the stack is not lost.
+       */
+      throw new Error(
+        `astro build failed while preparing the built site.\n${failure.stderr ?? ''}`,
+        {
+          cause: failure,
+        },
+      );
+    }
+
+    return 'built dist/ from the current sources, after emptying Astro’s rendered-markdown cache';
+  });
 };
 
 export const walk = async (directory) => {
