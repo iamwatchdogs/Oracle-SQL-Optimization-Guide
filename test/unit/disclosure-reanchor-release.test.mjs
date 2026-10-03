@@ -76,6 +76,11 @@ describe('reanchorAfterSettle — the event trigger is released on settle', () =
     windowRef.runTimers();
 
     expect(target.calls).toBe(1);
+    /* The deadline leaves its correction backstops armed, not nothing: a starved
+     * frame loop also starves the height wait, so the first jump can have scrolled
+     * against a collapse that has not finished moving the page. */
+    windowRef.runTimers();
+    windowRef.runTimers();
     expect(windowRef.timers.size).toBe(0);
   });
 });

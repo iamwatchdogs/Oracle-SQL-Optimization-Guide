@@ -25,5 +25,6 @@ export async function navigateTo(page, href) {
   await link.click();
   await page.waitForFunction((target) => location.pathname === target, served, {
     timeout: 15_000,
+    polling: 200,
   });
 }

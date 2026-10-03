@@ -209,7 +209,7 @@ async function restoresAnActiveSectionFromHistory({ page }) {
   await page.waitForFunction(
     () => document.querySelectorAll('aside.toc-viewport [data-toc-link]').length > 0,
     undefined,
-    { timeout: 15_000 },
+    { timeout: 15_000, polling: 200 },
   );
   await expect
     .poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 })

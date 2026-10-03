@@ -71,7 +71,7 @@ test.describe('the running head', () => {
     await page.waitForFunction(
       (section) => location.pathname.startsWith(section),
       deployed('/01-proven-techniques/'),
-      { timeout: 15_000 },
+      { timeout: 15_000, polling: 200 },
     );
 
     await expect(counter(page)).toHaveText('Section 02 / 09');
