@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
-import { parseCompiledStylesheet } from '../../src/lib/css-cascade.mjs';
-import { compileProjectStylesheet } from '../../src/lib/tailwind-compile.mjs';
+import { parseCompiledStylesheet } from '../../test/support/css/css-cascade.mjs';
+import { compileProjectStylesheet } from '../../test/support/css/tailwind-compile.mjs';
 
 const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.url), 'utf8');
 

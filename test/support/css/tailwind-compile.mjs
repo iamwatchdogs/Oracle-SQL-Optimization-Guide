@@ -7,7 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 /* fileURLToPath, not `.pathname`: a percent-encoded pathname is not a valid
    filesystem path on Windows, and every integration test imports this module. */
-const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
+const projectRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const projectStylesheet = path.join(projectRoot, 'src/styles/global.css');
 
 const runViteCssBuild = async (root, cssPath) => {

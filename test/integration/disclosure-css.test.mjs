@@ -6,8 +6,8 @@ import {
   resolveToken,
   ruleMatches,
   splitSelector,
-} from '../../src/lib/css-cascade.mjs';
-import { compileProjectStylesheet } from '../../src/lib/tailwind-compile.mjs';
+} from '../../test/support/css/css-cascade.mjs';
+import { compileProjectStylesheet } from '../../test/support/css/tailwind-compile.mjs';
 import { CLOSING_ATTRIBUTE, FLOW_CLASS } from '../../src/lib/disclosure-controller.mjs';
 
 const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.url), 'utf8');
