@@ -34,10 +34,6 @@ function setRootTheme(root, theme) {
   }
 }
 
-function applyActiveTheme(root, theme) {
-  setRootTheme(root, theme);
-}
-
 function syncButtonState(documentRef, theme) {
   const button = documentRef?.querySelector?.('#theme-toggle');
   if (!button) {
@@ -53,7 +49,7 @@ export function currentTheme(root) {
 
 export function initializeTheme(root, storage) {
   const theme = readStoredTheme(getStorage(storage)) ?? DEFAULT_THEME;
-  applyActiveTheme(root, theme);
+  setRootTheme(root, theme);
   return theme;
 }
 
@@ -68,7 +64,7 @@ function persistTheme(storage, theme) {
 
 export function toggleTheme(root, storage) {
   const next = currentTheme(root) === DEFAULT_THEME ? LIGHT_THEME : DEFAULT_THEME;
-  applyActiveTheme(root, next);
+  setRootTheme(root, next);
   persistTheme(storage, next);
   return next;
 }
@@ -110,13 +106,11 @@ function createThemeController(documentRef, root, storage, initialTheme) {
   let activeTheme = normalizeTheme(initialTheme);
   const getRoot = () => documentRef?.documentElement ?? root;
   const sync = () => {
-    applyActiveTheme(getRoot(), activeTheme);
+    setRootTheme(getRoot(), activeTheme);
     syncButtonState(documentRef, activeTheme);
   };
   const toggle = () => {
-    const currentRoot = getRoot();
-    applyActiveTheme(currentRoot, activeTheme);
-    activeTheme = toggleTheme(currentRoot, storage);
+    activeTheme = toggleTheme(getRoot(), storage);
     sync();
   };
   const onClick = (event) => {
@@ -133,6 +127,9 @@ function createThemeController(documentRef, root, storage, initialTheme) {
   setDocumentController(documentRef, controller);
   documentRef.addEventListener?.('click', onClick);
   documentRef.addEventListener?.('astro:page-load', sync);
+  // after-swap fires before page-load; re-applying the theme there keeps the
+  // swapped-in <html> from painting one frame with a stale data-theme.
+  // The duplicate sync is a no-op write, and tests pin both.
   documentRef.addEventListener?.('astro:after-swap', sync);
 
   return controller;
