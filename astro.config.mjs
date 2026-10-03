@@ -27,6 +27,9 @@ export default defineConfig({
   base: resolveBase(),
   output: 'static',
   trailingSlash: 'always',
+  // A linear book: every pager cell and nav link is a likely next read.
+  // Prefetch once a link scrolls into view, not only on hover.
+  prefetch: { prefetchAll: true, defaultStrategy: 'viewport' },
   vite: {
     plugins: [tailwindcss()],
   },
