@@ -30,9 +30,6 @@ export default defineConfig({
   // A linear book: every pager cell and nav link is a likely next read.
   // Prefetch once a link scrolls into view, not only on hover.
   prefetch: { prefetchAll: true, defaultStrategy: 'viewport' },
-  // 'jsx' (default) preserves some whitespace; the full pass trims inter-tag
-  // whitespace in 38 HTML documents a first-paint visitor downloads.
-  compressHTML: true,
   vite: {
     plugins: [tailwindcss()],
     build: {
