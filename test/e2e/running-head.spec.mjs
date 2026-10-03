@@ -27,6 +27,7 @@
 import { expect, test } from '@playwright/test';
 import { navigateTo } from './support/navigation.mjs';
 import { SITE_NAV, SITE_NAV_SUMMARY } from './support/disclosure.mjs';
+import { deployed } from './support/deployed.mjs';
 
 /**
  * The section counter inside the `Contents` trigger, in the header.
@@ -62,13 +63,15 @@ test.describe('the running head', () => {
        in-article link, because the boundary is exactly where the running head has to
        be right. */
     await page.locator(SITE_NAV_SUMMARY).click();
-    const target = page.locator(`${SITE_NAV} a[href^="/01-proven-techniques/"]`).first();
+    const target = page
+      .locator(`${SITE_NAV} a[href^="${deployed('/01-proven-techniques/')}"]`)
+      .first();
     await expect(target).toBeVisible();
     await target.click();
     await page.waitForFunction(
-      () => location.pathname.startsWith('/01-proven-techniques/'),
-      undefined,
-      { timeout: 15_000 },
+      (section) => location.pathname.startsWith(section),
+      deployed('/01-proven-techniques/'),
+      { timeout: 15_000, polling: 200 },
     );
 
     await expect(counter(page)).toHaveText('Section 02 / 09');

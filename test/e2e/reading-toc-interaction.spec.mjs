@@ -35,7 +35,7 @@ async function jumpClearsHeader({ page }) {
       return heading ? heading.getBoundingClientRect().top < window.innerHeight * 0.5 : false;
     },
     id,
-    { timeout: 10_000 },
+    { timeout: 10_000, polling: 200 },
   );
   const headerHeight = await page
     .locator('header')
@@ -79,7 +79,7 @@ async function collapsesMobileList({ page }) {
       return top > 0 && top < window.innerHeight * 0.6;
     },
     id,
-    { timeout: 10_000 },
+    { timeout: 10_000, polling: 200 },
   );
 }
 

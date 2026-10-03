@@ -9,6 +9,7 @@ import {
   summaryStyle,
 } from './support/disclosure.mjs';
 import { waitForDisclosureSettled } from './support/disclosure-settle.mjs';
+import { deployed } from './support/deployed.mjs';
 
 /**
  * Disclosure / accordion.
@@ -176,18 +177,21 @@ async function evidenceKeyOpensOnDeepLink({ page }) {
  * The "Full key" link lives in the *article header* of an interior page, so the
  * walk has to start on one. The home page carries the `#evidence-key` panel but
  * not the link that points at it, which is why a home-page start used to time
- * out on `a[href="/#evidence-key"]`.
+ * out on the home page's `#evidence-key` link.
  */
 async function evidenceKeyOpensOnClientSideNavigation({ page }) {
   await page.goto('/00-preface/01-why-evidence-grades/');
-  const fullKey = page.locator('main#main a[href="/#evidence-key"]').first();
+  const fullKey = page.locator(`main#main a[href="${deployed('/#evidence-key')}"]`).first();
   await expect(fullKey).toBeVisible();
 
   await fullKey.click();
   // The panel is opened by an `astro:page-load` handler that reads
   // `location.hash`, so the navigation has to be known to have landed before
   // `open` means anything.
-  await page.waitForFunction(() => location.pathname === '/', undefined, { timeout: 15_000 });
+  await page.waitForFunction((home) => location.pathname === home, deployed('/'), {
+    timeout: 15_000,
+    polling: 200,
+  });
   await expect(page.locator(EVIDENCE_KEY)).toHaveAttribute('open', '');
 }
 

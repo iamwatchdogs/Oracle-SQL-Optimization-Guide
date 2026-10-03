@@ -25,7 +25,10 @@ import {
 /** Press the next cell for real, so the router resolves a genuine pager navigation. */
 const pressNext = async (page) => {
   await page.locator('a[rel="next"]').first().click();
-  await page.waitForFunction((from) => location.pathname !== from, PREFACE, { timeout: 15_000 });
+  await page.waitForFunction((from) => location.pathname !== from, PREFACE, {
+    timeout: 15_000,
+    polling: 200,
+  });
 };
 
 /** `--zone-beat` as the browser resolved it, in milliseconds. */

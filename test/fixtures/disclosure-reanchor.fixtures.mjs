@@ -133,7 +133,8 @@ const createTimers = (timers) => {
       timers.delete(id);
     },
     runTimers() {
-      for (const { callback } of [...timers.values()].splice(0)) {
+      for (const [id, { callback }] of timers.entries()) {
+        timers.delete(id);
         callback();
       }
     },

@@ -2,7 +2,16 @@
 import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
 import { MEASURE_STEPS, TEXT_SCALE_STEPS } from '../lib/reading-prefs-controller.mjs';
-import { REPO_URL } from '../lib/site.mjs';
+import {
+  REPO_URL,
+  resolveBase,
+  SITE_DESCRIPTION,
+  SITE_LOCALE,
+  SITE_TITLE,
+  THEME_COLOR,
+  withBase,
+  withoutBase,
+} from '../lib/site.mjs';
 import '../styles/global.css';
 
 interface SectionLink {
@@ -18,7 +27,14 @@ interface Props {
   bare?: boolean;
   sections?: SectionLink[];
   sectionPosition?: number | undefined;
-  /** Emit `<meta name="robots" content="noindex">`. Use for error pages. */
+  /**
+   * Emit `<meta name="robots" content="noindex">`. Use for error pages.
+   *
+   * An error page also omits its canonical, because there is no URL for it to be
+   * canonical *to*. A 404 declares itself canonical at a path that does not exist,
+   * and `<link rel="canonical">` is a hint a crawler may follow — pointing one at
+   * a page that itself 404s teaches a crawler about a page that is not there.
+   */
   noindex?: boolean;
 }
 
@@ -30,6 +46,11 @@ const {
   sectionPosition,
   noindex = false,
 } = Astro.props;
+/*
+ * Bare routes, like every other href in this component: this list is compared
+ * against `currentPath`, which is a bare route too. The prefix is applied once,
+ * where the href is rendered, so the comparison and the link cannot disagree.
+ */
 const fallbackSections: SectionLink[] = [
   { href: '/00-preface/', title: 'Preface' },
   { href: '/01-proven-techniques/', title: 'Proven Techniques' },
@@ -42,7 +63,14 @@ const fallbackSections: SectionLink[] = [
   { href: '/08-bonus-batch-api/', title: 'Bonus: Batch API' },
 ];
 const navigationSections = sections.length > 0 ? sections : fallbackSections;
-const currentPath = Astro.url.pathname;
+
+/*
+ * `Astro.url.pathname` carries the deployment prefix, but every href in this
+ * component and in every caller is written as the bare route. Comparing the two
+ * directly never matches, so the section list quietly stops marking where the
+ * reader is. Both sides are reduced to the route before anything compares them.
+ */
+const currentPath = withoutBase(Astro.url.pathname);
 
 /*
  * The reading-preference steppers, in the order the controls present them.
@@ -55,22 +83,39 @@ const textScales = TEXT_SCALE_STEPS;
 const measures = MEASURE_STEPS;
 
 const fullTitle =
-  title === 'Oracle SQL Optimization for Junior Devs'
-    ? `${title} — Evidence-graded tuning`
-    : `${title} · Oracle SQL Optimization`;
+  title === SITE_TITLE ? `${title} — Evidence-graded tuning` : `${title} · Oracle SQL Optimization`;
 
 /* One fallback, used by BOTH `<meta name="description">` and `og:description`.
    Astro omits an attribute whose value is `undefined`, so having the fallback
    on one line only meant a page without frontmatter `description` shipped a
    human-readable description and no social one at all. */
-const metaDescription =
-  description ??
-  'Prove every speed win twice. A short book from 68 proven Oracle fixes, tools, and safe ship habits.';
+const metaDescription = description ?? SITE_DESCRIPTION;
 
 /* Canonical must never carry a query string or fragment, and must resolve
    against the configured site origin rather than whatever host served the page. */
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).href;
-const isArticle = Astro.url.pathname !== '/';
+
+/* The route, not the deployed pathname: with `base` set, the home page arrives as
+   `/Oracle-…/` rather than `/`, and reading that as an article declared the front
+   page an article to every social card and every crawler. */
+const isArticle = currentPath !== '/';
+
+/*
+ * The three absolute URLs the head has to state outright, because a social card,
+ * a structured-data block and a discovery link are all read by something other
+ * than a browser resolving a relative path — and each one is a link that has to
+ * be right about the prefix.
+ *
+ * `siteRoot` is the deployed origin including the repository path. It is built by
+ * joining, not by concatenating, because a root-relative path handed to `new URL`
+ * resolves against the origin and silently throws the prefix away.
+ */
+const origin = Astro.site ?? Astro.url.origin;
+const siteRoot = new URL(`${resolveBase()}/`, origin).href;
+const socialImage = new URL('og-default.png', `${siteRoot}`).href;
+const sitemapHref = new URL('sitemap-index.xml', siteRoot).href;
+const llmsHref = new URL('llms.txt', siteRoot).href;
+const feedHref = new URL('rss.xml', siteRoot).href;
 ---
 
 <!doctype html>
@@ -83,17 +128,93 @@ const isArticle = Astro.url.pathname !== '/';
     <meta name="generator" content={Astro.generator} />
     {noindex && <meta name="robots" content="noindex, follow" />}
     <ClientRouter fallback="animate" />
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0c0e'/%3E%3Cpath d='M7 9h18M7 16h18M7 23h11' stroke='%238aa4ff' stroke-width='2'/%3E%3C/svg%3E"
-    />
-    <link rel="canonical" href={canonical} />
+    {/*
+      The icon set is real files rather than an inline data URI. A data URI
+      cannot be cached across pages, cannot be a home-screen icon at 192px, and
+      meant every page re-parsed the same 300 bytes of SVG. The order is the one
+      browsers expect: the ICO first, because Safari and older desktop browsers
+      still ask for it by name and would otherwise take the SVG and render it
+      with no fallback.
+    */}
+    <link rel="icon" href={withBase('/favicon.ico')} sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
+    <link rel="icon" type="image/png" sizes="32x32" href={withBase('/favicon-32x32.png')} />
+    <link rel="icon" type="image/png" sizes="16x16" href={withBase('/favicon-16x16.png')} />
+    <link rel="apple-touch-icon" href={withBase('/apple-touch-icon.png')} />
+
+    {/*
+      The paper colour, so a browser paints its own chrome in the book's colour
+      rather than in white. One constant, shared with the manifest — a custom
+      property cannot be read by a `<meta>` or a JSON document at the point it is
+      emitted, and three literals would be three chances to disagree.
+    */}
+    <meta name="theme-color" content={THEME_COLOR} />
+    <link rel="manifest" href={withBase('/site.webmanifest')} />
+    <meta name="application-name" content="Oracle SQL" />
+    {/* No canonical on a noindex page — see the `noindex` prop. */}
+    {!noindex && <link rel="canonical" href={canonical} />}
     <meta property="og:type" content={isArticle ? 'article' : 'website'} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={metaDescription} />
     <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={SITE_TITLE} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={SITE_DESCRIPTION} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={socialImage} />
 
+    {/*
+      Machine-readable index and a statement of what the book is.
+
+      The sitemap link is the documented discovery method, and it matters here
+      more than usual: this is a project site, so robots.txt is served from a
+      subdirectory where RFC 9309 says a crawler will not look. Declaring the
+      sitemap in the head is the one discovery route that does not depend on a
+      file being fetched from the origin root.
+
+      `llms.txt` is declared with `rel="describedby"`, which is what the v2 spec
+      asks for: the file covers every URL under its path, and this link is how a
+      client finds the file that covers the page it is looking at.
+
+      The JSON-LD describes the book rather than the page, because the book is what
+      the page is an instance of, and a `WebSite` node is the one thing here that
+      a search engine can attach a sitelinks search box to. `TechArticle` would
+      want an author, a date and a real word count, none of which this corpus
+      records, and inventing them is worse than not claiming the type.
+    */}
+    <link rel="sitemap" type="application/xml" href={sitemapHref} />
+    <link rel="describedby" type="text/markdown" href={llmsHref} />
+
+    {/* Autodiscovery, so a reader's feed reader finds the book without being
+        told the URL. A link nothing points at is a URL nobody will visit. */}
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={`${SITE_TITLE} — chapters`}
+      href={feedHref}
+    />
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: SITE_TITLE,
+        description: SITE_DESCRIPTION,
+        url: siteRoot,
+        inLanguage: SITE_LOCALE,
+        publisher: {
+          '@type': 'Organization',
+          name: SITE_TITLE,
+          url: siteRoot,
+        },
+      })}
+    ></script>
     {/* Fonts — Astro Fonts API */}
     <Font cssVariable="--face-serif" preload />
     <Font cssVariable="--face-sans" />
@@ -192,7 +313,7 @@ const isArticle = Astro.url.pathname !== '/';
             the header was an 18px touch target on a phone.
           */}
           <a
-            href="/"
+            href={withBase('/')}
             class="running-head flex min-h-11 shrink-0 items-center no-underline transition-colors hover:text-accent"
           >
             Oracle SQL <span class="max-[48rem]:hidden">· Notebook</span>
@@ -337,11 +458,18 @@ const isArticle = Astro.url.pathname !== '/';
                     aria-label="Book sections"
                   >
                     {navigationSections.map((section, index) => {
+                      /*
+                       * Both sides reduced to a bare route. `currentPath` is one
+                       * already; the section href may not be, because a caller
+                       * can hand over links that have been through `withBase`
+                       * while the fallback list is written out bare.
+                       */
+                      const sectionPath = withoutBase(section.href);
                       const isActive =
-                        currentPath === section.href || currentPath.startsWith(`${section.href}`);
+                        currentPath === sectionPath || currentPath.startsWith(sectionPath);
                       return (
                         <a
-                          href={section.href}
+                          href={withBase(section.href)}
                           class="group grid min-h-11 grid-cols-[2.25rem_minmax(0,1fr)] items-baseline gap-2 px-[0.65rem] py-[0.55rem] font-sans text-ui leading-[1.35] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-accent data-[active=true]:border-l data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:text-accent"
                           aria-current={isActive ? 'location' : undefined}
                           data-active={isActive ? 'true' : 'false'}

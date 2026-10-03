@@ -1,5 +1,5 @@
 ---
-import { REPO_PATH, REPO_URL } from '../lib/site.mjs';
+import { COMPILED_ON, REPO_PATH, REPO_URL, SITE_TITLE } from '../lib/site.mjs';
 ---
 
 {/*
@@ -10,12 +10,15 @@ import { REPO_PATH, REPO_URL } from '../lib/site.mjs';
   survivable the moment one of them gained a link: a two-file edit with no test
   between them is a permanent-divergence generator. One component, one truth.
 
-  The third cell is the repository record, and it rides with `Compiled 2026-09-22`
+  The third cell is the repository record, and it rides with the compile date
   rather than beside the title — which is the register the book already insists on.
   `07-appendix-sources/02-version-drift-survival.md` states the rule: a repository's
   licence, last push and archive flag are properties of a moment, so print them with
   the date they were read. A bare GitHub button in chrome would be a repository fact
   carrying no date at all.
+
+  Both the date and the name come from `site.mjs`, because the feed needs the same
+  two facts and a literal written here would be a second copy of each.
 
   No hit-target utilities here, and that is deliberate. This is a link inside a line
   of text, not a standalone control, and WCAG 2.5.8 exempts targets in a block of
@@ -25,8 +28,8 @@ import { REPO_PATH, REPO_URL } from '../lib/site.mjs';
 */}
 <footer class="mt-auto border-t border-rule">
   <div class="mx-auto flex w-shell flex-wrap items-center justify-between gap-4 py-8">
-    <p class="meta m-0">Oracle SQL Optimization · Evidence-graded notebook</p>
-    <p class="meta m-0">Compiled 2026-09-22 · No live DB</p>
+    <p class="meta m-0">{SITE_TITLE} · Evidence-graded notebook</p>
+    <p class="meta m-0">Compiled {COMPILED_ON} · No live DB</p>
     <p class="meta m-0">
       <a
         href={REPO_URL}
