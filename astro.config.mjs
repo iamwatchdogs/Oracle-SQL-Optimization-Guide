@@ -46,9 +46,13 @@ export default defineConfig({
        * not why, and changing it will not fix it.
        *
        * 4096 is Vite's default and is right here. The four faces this book loads
-       * are 12-30 KB each and are preloaded from the head, so inlining them would
-       * add roughly 80 KB to every page to save a request the preload already
-       * makes cheap.
+       * measure 31-52 KB each, so every one of them is above this limit whatever
+       * it is set to, and inlining any of them would add its whole weight to
+       * every page — about 182 KB across the four — to save one request apiece.
+       * Three of the four are preloaded from the head, which is what makes that
+       * request cheap; the fourth is not, and inlining it would be the only way to
+       * make it cheap, which is a trade this file declines on purpose. See the
+       * `<Font>` block in `src/layouts/BaseLayout.astro` for which three and why.
        */
       assetsInlineLimit: 4096,
       cssMinify: true,

@@ -129,12 +129,14 @@ test('every built page is readable, and this is the build they were read from', 
   expect(pages.length, 'the built site has no pages to check').toBeGreaterThan(30);
 
   /*
-   * And the build is named, so a reader of a red test knows whether they are
-   * looking at the current sources or at something left over on disk. The freshness
-   * assertion is what stops the second case: `ensureBuild` only reuses a `dist/`
-   * that is at least as new as the files that shaped it.
+   * And the build is named, so a reader of a red test knows whether they are looking at the current sources
+   * or at something left over on disk; the assertion below stops the second case. All THREE of the sentences
+   * `ensureBuild` can resolve to are named, not two: "waited for another test file to build" means the lock
+   * was held already (`built-site.mjs:160`), which is correct rather than a failure.
    */
-  expect(buildOrigin, 'the build was never resolved').toMatch(/^built dist\/|^reused the build/u);
+  expect(buildOrigin, 'the build was never resolved').toMatch(
+    /^built dist\/|^reused the build|^waited for another test file/u,
+  );
   expect(await buildIsCurrent(), 'the build on disk predates the config that shaped it').toBe(true);
 });
 
