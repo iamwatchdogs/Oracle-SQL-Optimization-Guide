@@ -1387,20 +1387,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   margin-block: var(--prose-rhythm);
 }
 
-.prose .MathJax,
-.prose mjx-container {
-  font-size: 1.05em;
-}
-
-.prose .mermaid {
-  margin-block: var(--prose-rhythm);
-}
-
-[data-theme='light'] .prose .mermaid,
-[data-theme='light'] .mermaid {
-  filter: invert(1) hue-rotate(180deg);
-}
-
 /*
  * Unlayered on purpose: the Typography plugin emits its `.prose` token
  * defaults into the `utilities` cascade layer, which outranks anything

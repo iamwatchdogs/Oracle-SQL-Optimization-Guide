@@ -22,7 +22,7 @@ Trust runs, not rumors: every claim carries an evidence grade and provenance, an
 
 - Static Astro site, `bun` runtime/package manager, content collection `notebook` sourced from `contents/` (37 markdown files).
 - Linear book order driven by frontmatter `order`; 9 sections; prev/next navigation crosses section boundaries.
-- SQL rendered by `astro-expressive-code` (github-dark themes, wrap enabled); mermaid pinned dark; rehype-mathjax + remark-math wired (unused by current content).
+- SQL rendered by `astro-expressive-code` (github-dark themes, wrap enabled); mermaid and LaTeX-math plugins were removed (no content used them).
 - Recurring content atoms: opening rhetorical questions, 1–2 `<details>` jargon expanders per page, inline citation tags (`[T-04]`, `[S06]`), a bolded `**Keep this:**` takeaway ending every page, hand-written section link lists.
 - Chapter lengths range ~249–1002 words; heaviest sections are proven-techniques, recipes, feedback-loop.
 
@@ -37,7 +37,7 @@ Trust runs, not rumors: every claim carries an evidence grade and provenance, an
 ## Evidence on Hand
 
 - Full content inventory: `contents/index.md` (home + master TOC) and 9 section trees under `contents/00-preface/` … `contents/08-bonus-batch-api/`.
-- `astro.config.mjs` with integration order mermaid → expressive-code → mdx → sitemap; `site` still placeholder `https://example.com`.
+- `astro.config.mjs` with integration order expressive-code → mdx → sitemap; `site` still placeholder `https://example.com`.
 - No PRODUCT/DESIGN/styling assets existed before this file; no fonts, no CSS, no layouts/ or components/.
 - `.agents/prompts/main.prompt.md` contains design notes written for a different target project (CCDV-F); its file references are stale here and it is not a binding brand authority for this repo.
 - `README.md` is empty.
