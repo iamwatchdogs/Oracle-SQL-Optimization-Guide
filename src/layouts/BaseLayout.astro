@@ -20,6 +20,11 @@ interface SectionLink {
   description?: string | undefined;
 }
 
+interface Breadcrumb {
+  href: string;
+  title: string;
+}
+
 interface Props {
   title: string;
   description?: string | undefined;
@@ -27,6 +32,13 @@ interface Props {
   bare?: boolean;
   sections?: SectionLink[];
   sectionPosition?: number | undefined;
+  /** The chapter this page belongs to, for `article:section`. */
+  section?: string | undefined;
+  /** ISO dates from frontmatter, for the article OG timestamps. */
+  publishedTime?: string | undefined;
+  modifiedTime?: string | undefined;
+  /** The page's visible trail, mirrored into BreadcrumbList JSON-LD. */
+  breadcrumbs?: Breadcrumb[];
   /**
    * Emit `<meta name="robots" content="noindex">`. Use for error pages.
    *
@@ -44,6 +56,10 @@ const {
   bare = false,
   sections = [],
   sectionPosition,
+  section,
+  publishedTime,
+  modifiedTime,
+  breadcrumbs,
   noindex = false,
 } = Astro.props;
 /*
@@ -170,6 +186,11 @@ const feedHref = new URL('rss.xml', siteRoot).href;
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={metaDescription} />
     <meta name="twitter:image" content={socialImage} />
+    {isArticle && section && <meta property="article:section" content={section} />}
+    {isArticle && publishedTime && (
+      <meta property="article:published_time" content={publishedTime} />
+    )}
+    {isArticle && modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
 
     {/*
       Machine-readable index and a statement of what the book is.
@@ -217,6 +238,30 @@ const feedHref = new URL('rss.xml', siteRoot).href;
         },
       })}
     ></script>
+    {/*
+     * The same trail the page draws, for a crawler that reads JSON-LD rather
+     * than nav markup. Home is always the first crumb, so it is prepended
+     * rather than threaded through every caller. `item` URLs are absolute:
+     * schema.org wants them resolvable on their own, not against the page.
+     */}
+    {!noindex && breadcrumbs && breadcrumbs.length > 0 && (
+      <script
+        type="application/ld+json"
+        set:html={JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { name: 'Home', href: withBase('/') },
+            ...breadcrumbs.map((crumb) => ({ name: crumb.title, href: crumb.href })),
+          ].map((crumb, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: crumb.name,
+            item: new URL(crumb.href, origin).href,
+          })),
+        })}
+      ></script>
+    )}
     {/*
       Fonts — Astro Fonts API — and which of them the parser is told to fetch first.
 
