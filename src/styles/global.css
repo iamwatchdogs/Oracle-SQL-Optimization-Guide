@@ -781,7 +781,22 @@ html[data-reading-toc='collapsed'] .toc-rail-chevron {
     font-family: var(--font-serif);
     background: var(--paper);
     color: var(--ink);
-    scroll-behavior: smooth;
+    /*
+     * NOT `scroll-behavior: smooth`, which used to sit here.
+     *
+     * Every link in the reading outline is an in-page anchor, so `smooth` turned a
+     * click on one into a browser-driven animation whose length the page does not
+     * choose. The reading scroll-spy re-measured all 42 headings on every frame of
+     * it — 50 to 80 frames of forced layout for one click, and the whole of a 250ms
+     * interaction delay. An instant jump is one synchronous scroll the browser
+     * performs before the click's own task returns.
+     *
+     * The reduced-motion block still sets `scroll-behavior: auto !important` on `*`,
+     * which now has nothing to override here. It stays as the floor: `scroll-behavior`
+     * is not inherited, so `*` is what would neutralise a smooth scroll on any scroll
+     * container a future component adds, and a rule like this one is easy to
+     * reintroduce by accident.
+     */
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
