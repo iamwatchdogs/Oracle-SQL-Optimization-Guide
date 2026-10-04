@@ -1,0 +1,11 @@
+# GitHub Linguist classifies .mjs as JavaScript. In this repository that is
+# misleading: the site is Astro, and the overwhelming majority of .mjs bytes are
+# the Playwright and Vitest suites under test/ rather than anything the browser loads.
+# Measured on main: 1,103,549 bytes of .mjs under test/ against 104,239 under src/lib.
+#
+# src/** is Astro so the language bar reports the framework that actually renders the
+# site, and the test suites are marked undetectable so tooling does not outvote it.
+src/**            linguist-language=Astro
+test/**           linguist-detectable=false
+scripts/**        linguist-detectable=false
+*.config.mjs      linguist-detectable=false
