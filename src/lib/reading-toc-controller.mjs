@@ -1,16 +1,41 @@
 import { findById } from './dom.mjs';
-import { reanchorAfterSettle } from './disclosure-reanchor.mjs';
+import { closeMobileOnJump } from './reading-toc-jump.mjs';
 
+/*
+ * ONE ENTRY PER HEADING, holding every anchor that points at it.
+ *
+ * `ReadingToc.astro` renders each heading twice — a desktop rail (`ReadingToc.astro:36`,
+ * `hidden lg:block`) and a mobile outline (`ReadingToc.astro:79`, `lg:hidden`) — and
+ * both anchors carry `data-toc-link={h.id}`. Minting an entry per ANCHOR therefore
+ * doubled everything that costs geometry: on a 42-heading page the band scan read
+ * 84 rects instead of 42, the IntersectionObserver took 84 targets instead of 42, and
+ * each duplicate captured its own closure in `closeMobileOnJump`.
+ *
+ * `links` is kept on the entry because the two anchors are NOT redundant: they are
+ * `display:none` at complementary breakpoints, so both have to receive the active
+ * state and both need a click handler. What is per-heading is the measurement, the
+ * observation and the closure; what stays per-anchor is the write and the
+ * registration.
+ */
 function collectEntries(documentRef) {
-  const links = Array.from(documentRef?.querySelectorAll?.('[data-toc-link]') ?? []);
-  return links.flatMap((link) => {
-    const id = link.dataset?.tocLink;
+  const anchors = Array.from(documentRef?.querySelectorAll?.('[data-toc-link]') ?? []);
+  const byId = new Map();
+  for (const anchor of anchors) {
+    const id = anchor.dataset?.tocLink;
     if (!id) {
-      return [];
+      continue;
+    }
+    const existing = byId.get(id);
+    if (existing) {
+      existing.links.push(anchor);
+      continue;
     }
     const section = findById(documentRef, id);
-    return section ? [{ id, link, section }] : [];
-  });
+    if (section) {
+      byId.set(id, { id, links: [anchor], section });
+    }
+  }
+  return [...byId.values()];
 }
 
 function setActiveState(entries, id, currentLabel, cache) {
@@ -22,15 +47,17 @@ function setActiveState(entries, id, currentLabel, cache) {
   }
   for (const entry of entries) {
     const match = entry.id === id;
-    entry.link.dataset.active = match ? 'true' : 'false';
-    if (match) {
-      entry.link.setAttribute?.('aria-current', 'location');
-    } else {
-      entry.link.removeAttribute?.('aria-current');
+    for (const anchor of entry.links) {
+      anchor.dataset.active = match ? 'true' : 'false';
+      if (match) {
+        anchor.setAttribute?.('aria-current', 'location');
+      } else {
+        anchor.removeAttribute?.('aria-current');
+      }
     }
   }
   const active = entries.find((entry) => entry.id === id);
-  const text = active?.link?.lastElementChild?.textContent;
+  const text = active?.links[0]?.lastElementChild?.textContent;
   if (currentLabel && text) {
     currentLabel.textContent = text;
   }
@@ -142,43 +169,6 @@ function observeSections(entries, onActive, ObserverRef, windowRef, documentRef)
       }
       observer?.disconnect();
     },
-  };
-}
-
-/*
- * Returns a disposer.
- *
- * `AbortController` is the tidiest way to unregister 84 listeners at once on the
- * flagship page, but it is a dependency, not a guarantee: when it is unavailable
- * `options` is `undefined` and the listeners had nothing to remove them. The
- * disposers are collected explicitly so `teardown` works either way — otherwise
- * every Astro navigation stacked another 84 handlers on a persistent panel, each
- * closing the mobile disclosure and re-anchoring against a stale document.
- */
-function closeMobileOnJump(entries, mobile, signal, windowRef, documentRef) {
-  const handlers = [];
-
-  for (const entry of entries) {
-    const handler = () => {
-      if (mobile?.open && windowRef.matchMedia?.('(max-width: 1023px)')?.matches) {
-        const id = entry.id;
-        mobile.open = false;
-        reanchorAfterSettle({
-          container: mobile,
-          resolveTarget: () => findById(documentRef, id),
-          windowRef,
-        });
-      }
-    };
-    entry.link.addEventListener?.('click', handler, signal ? { signal } : undefined);
-    handlers.push([entry.link, handler]);
-  }
-
-  return () => {
-    for (const [link, handler] of handlers) {
-      link.removeEventListener?.('click', handler);
-    }
-    handlers.length = 0;
   };
 }
 
