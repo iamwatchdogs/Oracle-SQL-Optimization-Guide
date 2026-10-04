@@ -28,9 +28,28 @@ function readStoredTheme(storage) {
   }
 }
 
+/*
+ * Both writes below are compared before they happen, which is what
+ * `applyAttribute` in `reading-prefs-store.mjs` does for the same reason.
+ *
+ * `data-theme` is not a cheap attribute to touch. `[data-theme='light']`
+ * redefines 24 custom properties for the whole document — `--paper`, `--ink`,
+ * `--rule`, `--accent`, the four `--zone-*`, `--table-zebra`, `--focus`,
+ * `--selection-bg`, `--scrollbar-thumb` and the rest — plus `color-scheme`. So a
+ * write schedules a full-document style recalc even when the value it writes is the
+ * value already there. `sync` runs on bind, on `astro:page-load` and on
+ * `astro:after-swap`, so an unguarded write costs that recalc on every navigation.
+ *
+ * And the asymmetry is worth stating: `[data-theme='dark']` has no standalone block
+ * at all, because dark IS the `:root` default. Writing `'dark'` re-asserts what is
+ * already true and overrides nothing; writing `'light'` flips all 24 properties.
+ * The guard earns most in the second direction — which is the direction a reader on
+ * the default theme never takes, and so never notices the cost that was there.
+ */
 function setRootTheme(root, theme) {
-  if (root?.dataset) {
-    root.dataset.theme = normalizeTheme(theme);
+  const next = normalizeTheme(theme);
+  if (root?.dataset && root.dataset.theme !== next) {
+    root.dataset.theme = next;
   }
 }
 
@@ -39,8 +58,10 @@ function syncButtonState(documentRef, theme) {
   if (!button) {
     return;
   }
-  const isDark = theme === DEFAULT_THEME;
-  button.setAttribute?.('aria-label', isDark ? 'Switch to light theme' : 'Switch to dark theme');
+  const label = theme === DEFAULT_THEME ? 'Switch to light theme' : 'Switch to dark theme';
+  if (button.getAttribute?.('aria-label') !== label) {
+    button.setAttribute?.('aria-label', label);
+  }
 }
 
 export function currentTheme(root) {
@@ -129,7 +150,9 @@ function createThemeController(documentRef, root, storage, initialTheme) {
   documentRef.addEventListener?.('astro:page-load', sync);
   // after-swap fires before page-load; re-applying the theme there keeps the
   // swapped-in <html> from painting one frame with a stale data-theme.
-  // The duplicate sync is a no-op write, and tests pin both.
+  // Both listeners are kept and both are pinned by tests. The second sync is now
+  // genuinely free: `setRootTheme` compares first, and the swapped-in <html>
+  // carries the same `data-theme` the controller is already holding.
   documentRef.addEventListener?.('astro:after-swap', sync);
 
   return controller;
