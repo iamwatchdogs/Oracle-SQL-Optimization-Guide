@@ -532,6 +532,7 @@ const feedHref = new URL('rss.xml', siteRoot).href;
                           class="group grid min-h-11 grid-cols-[2.25rem_minmax(0,1fr)] items-baseline gap-2 px-[0.65rem] py-[0.55rem] font-sans text-ui leading-[1.35] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-accent data-[active=true]:border-l data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:text-accent"
                           aria-current={isActive ? 'location' : undefined}
                           data-active={isActive ? 'true' : 'false'}
+                          data-astro-prefetch
                         >
                           <span
                             class="font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent"

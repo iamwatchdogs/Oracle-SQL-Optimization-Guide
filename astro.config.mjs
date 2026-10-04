@@ -27,9 +27,76 @@ export default defineConfig({
   base: resolveBase(),
   output: 'static',
   trailingSlash: 'always',
-  // A linear book: every pager cell and nav link is a likely next read.
-  // Prefetch once a link scrolls into view, not only on hover.
-  prefetch: { prefetchAll: true, defaultStrategy: 'viewport' },
+  /*
+   * WHICH LINKS PREFETCH. A linear book: the pager and the section list are the likely next read, so
+   * prefetch them once they scroll into view rather than only on hover.
+   *
+   * WHAT WAS WRONG is the setting, not the mechanism. This read `prefetchAll: true`, which is not a scope
+   * but the absence of one: `elMatchesStrategy` (`node_modules/astro/dist/prefetch/index.js:161-177`)
+   * treats an anchor with NO `data-astro-prefetch` attribute as eligible for `defaultStrategy`, so every
+   * anchor in the document got the viewport strategy and `initViewportStrategy` (`index.js:78-90`) handed
+   * each one to an `IntersectionObserver` holding a 300 ms dwell timer (`index.js:101-108`). That is 2,487
+   * anchors under observation across the thirty-eight built pages — 72 on `/00-preface/`, 129 on
+   * `/00-preface/02-how-to-prove-a-win/`. In a browser on `/00-preface/01-why-evidence-grades/`, a cold
+   * load then a scroll to the foot issued 3 prefetch requests, and opening `Contents` issued 10. The
+   * comment this replaces claimed eleven links. Most of those 2,487 could never prefetch anything, which is
+   * what made the count misleading rather than merely large: `prefetch()` strips the fragment
+   * (`index.js:128`) and `canPrefetchUrl` then demands a different pathname or search on the same origin
+   * (`index.js:151-160`), so the in-page outline's 818 links — `href="#id"`, 84 of them on one chapter —
+   * resolved to the page the reader was already on, and every cross-origin link was refused.
+   *
+   * THE SCOPE IS WRITTEN IN MARKUP, because Astro 7.3.3 has no other mechanism. There is no
+   * `prefetch.selector`: the type is `boolean | { prefetchAll?, defaultStrategy? }` and nothing else
+   * (`node_modules/astro/dist/types/public/config.d.ts:1917-1964`). The one selector in Astro's prefetch code
+   * is hardcoded — `prefetchAll ? "a" : "a[data-astro-prefetch]"` at `prefetch/speculation-rules.js:2` — and
+   * is reachable only with `experimental.clientPrerender`, which this project does not set. Eligibility is
+   * therefore the attribute plus `prefetchAll`, so the scope is five `data-astro-prefetch` marks and
+   * everything else is excluded by the flag below rather than by an opt-out list.
+   *
+   * THE FIVE MARKS. The header's section list (`BaseLayout.astro:535`), nine links inside a CLOSED
+   * `<details>` (`BaseLayout.astro:459`) and so unobserved until a reader opens it — one gesture warms nine
+   * destinations, and a reader who never opens it pays nothing. The pager cells (`PrevNext.astro:81,98`), at
+   * the foot of the reading column and reached by the scroll that means the reader is nearly done. The
+   * pager's end-of-book fallback (`PrevNext.astro:131`), which no page in this book renders and which
+   * therefore measures zero. The home page's contents list (`HomeTitleBlock.astro:283`), the same nine routes
+   * as the header list, without which the door of the book would prefetch nothing at all. And `Begin at
+   * Preface` (`HomeTitleBlock.astro:122`), the most likely navigation a reader arriving at the door makes;
+   * its destination is already the first contents row, so it costs no fetch the nine do not already cost.
+   * That is 11 eligible anchors on each of the 35 chapter and section pages, 10 on `/08-bonus-batch-api/`,
+   * 9 on `404.html` and 19 on the home page: 423 of 2,487, on pages of 44 to 129 anchors. EVERY EXCLUDED
+   * LINK, with its file:line and the reason, is `ROLES` in `test/support/prefetch-roles.mjs` — beside the
+   * reader that finds them (`test/support/prefetch.mjs`), which is where an enumeration of this shape
+   * belongs, and where neither file is pushed past the 300-line ceiling the linter holds here to.
+   *
+   * `'viewport'` STAYS, which is the first sentence of this comment. The two marked groups sit at opposite
+   * ends of the page and neither is a hover target: the pager is reached by scrolling, and the section list
+   * exists only once its panel is open. `'hover'` costs a separate 80 ms per link (`index.js:63-70`) and
+   * fetches nothing for a reader who opens the panel and clicks; `'tap'` fires on `mousedown`
+   * (`index.js:22-35`), after the navigation is decided; `'load'` fetches all of them on arrival for a
+   * reader who mostly wants neither. `'viewport'` costs 300 ms of dwell (`index.js:101-108`) — unchanged,
+   * and not the cost driver: the count was.
+   *
+   * `prefetchAll: false` IS WRITTEN OUT RATHER THAN OMITTED, which looks redundant and is not.
+   * `<ClientRouter />` is on every page (`BaseLayout.astro:132`) and calls `init({ prefetchAll: true })`
+   * (`node_modules/astro/components/ClientRouter.astro:151-153`), and `init` assigns with `??=`
+   * (`index.js:15`) — so it fills in an `undefined` and CANNOT override a declared `false`. Delete the key
+   * and `JSON.stringify(undefined)` bakes the bare identifier `undefined` into the bundle, `??=` assigns
+   * `true`, and every anchor on every page is eligible again with nothing here to show for it.
+   * `prefetch-scope.test.mjs` asserts the key is present for exactly that reason.
+   *
+   * NOT CLAIMED: prefetching still costs something — nine destinations when a reader opens `Contents`, two
+   * when a scroll reaches the pager, on links they may never take. That is the trade this comment makes
+   * rather than one it pretends to avoid, and it is bounded at eleven per chapter page and paid on two
+   * deliberate gestures.
+   *
+   * REJECTED. Marking the exclusions with `data-astro-prefetch="false"` instead
+   * (`config.d.ts:1937-1941`): same scope, but stated as 2,064 opt-outs and one default, so the next link
+   * added to the book is eligible until someone remembers it — a scope written as what IS prefetched cannot
+   * fail open. And `prefetch: false`, which turns the feature off rather than narrowing it: the bundle is
+   * injected whenever `prefetch` is truthy (`prefetch/vite-plugin-prefetch.js:8-13`) and the router's copy
+   * is disabled by the same flag, so a suite asserting "exactly these" could not tell it from a fix.
+   */
+  prefetch: { prefetchAll: false, defaultStrategy: 'viewport' },
   vite: {
     plugins: [tailwindcss()],
     build: {
