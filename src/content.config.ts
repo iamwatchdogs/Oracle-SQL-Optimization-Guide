@@ -9,6 +9,9 @@ const notebook = defineCollection({
     description: z.string().optional(),
     order: z.number().optional(),
     draft: z.boolean().default(false),
+    /* Optional edition timestamps — wired into article OG tags when present. */
+    date: z.string().optional(),
+    updated: z.string().optional(),
   }),
 });
 

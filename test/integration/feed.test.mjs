@@ -71,38 +71,34 @@ test('items are in reading order, not directory order', async () => {
   expect(code).toContain('toSorted');
 });
 
-test('every item carries the edition date, and nothing claims otherwise', async () => {
+test('every item carries the edition date unless it was genuinely revised', async () => {
   const code = await route();
 
   /*
    * What the corpus can honestly support. The corpus records no per-chapter dates,
    * and a feed is the one place a date is a promise, so one date for the edition
-   * is true of all thirty-seven items.
+   * is true of all thirty-seven items — overridden only by a real frontmatter one.
    */
-  expect(code).toContain('pubDate: edition');
+  expect(code).toContain('entry.data.date ? new Date(entry.data.date) : edition');
   expect(code).toContain('COMPILED_ON');
 
   /* No invented per-chapter date, and no promise of one the code does not honour. */
-  expect(code).not.toMatch(/pubDate: (new Date|Date\.now)/u);
-
-  /* The docstring names the field; the code must not read it. */
-  const statements = code.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/\/\/.*$/gmu, '');
-  expect(statements).not.toMatch(/entry\.data\.date/u);
+  expect(code).not.toMatch(/pubDate: (new Date\(\)|Date\.now)/u);
 });
 
-test('the revision path is documented as the one that is not wired yet', async () => {
+test('the revision path is wired, and documented as wired', async () => {
   const code = await route();
   const schema = await read('../../src/content.config.ts');
+  const layoutCode = await layout();
 
   /*
-   * `entry.data.date` is the way out, and the schema does not accept it yet —
-   * which is deliberate. No chapter has been revised, and a schema field nothing
-   * sets is a promise nothing keeps. The two are asserted together so the comment
-   * and the schema cannot drift apart: the day the field is added, this fails and
-   * says so, rather than the comment quietly promising a capability that is gone.
+   * `entry.data.date` is real now: the schema accepts it, the feed honours it,
+   * and the layout turns it into `article:published_time` on the page. The
+   * three are asserted together so none can drift from the others.
    */
   expect(code).toContain('entry.data.date');
-  expect(schema).not.toMatch(/date:/u);
+  expect(schema).toMatch(/date:\s*z\.string\(\)\.optional\(\)/u);
+  expect(layoutCode).toContain('article:published_time');
 });
 
 test('the feed is discoverable from every page', async () => {

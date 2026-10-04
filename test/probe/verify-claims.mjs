@@ -185,7 +185,7 @@ async function page(route, viewport, theme = 'dark') {
       theme,
     );
     const r = await q.evaluate(() => {
-      const el = document.querySelector('article.prose > p:has(> strong:only-child)');
+      const el = document.querySelector('article.prose > p.callout');
       if (!el) return null;
       const cs = getComputedStyle(el);
       return {

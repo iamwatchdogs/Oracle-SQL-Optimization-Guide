@@ -5,7 +5,7 @@ import {
   ruleMatches,
   specificityOf,
   splitSelector,
-} from '../../src/lib/css-cascade.mjs';
+} from '../../test/support/css/css-cascade.mjs';
 
 const matches = (selector, definition) => ruleMatches(selector, createContext(definition));
 

@@ -9,8 +9,8 @@
  * so a palette edit that quietly drops a pair below its floor fails a test instead
  * of shipping.
  */
-import { normalizeHex, resolveToken } from '../../src/lib/css-cascade.mjs';
-import { compileProjectStylesheet } from '../../src/lib/tailwind-compile.mjs';
+import { normalizeHex, resolveToken } from '../../test/support/css/css-cascade.mjs';
+import { compileProjectStylesheet } from '../../test/support/css/tailwind-compile.mjs';
 
 /** The tokens any test here is allowed to read. */
 export const THEME_TOKENS = [

@@ -111,7 +111,19 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
         </p>
 
         <div class="rise rise-3">
-          <a href={withBase('/00-preface/')} class="primary-control leading-none">
+          {/*
+            Marked, and for a consistency reason rather than a new one. `/00-preface/` is already the
+            first row of the contributions list below, so this adds no fetch the scope does not already
+            make; leaving it out would make the scope depend on which of two links to the same chapter the
+            reader happens to be looking at. The scope and its arithmetic are in the `prefetch` comment in
+            `astro.config.mjs`; the full enumeration of every link role is `ROLES` in
+            `test/support/prefetch-roles.mjs`.
+          */}
+          <a
+            href={withBase('/00-preface/')}
+            class="primary-control leading-none"
+            data-astro-prefetch
+          >
             Begin at Preface
             <span aria-hidden="true">→</span>
           </a>
@@ -295,6 +307,7 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
           <a
             href={c.href}
             class="group grid grid-cols-[2.5rem_minmax(0,1fr)] items-baseline gap-4 border-b border-rule px-0 py-4 text-ink no-underline transition-colors hover:bg-accent-soft hover:text-ink"
+            data-astro-prefetch
           >
             <span class="font-mono text-mono tabular-nums text-ink-faint" aria-hidden="true">
               {String(i + 1).padStart(2, '0')}

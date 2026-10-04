@@ -6,7 +6,7 @@
  * floor" but "which elements is this value for".
  */
 import { expect, test } from 'vitest';
-import { compileProjectStylesheet } from '../../src/lib/tailwind-compile.mjs';
+import { compileProjectStylesheet } from '../../test/support/css/tailwind-compile.mjs';
 import { contrast, normalizeHex, tokensForBothThemes } from '../support/design-tokens.mjs';
 
 test('a control border clears the 3:1 non-text floor, unlike the hairline beside it', async () => {

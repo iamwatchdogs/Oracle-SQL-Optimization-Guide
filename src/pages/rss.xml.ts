@@ -19,12 +19,13 @@ import {
  * carries the edition's compile date, which is true of all of them — they were
  * compiled together, and the colophon already prints it.
  *
- * `entry.data.date` is the way out. A chapter that is genuinely revised adds one
- * to its frontmatter and the schema starts accepting it; until then the field
- * does not exist, because an unused schema field is a promise nothing keeps.
- * Revised chapters are ordered by `order` and not by date, so a revision shows up
- * as a new `pubDate` on an item a reader already has rather than as a reordered
- * feed. A book is read in order; a feed that reshuffles is harder to follow.
+ * `entry.data.date` is the way out, and it is wired: a chapter that is genuinely
+ * revised adds one to its frontmatter and gets its own `pubDate` in the feed
+ * (and `article:published_time` on its page). Until then every item carries the
+ * edition's date. Revised chapters are ordered by `order` and not by date, so a
+ * revision shows up as a new `pubDate` on an item a reader already has rather
+ * than as a reordered feed. A book is read in order; a feed that reshuffles is
+ * harder to follow.
  *
  * ## What a feed is for here
  *
@@ -62,7 +63,9 @@ export const GET: APIRoute = async (context) => {
     items: ordered.map((entry) => ({
       title: entry.data.title,
       description: entry.data.description ?? SITE_DESCRIPTION,
-      pubDate: edition,
+      /* A genuinely revised chapter overrides the edition date; every other
+         item is true to the compile date. */
+      pubDate: entry.data.date ? new Date(entry.data.date) : edition,
       link: entry.id === 'index' ? siteRoot : url(`${entry.id}/`),
       /* The section a chapter belongs to, or 'overview' for the book's own
        * pages — a category that groups them in a reader. */

@@ -781,9 +781,40 @@ html[data-reading-toc='collapsed'] .toc-rail-chevron {
     font-family: var(--font-serif);
     background: var(--paper);
     color: var(--ink);
-    scroll-behavior: smooth;
-    -webkit-text-size-adjust: 100%;
-    text-rendering: optimizeLegibility;
+    /*
+     * NOT `scroll-behavior: smooth`, which used to sit here.
+     *
+     * Every link in the reading outline is an in-page anchor, so `smooth` turned a
+     * click on one into a browser-driven animation whose length the page does not
+     * choose. The reading scroll-spy re-measured all 42 headings on every frame of
+     * it — 50 to 80 frames of forced layout for one click, and the whole of a 250ms
+     * interaction delay. An instant jump is one synchronous scroll the browser
+     * performs before the click's own task returns.
+     *
+     * The reduced-motion block still sets `scroll-behavior: auto !important` on `*`,
+     * which now has nothing to override here. It stays as the floor: `scroll-behavior`
+     * is not inherited, so `*` is what would neutralise a smooth scroll on any scroll
+     * container a future component adds, and a rule like this one is easy to
+     * reintroduce by accident.
+     *
+     * TWO MORE DECLARATIONS USED TO SIT HERE, and they went for different reasons.
+     *
+     * `text-rendering: optimizeLegibility` turned kerning and optional ligatures on,
+     * which takes text layout off Blink's integer-metrics fast path and onto the
+     * full font-metrics path. It ran over every one of the 7,160 text nodes on the
+     * heaviest chapter, and re-ran on each of the four font swaps. Nothing in this
+     * corpus has a ligature worth that pass.
+     *
+     * `-webkit-text-size-adjust: 100%` is NOT GONE — Tailwind's preflight declares
+     * the same thing on `html, :host` in the same layer, so this line was a second
+     * copy of a declaration already there. Removing it de-duplicates; it does not
+     * change the behaviour, and it should not: the initial value is `auto`, which
+     * lets a mobile browser inflate type to its own idea of legibility, and pinning
+     * it at 100% is what stops that. Preflight's copy is doing that job.
+     * `text-rendering` had no such second source, so it is genuinely absent from the
+     * sheet now — and `test/integration/text-rendering.test.mjs` asserts that
+     * asymmetry rather than papering over it.
+     */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -862,7 +893,17 @@ html[data-reading-toc='collapsed'] .toc-rail-chevron {
     line-height: var(--tight-leading);
     font-weight: 600;
     letter-spacing: -0.02em;
-    text-wrap: balance;
+    /*
+     * NOT `text-wrap: balance`, which used to sit here.
+     *
+     * Blink answers `balance` with a binary-search line-breaking pass: it measures
+     * the heading, tries a narrower width, and repeats until the rag evens out. On a
+     * page with one heading that is free. This book's heaviest chapter has 42 of
+     * them, and every font swap re-runs the pass — there are four
+     * `font-display: swap` faces, so a reader who is still arriving pays it four
+     * times over. The orphan `balance` was preventing is a few characters of rag on
+     * a heading, which is the cheapest thing on the page to accept.
+     */
     color: var(--ink);
     scroll-margin-top: 5rem;
   }
@@ -874,9 +915,19 @@ html[data-reading-toc='collapsed'] .toc-rail-chevron {
     scroll-margin-top: 5.5rem;
   }
 
-  p {
-    text-wrap: pretty;
-  }
+  /*
+   * NOT `p { text-wrap: pretty }`, which used to sit here.
+   *
+   * `pretty` buys a paragraph-level re-layout optimisation in Blink: a last-line
+   * pass over the text, run per paragraph. On a page with one paragraph that is
+   * invisible. This book's heaviest chapter has 228 of them, plus 152 `<td>` and 24
+   * `<th>`, and every one of the four `font-display: swap` faces arriving re-runs
+   * the whole set. Four full passes over a 391 KB article before a reader has read
+   * a word of it.
+   *
+   * The rag `pretty` was smoothing is carried instead by `overflow-wrap: break-word`
+   * on `.prose` and by the measure the reading column sets, both of which are free.
+   */
 
   a {
     color: inherit;
@@ -956,7 +1007,6 @@ details > summary {
   cursor: pointer;
   color: var(--ink-muted);
   list-style: none;
-  text-wrap: pretty;
   transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1110,16 +1160,35 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
 }
 
 /*
- * Measure, not hyphenation, carries a narrow column.
+ * MEASURE, NOT HYPHENATION, CARRIES A COLUMN — at every width now.
  *
- * `hyphens: auto` is right at desktop measure, where a 68ch line has room to
- * absorb the extra characters. At 390px the shell is 358px — about 40ch — and
- * the long technical words in this corpus are short enough to fit unbroken, so
- * the hyphenator fires on nearly every line break and the page reads as broken
- * typesetting rather than as a rag: four breaks in five consecutive lines
- * ("ex-/otic", "ac-/cidental", "col-/umn", "fetch shape"). Turning the
- * hyphenator off below `sm` loses nothing — no word in the corpus exceeds the
- * measure — and hands the rag back to the line-breaker.
+ * This used to be a `max-width: 39.999rem` override. The chapter template asked
+ * for `hyphens: auto` above it, on the reasoning that auto is right at desktop
+ * measure, where a 68ch line has room to absorb the extra characters. It is not,
+ * for two reasons, and the second one is about cost rather than looks.
+ *
+ * The looks are the original argument, and it holds at every width: at 390px the
+ * shell is 358px — about 40ch — and the long technical words in this corpus fit
+ * unbroken, so the hyphenator fired on nearly every line break and the page read
+ * as broken typesetting rather than as a rag ("ex-/otic", "ac-/cidental",
+ * "col-/umn"). "No word in the corpus exceeds the measure" is true of the phone
+ * and is equally true of the 68ch line; the hyphenator was buying raggedness at
+ * both.
+ *
+ * The cost is why it is not a media query any more. Blink's hyphenator runs a
+ * pattern-matching pass over every text run at layout time, and `auto` also names
+ * a LANGUAGE whose dictionary is LAZY-LOADED — the dictionary arriving changes
+ * where lines break, a layout change invalidates the document, and the page
+ * reflows a second time. This book's heaviest chapter is 391 KB of article text,
+ * and each of the four `font-display: swap` faces arriving afterwards re-runs the
+ * pass over all of it. So the two `hyphens-auto` utilities are gone from
+ * `src/pages/[...slug].astro` and this rule is what the prose computes to
+ * everywhere, which is the initial `manual`.
+ *
+ * The `none` below is stated rather than inherited because `manual` and `none`
+ * are different words: `manual` hyphenates where the CONTENT asks, via a soft
+ * hyphen. All 37 content files contain none, so the two agree today — and `none`
+ * is the one that keeps agreeing if that ever changes.
  */
 @media (max-width: 39.999rem) {
   .prose,
@@ -1128,7 +1197,14 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   }
 }
 
-.prose ul:has(> .task-list-item) {
+/*
+ * `.task-list`, not `.prose ul:has(> .task-list-item)`.
+ *
+ * `rehypeCallouts` stamps the class on the `<ul>` at build time, which is the only
+ * place this could be answered without `:has()` re-deriving it during layout. See
+ * the note on `.prose > p.callout` below for why that is worth the plugin.
+ */
+.prose ul.task-list {
   list-style-type: none;
   padding-inline-start: 0;
 }
@@ -1199,7 +1275,22 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   white-space: nowrap;
 }
 
-.prose > p:has(> strong:only-child) {
+/*
+ * `.callout`, not `.prose > p:has(> strong:only-child)`.
+ *
+ * A GFM callout is a paragraph whose only child is a `<strong>` — `> **Note:** …`
+ * arrives as `<p><strong>Note:</strong> …</p>` — so CSS could ask for it with
+ * `:has()`. It should not. `:has()` puts the element in Blink's
+ * ancestor-invalidation set, which means an attribute or class change on ANY of
+ * the 8,240 elements on the heaviest chapter schedules a walk up through the chain
+ * to re-derive an answer that was fixed when the markdown was parsed. This site
+ * mutates attributes in bulk — 84 `data-active` writes, 168 `aria-current` writes,
+ * 3,371 expressive-code token `style` attributes — so those walks were constant.
+ *
+ * `rehypeCallouts` answers it once, at build time. 347 callouts across the 36
+ * built pages carry the class.
+ */
+.prose > p.callout {
   padding: 1rem 1.25rem;
   background: var(--accent-soft);
   /* `--rule-strong`, not `--rule`. The tint is composited onto paper in both
@@ -1269,7 +1360,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   text-align: start;
   vertical-align: bottom;
   hyphens: none;
-  text-wrap: balance;
   padding: 0 0.9rem 0.6rem;
   border-bottom: 1px solid var(--rule-strong);
   color: var(--ink);
@@ -1289,7 +1379,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
 .prose tfoot td {
   vertical-align: top;
   hyphens: none;
-  text-wrap: pretty;
   padding: 0.7rem 0.9rem;
   border-bottom: 1px solid var(--rule);
   color: var(--ink-muted);
@@ -1301,7 +1390,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   font-weight: 600;
   text-align: start;
   hyphens: none;
-  text-wrap: pretty;
   padding: 0.7rem 0.9rem;
   border-bottom: 1px solid var(--rule);
   color: var(--ink);
@@ -1385,20 +1473,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
  */
 .prose .expressive-code {
   margin-block: var(--prose-rhythm);
-}
-
-.prose .MathJax,
-.prose mjx-container {
-  font-size: 1.05em;
-}
-
-.prose .mermaid {
-  margin-block: var(--prose-rhythm);
-}
-
-[data-theme='light'] .prose .mermaid,
-[data-theme='light'] .mermaid {
-  filter: invert(1) hue-rotate(180deg);
 }
 
 /*
