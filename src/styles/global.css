@@ -899,9 +899,19 @@ html[data-reading-toc='collapsed'] .toc-rail-chevron {
     scroll-margin-top: 5.5rem;
   }
 
-  p {
-    text-wrap: pretty;
-  }
+  /*
+   * NOT `p { text-wrap: pretty }`, which used to sit here.
+   *
+   * `pretty` buys a paragraph-level re-layout optimisation in Blink: a last-line
+   * pass over the text, run per paragraph. On a page with one paragraph that is
+   * invisible. This book's heaviest chapter has 228 of them, plus 152 `<td>` and 24
+   * `<th>`, and every one of the four `font-display: swap` faces arriving re-runs
+   * the whole set. Four full passes over a 391 KB article before a reader has read
+   * a word of it.
+   *
+   * The rag `pretty` was smoothing is carried instead by `overflow-wrap: break-word`
+   * on `.prose` and by the measure the reading column sets, both of which are free.
+   */
 
   a {
     color: inherit;
@@ -981,7 +991,6 @@ details > summary {
   cursor: pointer;
   color: var(--ink-muted);
   list-style: none;
-  text-wrap: pretty;
   transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1313,7 +1322,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
 .prose tfoot td {
   vertical-align: top;
   hyphens: none;
-  text-wrap: pretty;
   padding: 0.7rem 0.9rem;
   border-bottom: 1px solid var(--rule);
   color: var(--ink-muted);
@@ -1325,7 +1333,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   font-weight: 600;
   text-align: start;
   hyphens: none;
-  text-wrap: pretty;
   padding: 0.7rem 0.9rem;
   border-bottom: 1px solid var(--rule);
   color: var(--ink);
