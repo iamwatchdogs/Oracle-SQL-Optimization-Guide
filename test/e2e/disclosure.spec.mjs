@@ -5,15 +5,26 @@ import {
   measureDisclosure,
   px,
 } from './support/disclosure.mjs';
-import { waitForDisclosureClosed, waitForDisclosureOpen } from './support/disclosure-settle.mjs';
+import { waitForDisclosureClosed, waitForDisclosureSettled } from './support/disclosure-settle.mjs';
 import { waitForStable } from './support/settle.mjs';
 import { ARTICLE } from './support/toc.mjs';
 
-/** Open a disclosure and wait for its row to finish filling. */
+/**
+ * Open a disclosure and wait for its row to finish filling.
+ *
+ * The wait is for the row's NATURAL height, not for "it is no longer 0". An open
+ * row is `grid-template-rows: 0fr → 1fr` over 280ms with a 40ms delay, and its
+ * starting value is not 0 — the inner's `padding-block` is already at its open
+ * `0.2rem 0.85rem`, so the row reads 16.78px before it has moved at all. A
+ * `flowHeight > 1` gate is therefore satisfied by that starting value, and any
+ * measurement taken straight afterwards is a sample of the animation rather than
+ * of the panel: on a loaded machine the row was still at 16.78px when the
+ * assertion below it ran.
+ */
 async function openAndSettle(details) {
   await details.locator('summary').click();
   await expect(details).toHaveAttribute('open', '');
-  await waitForDisclosureOpen(details);
+  await waitForDisclosureSettled(details);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { ms, SITE_NAV, SITE_NAV_SUMMARY } from './support/disclosure.mjs';
-import { waitForDisclosureOpen } from './support/disclosure-settle.mjs';
+import { waitForDisclosureOpen, waitForDisclosureSettled } from './support/disclosure-settle.mjs';
 import { DESKTOP, MOBILE } from './support/viewports.mjs';
 
 /**
@@ -52,6 +52,31 @@ const headerHeight = (page) =>
     .first()
     .evaluate((el) => el.getBoundingClientRect().height);
 
+/**
+ * Open the menu and wait for the panel to finish filling.
+ *
+ * Every geometry assertion below reads the panel AFTER this, and none of them
+ * may sample the frames where the row is still growing. Two things are true on
+ * those frames, and both were read as "the panel is broken":
+ *
+ * 1. `grid-template-rows: 0fr → 1fr` over 280ms with a 40ms delay means the row
+ *    is legitimately partway through its height for the first ~320ms.
+ * 2. `details::details-content` transitions `content-visibility` discretely with
+ *    `allow-discrete`, so in Chromium the whole subtree is a SKIPPED subtree for
+ *    that window — `getBoundingClientRect()` on it is `0×0` while the CSSOM row
+ *    already reads its end value. A single read there reports width 0.
+ *
+ * (2) is why this waits for the row to reach its natural height rather than for
+ * `open`: a skipped subtree also reports `flowHeight === 0`, so the weaker wait
+ * is the one that happens to survive it — but only until the panel stops being
+ * measured at all.
+ */
+const openMenu = async (page) => {
+  await page.locator(SITE_NAV_SUMMARY).click();
+  await expect(page.locator(SITE_NAV)).toHaveAttribute('open', '');
+  await waitForDisclosureSettled(page.locator(SITE_NAV));
+};
+
 test.describe('site nav — mobile, menu closed', () => {
   test.use({ viewport: MOBILE });
 
@@ -100,8 +125,7 @@ test.describe('site nav — mobile, menu open', () => {
 
   test('is a full-width in-flow panel with a viewport gutter', async ({ page }) => {
     await page.goto('/');
-    await page.locator(SITE_NAV_SUMMARY).click();
-    await expect(page.locator(SITE_NAV)).toHaveAttribute('open', '');
+    await openMenu(page);
 
     const box = await panelBox(page);
     // `static`, not `fixed` or `absolute`: nothing positioned from inside a
@@ -149,7 +173,7 @@ test.describe('site nav — mobile, panel capacity', () => {
 
   test('caps the panel height so the menu does not own the screen', async ({ page }) => {
     await page.goto('/');
-    await page.locator(SITE_NAV_SUMMARY).click();
+    await openMenu(page);
     const box = await panelBox(page);
     const viewport = page.viewportSize();
     expect(box.height).toBeLessThanOrEqual(viewport.height * 0.7 + 1);
@@ -179,9 +203,13 @@ test.describe('site nav — desktop dropdown', () => {
 
   test('stays a right-anchored dropdown capped at 22rem', async ({ page }) => {
     await page.goto(ROUTE);
-    await page.locator(SITE_NAV_SUMMARY).click();
+    await openMenu(page);
     const box = await panelBox(page);
     expect(box.position).toBe('absolute');
+    // A lower bound as well as the cap: while `::details-content` is a skipped
+    // subtree this panel measures 0 wide, which satisfies `toBeLessThanOrEqual`
+    // and would have let the cap pass on a panel that is not there at all.
+    expect(box.width).toBeGreaterThan(0);
     expect(box.width).toBeLessThanOrEqual(352);
   });
 
