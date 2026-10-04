@@ -877,7 +877,17 @@ html[data-reading-toc='collapsed'] .toc-rail-chevron {
     line-height: var(--tight-leading);
     font-weight: 600;
     letter-spacing: -0.02em;
-    text-wrap: balance;
+    /*
+     * NOT `text-wrap: balance`, which used to sit here.
+     *
+     * Blink answers `balance` with a binary-search line-breaking pass: it measures
+     * the heading, tries a narrower width, and repeats until the rag evens out. On a
+     * page with one heading that is free. This book's heaviest chapter has 42 of
+     * them, and every font swap re-runs the pass — there are four
+     * `font-display: swap` faces, so a reader who is still arriving pays it four
+     * times over. The orphan `balance` was preventing is a few characters of rag on
+     * a heading, which is the cheapest thing on the page to accept.
+     */
     color: var(--ink);
     scroll-margin-top: 5rem;
   }
@@ -1284,7 +1294,6 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   text-align: start;
   vertical-align: bottom;
   hyphens: none;
-  text-wrap: balance;
   padding: 0 0.9rem 0.6rem;
   border-bottom: 1px solid var(--rule-strong);
   color: var(--ink);
