@@ -56,8 +56,9 @@ jobs:
         uses: withastro/action@v6
         with:
           path: .
-          # The action reads the version from `packageManager` in package.json.
-          # Naming it here too would be a second place to keep it in step.
+          # Pinned explicitly rather than inferred from the lockfile, so the
+          # same fact lives in two places; bump this with `packageManager` in
+          # package.json rather than letting them drift.
           package-manager: bun@1.4.2
           build-cmd: bun run build
 
