@@ -76,7 +76,13 @@ const NameSeparator = 'sr-only';
       `nav[aria-label="Book navigation"]` and walks the cells as first/last-child.
     */}
     {prev ? (
-      <a href={prev.href} rel="prev" class={pagerLinkClass} transition:name="pager-prev">
+      <a
+        href={prev.href}
+        rel="prev"
+        class={pagerLinkClass}
+        transition:name="pager-prev"
+        data-astro-prefetch
+      >
         <span class="running-head">
           <span aria-hidden="true">←</span> Previous
         </span>
@@ -92,6 +98,7 @@ const NameSeparator = 'sr-only';
         rel="next"
         class={`${pagerLinkClass} sm:items-end sm:justify-end sm:text-right`}
         transition:name="pager-next"
+        data-astro-prefetch
       >
         {/* The space belongs INSIDE the decorative span. Written as
             `Next <span>→</span>` the label ends in a space, and stripping the
@@ -110,8 +117,19 @@ const NameSeparator = 'sr-only';
     )}
   </nav>
 ) : (
+  /*
+   * The end-of-book fallback is marked like the pager cells above, and for the same reason: it stands
+   * in the pager's slot, answers the same question, and it is the only way off the last page of the
+   * book. Without the mark, `/08-bonus-batch-api/` would be the one page in the book whose bottom
+   * navigation is never prefetched — the single place where the omission costs a reader a wait. The
+   * scope and the rest of its arithmetic are in the `prefetch` comment in `astro.config.mjs`.
+   */
   <p class="meta mt-10 border-t border-rule pt-8">
-    <a href={withBase('/')} class="no-underline transition-colors hover:text-accent">
+    <a
+      href={withBase('/')}
+      class="no-underline transition-colors hover:text-accent"
+      data-astro-prefetch
+    >
       <span aria-hidden="true">←</span> End of notebook — return to contents
     </a>
   </p>
