@@ -246,8 +246,8 @@ test.describe('cold load — the italic face is transferred, by the CSSOM', () =
      *
      * All 37 content pages render italic text — the prose `blockquote`, italic because
      * `@tailwindcss/typography` says so (`node_modules/@tailwindcss/typography/src/styles.js:1485-1489`), and
-     * the `.prose > p:has( > strong:only-child)` card this stylesheet writes itself at
-     * `src/styles/global.css:1202-1211` — so the italic file is transferred on every page whether or not it
+     * the `.prose > p.callout` card this stylesheet writes itself at
+     * `src/styles/global.css` — so the italic file is transferred on every page whether or not it
      * is preloaded. What dropping the preload removes is the PARSER's early request for it: the file is now
      * found by the CSSOM after the document has been matched, which is what puts it behind the three faces a
      * reader is actually looking at.
