@@ -216,9 +216,11 @@ export function findEscapingOverflow(page) {
  *
  * Four traps, each of which produced cross-engine failures:
  *
- * 1. `html { scroll-behavior: smooth }` is set project-wide, so a plain
- *    `window.scrollTo(0, y)` becomes a ~500ms animation and anything read
- *    afterwards still sees the OLD offset. `behavior: 'instant'` bypasses it.
+ * 1. `behavior: 'instant'` is passed explicitly, so this helper does not depend on
+ *    what the root element declares. `html` used to set `scroll-behavior: smooth`,
+ *    which made a bare `window.scrollTo(0, y)` a ~500ms animation and anything read
+ *    afterwards still saw the OLD offset; that declaration is gone, and the argument
+ *    stays so a future one cannot silently reintroduce the wait.
  * 2. The final offset is CLAMPED to `scrollHeight - innerHeight`, so requested
  *    and reached offsets legitimately differ on the last row.
  * 3. The document height is not stable. A history restore re-collapses the

@@ -2,8 +2,8 @@
  * PROBE — see ./README.md for what this found and which spec now guards it.
  * Diagnostic output only; not an assertion. Run: `bun test/probe/p2.mjs`
  */
-import { compileProjectStylesheet } from '../../src/lib/tailwind-compile.mjs';
-import { parseCompiledStylesheet } from '../../src/lib/css-cascade.mjs';
+import { compileProjectStylesheet } from '../../test/support/css/tailwind-compile.mjs';
+import { parseCompiledStylesheet } from '../../test/support/css/css-cascade.mjs';
 const css = await compileProjectStylesheet();
 const sheet = parseCompiledStylesheet(css);
 console.log('=== every compiled rule that declares `rotate` ===');

@@ -16,13 +16,24 @@ const pagerLinkClass =
   'group flex min-w-0 flex-col gap-[0.35rem] rounded-ui border border-rule p-5 text-ink no-underline transition-colors hover:border-accent hover:bg-accent-soft hover:text-ink';
 
 const pagerTitleClass =
-  'font-serif text-pager font-semibold leading-[1.35] tracking-[-0.01em] text-wrap-balance transition-colors group-hover:text-accent';
+  'font-serif text-pager font-semibold leading-[1.35] tracking-[-0.01em] transition-colors group-hover:text-accent';
 
 /*
  * A running head is not a card grid, and a two-line pager title that orphans its
  * last word ("Version Drift Survival for Oracle Docs and / OSS") reads as a
- * mistake rather than as a tight rag. `balance` only ever acts on the lines the
- * title actually takes, so a one-line title is unaffected.
+ * mistake rather than as a tight rag. A balanced wrap was asked for here.
+ *
+ * The class in that spot was the misspelling of Tailwind's balancing utility —
+ * `text-` followed by `wrap-balance`, where v4 spells it without the middle word.
+ * Nothing was ever balanced, so the comment described an effect the page did not
+ * have. Spelling it correctly would make Blink binary-search the line breaks on
+ * both pager titles, which is the cost this project is removing from every heading
+ * for the same reason: see the note on `h1`..`h6` in `src/styles/global.css`. The
+ * orphan is accepted rather than balanced.
+ *
+ * The utility is deliberately NOT named here in full. Tailwind's source scanner
+ * reads these files for class-shaped strings and does not know what a comment is,
+ * so writing the real name would emit the rule this comment exists to keep out.
  */
 
 /*
@@ -76,7 +87,13 @@ const NameSeparator = 'sr-only';
       `nav[aria-label="Book navigation"]` and walks the cells as first/last-child.
     */}
     {prev ? (
-      <a href={prev.href} rel="prev" class={pagerLinkClass} transition:name="pager-prev">
+      <a
+        href={prev.href}
+        rel="prev"
+        class={pagerLinkClass}
+        transition:name="pager-prev"
+        data-astro-prefetch
+      >
         <span class="running-head">
           <span aria-hidden="true">←</span> Previous
         </span>
@@ -92,6 +109,7 @@ const NameSeparator = 'sr-only';
         rel="next"
         class={`${pagerLinkClass} sm:items-end sm:justify-end sm:text-right`}
         transition:name="pager-next"
+        data-astro-prefetch
       >
         {/* The space belongs INSIDE the decorative span. Written as
             `Next <span>→</span>` the label ends in a space, and stripping the
@@ -110,8 +128,19 @@ const NameSeparator = 'sr-only';
     )}
   </nav>
 ) : (
+  /*
+   * The end-of-book fallback is marked like the pager cells above, and for the same reason: it stands
+   * in the pager's slot, answers the same question, and it is the only way off the last page of the
+   * book. Without the mark, `/08-bonus-batch-api/` would be the one page in the book whose bottom
+   * navigation is never prefetched — the single place where the omission costs a reader a wait. The
+   * scope and the rest of its arithmetic are in the `prefetch` comment in `astro.config.mjs`.
+   */
   <p class="meta mt-10 border-t border-rule pt-8">
-    <a href={withBase('/')} class="no-underline transition-colors hover:text-accent">
+    <a
+      href={withBase('/')}
+      class="no-underline transition-colors hover:text-accent"
+      data-astro-prefetch
+    >
       <span aria-hidden="true">←</span> End of notebook — return to contents
     </a>
   </p>

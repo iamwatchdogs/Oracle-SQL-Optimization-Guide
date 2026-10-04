@@ -146,9 +146,10 @@ test('every table-of-contents anchor names its full heading text', async () => {
 });
 
 test('binds the disclosure controller once behind a durable document guard', async () => {
-  const [disclosure, layout] = await Promise.all([
+  const [disclosure, layout, clientInit] = await Promise.all([
     readSource('../../src/lib/disclosure-controller.mjs'),
     readSource('../../src/layouts/BaseLayout.astro'),
+    readSource('../../src/lib/client-init.mjs'),
   ]);
 
   expect(disclosure).toContain("Symbol.for('guidebook.disclosure-controller')");
@@ -157,8 +158,9 @@ test('binds the disclosure controller once behind a durable document guard', asy
   expect(disclosure).toContain("addEventListener?.('click'");
   expect(disclosure).toContain("addEventListener?.('transitionend'");
   expect(disclosure).toContain("addEventListener?.('astro:before-swap'");
-  expect(layout).toContain("from '../lib/disclosure-controller.mjs'");
-  expect(layout.match(/bindDisclosureController\(/gu)).toHaveLength(1);
+  expect(layout).toContain("import '../lib/client-init.mjs'");
+  expect(clientInit).toContain("from './disclosure-controller.mjs'");
+  expect(clientInit.match(/bindDisclosureController\(/gu)).toHaveLength(1);
 });
 
 test('the contributions list is named by its section, not a colliding landmark', async () => {

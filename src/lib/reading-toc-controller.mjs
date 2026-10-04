@@ -1,174 +1,87 @@
 import { findById } from './dom.mjs';
-import { reanchorAfterSettle } from './disclosure-reanchor.mjs';
+import { readDocumentHeight, resolveActiveId } from './reading-toc-resolve.mjs';
+import { observeSections } from './reading-toc-observe.mjs';
+import { closeMobileOnJump } from './reading-toc-jump.mjs';
 
+/*
+ * ONE ENTRY PER HEADING, holding every anchor that points at it.
+ *
+ * `ReadingToc.astro` renders each heading twice — a desktop rail (`ReadingToc.astro:36`,
+ * `hidden lg:block`) and a mobile outline (`ReadingToc.astro:79`, `lg:hidden`) — and
+ * both anchors carry `data-toc-link={h.id}`. Minting an entry per ANCHOR therefore
+ * doubled everything that costs geometry: on a 42-heading page the band scan read
+ * 84 rects instead of 42, the IntersectionObserver took 84 targets instead of 42, and
+ * each duplicate captured its own closure in `closeMobileOnJump`.
+ *
+ * `links` is kept on the entry because the two anchors are NOT redundant: they are
+ * `display:none` at complementary breakpoints, so both have to receive the active
+ * state and both need a click handler. What is per-heading is the measurement, the
+ * observation and the closure; what stays per-anchor is the write and the
+ * registration.
+ */
 function collectEntries(documentRef) {
-  const links = Array.from(documentRef?.querySelectorAll?.('[data-toc-link]') ?? []);
-  return links.flatMap((link) => {
-    const id = link.dataset?.tocLink;
+  const anchors = Array.from(documentRef?.querySelectorAll?.('[data-toc-link]') ?? []);
+  const byId = new Map();
+  for (const anchor of anchors) {
+    const id = anchor.dataset?.tocLink;
     if (!id) {
-      return [];
+      continue;
+    }
+    const existing = byId.get(id);
+    if (existing) {
+      existing.links.push(anchor);
+      continue;
     }
     const section = findById(documentRef, id);
-    return section ? [{ id, link, section }] : [];
-  });
-}
-
-function setActiveState(entries, id, currentLabel) {
-  for (const entry of entries) {
-    const match = entry.id === id;
-    entry.link.dataset.active = match ? 'true' : 'false';
-    if (match) {
-      entry.link.setAttribute?.('aria-current', 'location');
-    } else {
-      entry.link.removeAttribute?.('aria-current');
+    if (section) {
+      byId.set(id, { id, links: [anchor], section });
     }
   }
-  const active = entries.find((entry) => entry.id === id);
-  const text = active?.link?.lastElementChild?.textContent;
+  return [...byId.values()];
+}
+
+/*
+ * Skip a write that would not change anything.
+ *
+ * The server already renders every anchor `data-active="false"` with no `aria-current`
+ * (`ReadingToc.astro:66`, `:129`), and `resolveActiveId` returns `entries[0].id` at the
+ * top of the document — so a cold load, which is every cold load, asked 82 of its 84
+ * anchors to be told what they already said. Each anchor carries `transition-colors`
+ * and six `data-[active=true]:*` variants (`ReadingToc.astro:25-31`), so a redundant
+ * write still dirties style on an element the engine then has to re-evaluate.
+ * Comparing before writing is what `applyAttribute` in `reading-prefs-store.mjs:103`
+ * already does. `active` is a BOOLEAN, not the `data-active` value: `'false'` is truthy.
+ */
+function writeActiveState(anchor, active) {
+  const value = active ? 'true' : 'false';
+  if (anchor.dataset.active !== value) {
+    anchor.dataset.active = value;
+  }
+  if (!active && anchor.getAttribute?.('aria-current') !== null) {
+    anchor.removeAttribute?.('aria-current');
+  } else if (active && anchor.getAttribute?.('aria-current') !== 'location') {
+    anchor.setAttribute?.('aria-current', 'location');
+  }
+}
+
+function setActiveState(entries, id, currentLabel, cache) {
+  if (cache?.lastId === id) {
+    return;
+  }
+  if (cache) {
+    cache.lastId = id;
+  }
+  for (const entry of entries) {
+    const active = entry.id === id;
+    for (const anchor of entry.links) {
+      writeActiveState(anchor, active);
+    }
+  }
+  const current = entries.find((entry) => entry.id === id);
+  const text = current?.links[0]?.lastElementChild?.textContent;
   if (currentLabel && text) {
     currentLabel.textContent = text;
   }
-}
-
-/*
- * Resolve which section is current from geometry alone.
- *
- * The previous implementation drove the highlight entirely from
- * IntersectionObserver callbacks. Two problems followed from that:
- *
- * 1. The callback is asynchronous. After a programmatic or fast scroll the
- *    highlight lagged the scroll position by a frame or more, so the TOC could
- *    name a section the reader had already left.
- * 2. The observer only fires when the SET of intersecting elements changes. At
- *    the bottom of a page whose last heading sits below the `-65%` band, the
- *    previous heading leaves the band and nothing enters it — the callback runs
- *    with nothing visible and no id to apply, so the highlight silently stayed
- *    on whatever it was at load time. A reader who scrolled to the end of a
- *    chapter saw the FIRST section marked current.
- *
- * Resolving from geometry and calling it on scroll fixes both, and an explicit
- * page-bottom case states the rule directly: at the end of the document the
- * last section is the current one, because that is the text being read.
- */
-function resolveActiveId(entries, windowRef, documentRef) {
-  if (entries.length === 0) {
-    return null;
-  }
-  const viewportHeight = windowRef?.innerHeight ?? 0;
-  const scrollTop = windowRef?.scrollY ?? 0;
-  const maxScroll = Math.max(0, (documentRef?.documentElement?.scrollHeight ?? 0) - viewportHeight);
-  if (maxScroll > 0 && maxScroll - scrollTop <= 2) {
-    return entries.at(-1).id;
-  }
-  // The same reasoning at the other end: before the first heading the reader is
-  // at the start of the document, so the first section is the current one even
-  // though it is nowhere near the band.
-  if (scrollTop <= 2) {
-    return entries[0].id;
-  }
-  const bandTop = viewportHeight * 0.15;
-  const bandBottom = viewportHeight * 0.35;
-  let inBand;
-  let lastAbove;
-  for (const entry of entries) {
-    const rect = entry.section.getBoundingClientRect?.();
-    if (!rect) {
-      continue;
-    }
-    if (inBand === undefined && rect.top < bandBottom && rect.bottom > bandTop) {
-      inBand = entry.id;
-    }
-    if (rect.top <= bandTop) {
-      lastAbove = entry;
-    }
-  }
-  // Nothing in the band and nothing above it: the reader is above the first
-  // heading, so no section is current. Returning an id here would name a
-  // section that has not been reached.
-  return inBand ?? lastAbove?.id ?? null;
-}
-
-/*
- * Recompute on every scroll, coalesced to one read per frame. A passive,
- * rAF-throttled scroll handler is the standard way to keep a scroll-spy honest;
- * the observer is kept as a second trigger because it is cheaper than measuring
- * every heading on fast programmatic scrolls.
- */
-function observeSections(entries, onActive, ObserverRef, windowRef, documentRef) {
-  const sync = () => {
-    const id = resolveActiveId(entries, windowRef, documentRef);
-    if (id) {
-      onActive(id);
-    }
-  };
-  let frame = null;
-  const onScroll = () => {
-    if (frame !== null) {
-      return;
-    }
-    frame = windowRef?.requestAnimationFrame?.(() => {
-      frame = null;
-      sync();
-    });
-  };
-  windowRef?.addEventListener?.('scroll', onScroll, { passive: true });
-
-  let observer = null;
-  if (typeof ObserverRef === 'function') {
-    observer = new ObserverRef(sync, {
-      rootMargin: '-15% 0px -65% 0px',
-      threshold: 0,
-    });
-    for (const entry of entries) {
-      observer.observe(entry.section);
-    }
-  }
-  return {
-    disconnect() {
-      windowRef?.removeEventListener?.('scroll', onScroll);
-      if (frame !== null) {
-        windowRef?.cancelAnimationFrame?.(frame);
-      }
-      observer?.disconnect();
-    },
-  };
-}
-
-/*
- * Returns a disposer.
- *
- * `AbortController` is the tidiest way to unregister 84 listeners at once on the
- * flagship page, but it is a dependency, not a guarantee: when it is unavailable
- * `options` is `undefined` and the listeners had nothing to remove them. The
- * disposers are collected explicitly so `teardown` works either way — otherwise
- * every Astro navigation stacked another 84 handlers on a persistent panel, each
- * closing the mobile disclosure and re-anchoring against a stale document.
- */
-function closeMobileOnJump(entries, mobile, signal, windowRef, documentRef) {
-  const handlers = [];
-
-  for (const entry of entries) {
-    const handler = () => {
-      if (mobile?.open && windowRef.matchMedia?.('(max-width: 1023px)')?.matches) {
-        const id = entry.id;
-        mobile.open = false;
-        reanchorAfterSettle({
-          container: mobile,
-          resolveTarget: () => findById(documentRef, id),
-          windowRef,
-        });
-      }
-    };
-    entry.link.addEventListener?.('click', handler, signal ? { signal } : undefined);
-    handlers.push([entry.link, handler]);
-  }
-
-  return () => {
-    for (const [link, handler] of handlers) {
-      link.removeEventListener?.('click', handler);
-    }
-    handlers.length = 0;
-  };
 }
 
 /*
@@ -194,6 +107,9 @@ function createPageLoad({
   return () => {
     teardown();
     const entries = collectEntries(documentRef);
+    /* Fresh per page: the last active id belongs to the document that was
+       just swapped out. */
+    const activeCache = { lastId: null };
     if (entries.length === 0) {
       return;
     }
@@ -205,14 +121,14 @@ function createPageLoad({
       const target = decodeHashTarget(hash);
       initialId = entries.some((entry) => entry.id === target) ? target : undefined;
     } else {
-      initialId = resolveActiveId(entries, windowRef, documentRef);
+      initialId = resolveActiveId(entries, windowRef, readDocumentHeight(documentRef));
     }
     if (initialId) {
-      setActiveState(entries, initialId, currentLabel);
+      setActiveState(entries, initialId, currentLabel, activeCache);
     }
     state.observer = observeSections(
       entries,
-      (id) => setActiveState(entries, id, currentLabel),
+      (id) => setActiveState(entries, id, currentLabel, activeCache),
       ObserverRef,
       windowRef,
       documentRef,

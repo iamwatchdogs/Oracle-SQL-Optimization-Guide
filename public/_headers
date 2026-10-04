@@ -1,0 +1,14 @@
+# Long-lived immutable caching for hashed build output.
+# GitHub Pages ignores this file (its own Cache-Control wins); it applies
+# verbatim on Cloudflare Pages / Netlify and documents the intent.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+/_image/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Documents revalidate every load: the HTML is the only thing that changes
+# when a new build ships.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+/
+  Cache-Control: public, max-age=0, must-revalidate

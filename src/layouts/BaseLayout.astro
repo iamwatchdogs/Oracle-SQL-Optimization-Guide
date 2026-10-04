@@ -20,6 +20,11 @@ interface SectionLink {
   description?: string | undefined;
 }
 
+interface Breadcrumb {
+  href: string;
+  title: string;
+}
+
 interface Props {
   title: string;
   description?: string | undefined;
@@ -27,6 +32,13 @@ interface Props {
   bare?: boolean;
   sections?: SectionLink[];
   sectionPosition?: number | undefined;
+  /** The chapter this page belongs to, for `article:section`. */
+  section?: string | undefined;
+  /** ISO dates from frontmatter, for the article OG timestamps. */
+  publishedTime?: string | undefined;
+  modifiedTime?: string | undefined;
+  /** The page's visible trail, mirrored into BreadcrumbList JSON-LD. */
+  breadcrumbs?: Breadcrumb[];
   /**
    * Emit `<meta name="robots" content="noindex">`. Use for error pages.
    *
@@ -44,6 +56,10 @@ const {
   bare = false,
   sections = [],
   sectionPosition,
+  section,
+  publishedTime,
+  modifiedTime,
+  breadcrumbs,
   noindex = false,
 } = Astro.props;
 /*
@@ -90,6 +106,8 @@ const fullTitle =
    on one line only meant a page without frontmatter `description` shipped a
    human-readable description and no social one at all. */
 const metaDescription = description ?? SITE_DESCRIPTION;
+/* og:locale wants language_TERRITORY; the site's BCP 47 tag is a bare 'en'. */
+const ogLocale = SITE_LOCALE === 'en' ? 'en_US' : SITE_LOCALE;
 
 /* Canonical must never carry a query string or fragment, and must resolve
    against the configured site origin rather than whatever host served the page. */
@@ -158,16 +176,21 @@ const feedHref = new URL('rss.xml', siteRoot).href;
     <meta property="og:description" content={metaDescription} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE_TITLE} />
-    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale" content={ogLocale} />
     <meta property="og:image" content={socialImage} />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={SITE_DESCRIPTION} />
+    <meta property="og:image:alt" content={`${SITE_TITLE} — social card`} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={metaDescription} />
     <meta name="twitter:image" content={socialImage} />
+    {isArticle && section && <meta property="article:section" content={section} />}
+    {isArticle && publishedTime && (
+      <meta property="article:published_time" content={publishedTime} />
+    )}
+    {isArticle && modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
 
     {/*
       Machine-readable index and a statement of what the book is.
@@ -215,10 +238,91 @@ const feedHref = new URL('rss.xml', siteRoot).href;
         },
       })}
     ></script>
-    {/* Fonts — Astro Fonts API */}
-    <Font cssVariable="--face-serif" preload />
-    <Font cssVariable="--face-sans" />
-    <Font cssVariable="--face-mono" />
+    {/*
+     * The same trail the page draws, for a crawler that reads JSON-LD rather
+     * than nav markup. Home is always the first crumb, so it is prepended
+     * rather than threaded through every caller. `item` URLs are absolute:
+     * schema.org wants them resolvable on their own, not against the page.
+     */}
+    {!noindex && breadcrumbs && breadcrumbs.length > 0 && (
+      <script
+        type="application/ld+json"
+        set:html={JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { name: 'Home', href: withBase('/') },
+            ...breadcrumbs.map((crumb) => ({ name: crumb.title, href: crumb.href })),
+          ].map((crumb, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: crumb.name,
+            item: new URL(crumb.href, origin).href,
+          })),
+        })}
+      ></script>
+    )}
+    {/*
+      Fonts — Astro Fonts API — and which of them the parser is told to fetch first.
+
+      `preload` is not a boolean. `FontPreloadFilter` is
+      `boolean | Array<{ weight?, style?, subset? }>`
+      (`node_modules/astro/dist/assets/fonts/types.d.ts`), the `<Font>` component types its prop
+      that way (`node_modules/astro/components/Font.astro:10`), and `filterPreloads` matches the
+      array entry-by-entry (`dist/assets/fonts/core/filter-preloads.js:8-21`) — so `{ style: 'normal' }`
+      names exactly one of a family's files. Written as the bare `true` it means "every file this
+      family owns" (`filter-preloads.js:5-7`), and this family owns two: `styles: ['normal',
+      'italic']` in `astro.config.mjs`. That is why the serif prop below is a filter and not a flag,
+      and it is not a workaround — it is the documented shape of the prop, evaluated per render
+      (`Font.astro:22`), so one layout gets per-style control it appears not to offer.
+
+      WHAT EACH LINE IS FOR, measured in Chromium against this build rather than argued.
+
+      - `--face-serif`, UPRIGHT ONLY. The `<h1>` is 50,952 bytes, is on every page, and was the
+        largest-contentful-paint element on 69 of 74 page-and-viewport pairs. There is no argument
+        against it.
+      - `--face-sans`. Unchanged, and unchanged for the reason c7a3785 recorded: it paints every
+        visible control in the running head (`Contents`, `Repo`, `Reading`, `Theme`) on all 37 pages.
+      - `--face-mono`, NEW. This was the one face with no preload, and it is the face the running
+        head is set in — the wordmark (`class="running-head"`, this file's header) and the
+        `Section 02 / 09` counter in the nav summary — inside a `sticky top-0` header, so it is in
+        the first viewport on every page. At 31,340 bytes it is also the smallest of the four.
+        Chromium found it from the CSSOM rather than the parser, so `ResourceTiming.initiatorType`
+        read `css` where the other three read `link`: under an emulated Slow 4G link (1.6 Mbps,
+        150 ms RTT) its `responseEnd` was 1817 ms against 1365-1410 ms for the trio, so the header
+        painted in `ui-monospace` and swapped about 400 ms later.
+
+      WHY THE ITALIC FACE IS NOT ON THAT LIST, since it is the larger decision. 51,720 bytes — the
+      largest file the site ships — and nothing in the first viewport uses it on 30 of the 37 content
+      pages. It is not unused: all 37 render italic text, so the browser still downloads the file,
+      and it is the largest-contentful-paint element on 4 of them. What the preload bought was the
+      PARSER asking for it before the document existed, which is a bad trade when the file is also
+      the largest one in flight and the three faces a reader is actually looking at are behind it.
+      Dropping it does not remove a byte — it moves that file out of the group resolved before first
+      paint and into the group resolved after layout, behind the three the reader is looking at. The
+      cost is that the italic glyphs arrive later; `font-display: swap` on all 24 faces is what makes
+      that a swap rather than a blank. Asserted by `test/integration/font-preload.test.mjs` and
+      `test/e2e/font-preload.spec.mjs`.
+
+      REJECTED, and why, so nobody re-runs them:
+
+      - `preload` on all four. 182,444 bytes of font handed to the parser, on a heaviest page whose
+        document is 186,369 bytes; the fonts would nearly double the cold load, for a face 30 of 37
+        pages cannot see in the first screenful.
+      - Leave the serif prop alone and add `preload` to the mono one. Fixes the half that is easiest
+        to see and leaves the half that costs the most bytes. The italic preload would still be
+        sitting in front of every reader.
+      - Drop serif and let the `<h1>` fall back. The `<h1>` is the site's own title, and it is the
+        largest contentful paint on both pages a reader can land on directly.
+
+      ONE THING THAT IS NOT CLAIMED: the cost. Preloading is site-wide here because these three tags
+      are unconditional, and the italic face is in the first viewport on 7 of 37 pages — so on those
+      the swap lands a little later than it used to. Per-page preload would mean the layout inspecting
+      its own content, which is a worse contract than the one line it replaces.
+    */}
+    <Font cssVariable="--face-serif" preload={[{ style: 'normal' }]} />
+    <Font cssVariable="--face-sans" preload />
+    <Font cssVariable="--face-mono" preload />
 
     {/*
       Theme and reading preferences init — dark default; everything else from
@@ -473,6 +577,7 @@ const feedHref = new URL('rss.xml', siteRoot).href;
                           class="group grid min-h-11 grid-cols-[2.25rem_minmax(0,1fr)] items-baseline gap-2 px-[0.65rem] py-[0.55rem] font-sans text-ui leading-[1.35] text-ink-muted no-underline transition-colors hover:bg-accent-soft hover:text-accent data-[active=true]:border-l data-[active=true]:border-accent data-[active=true]:bg-accent-soft data-[active=true]:text-accent"
                           aria-current={isActive ? 'location' : undefined}
                           data-active={isActive ? 'true' : 'false'}
+                          data-astro-prefetch
                         >
                           <span
                             class="font-mono text-chip tabular-nums text-ink-faint group-data-[active=true]:text-accent"
@@ -670,157 +775,7 @@ const feedHref = new URL('rss.xml', siteRoot).href;
     <slot />
 
     <script>
-      import { createRouteFocusController } from '../lib/route-focus.mjs';
-
-      /*
-       * The focus handoff, and nothing else.
-       *
-       * There is no loading state here any more. A route loader was removed, along
-       * with the three pulsing bars, the 180ms reveal gate, the 8000ms cap, the
-       * `aria-busy` bookkeeping and the `event.loader` wrapper. What survives is
-       * the one line of it that was ever about the reader rather than about the
-       * request: after a client-side swap the focused element no longer exists, so
-       * focus falls to <body> and a keyboard or screen-reader user is given no
-       * signal that the document was replaced. See `src/lib/route-focus.mjs`.
-       */
-      if (!Object.prototype.hasOwnProperty.call(document, 'routeFocusInitialized')) {
-        const controller = createRouteFocusController({ document });
-        document.addEventListener('astro:before-preparation', () => controller.begin());
-        document.addEventListener('astro:page-load', () => controller.pageLoad());
-        Object.defineProperty(document, 'routeFocusInitialized', { value: true });
-      }
-    </script>
-    <script>
-      /*
-       * Which KIND of navigation is this.
-       *
-       * A route swap has two choreographies and the difference is the reader's
-       * intent, not the destination:
-       *
-       *   `data-nav="jump"`  — home to a section, section to section, any link that
-       *     is not a pager cell. The page's furniture scatters: the left rail leaves
-       *     leftward, the home metadata margin leaves rightward, the centre
-       *     dissolves, and the new page reassembles in the reverse order.
-       *
-       *   `data-nav="pager"` — the next/previous cell. A deliberate step along a
-       *     linear book, so the new page is anchored on its own title and the
-       *     reading column cascades down out of it.
-       *
-       * Read from `astro:before-preparation` rather than from a `click` listener, so
-       * it works for a keyboard Enter, for a middle-click, and for anything the
-       * browser synthesises — `event.sourceElement` is the element the router
-       * itself resolved the navigation from.
-       *
-       * The key is `rel`. It is the only marker that distinguishes a pager hop from
-       * every other navigation, it needs no new markup, and it is already load-
-       * bearing in four test files. An `aria-label` is deliberately NOT added for
-       * the same reason `PrevNext.astro` keeps its name as visible-derived text: a
-       * label would break the voice-control contract where the accessible name
-       * must begin with the visible word.
-       *
-       * Default is `jump`, not `pager`. Every unmarked navigation — in-article
-       * cross-references, the breadcrumb, the header section menu, the home
-       * contributions list, "Book home", the 404 recovery links — scatters, and a
-       * reader who follows an in-article link across the book is making a section
-       * jump far more often than they are pressing a pager cell.
-       *
-       * It is written twice, because the router deletes it once. Astro re-applies the
-       * incoming document's `<html>` attributes on `astro:after-swap`, and the
-       * document being swapped in is a freshly parsed page that has never heard of
-       * `data-nav`. Writing it in `before-preparation` alone therefore works right up
-       * until the moment it matters: the attribute is present when this code runs and
-       * gone by the time the view-transition pseudo tree is built and its custom
-       * properties are read, so every pager hop silently runs the jump choreography.
-       * Measured, the clearing happens between `astro:before-swap` and
-       * `astro:after-swap`, and the re-write on `after-swap` lands in the same task
-       * as the clear, ahead of any style resolution. Pinned by
-       * `test/e2e/route-transition.spec.mjs`.
-       */
-      if (!Object.prototype.hasOwnProperty.call(document, 'routeKindInitialized')) {
-        let kind = 'jump';
-
-        const write = () => {
-          document.documentElement.dataset['nav'] = kind;
-        };
-
-        document.addEventListener('astro:before-preparation', (event) => {
-          const source = event.sourceElement;
-          const fromPager =
-            source instanceof Element && source.closest('a[rel="prev"], a[rel="next"]') !== null;
-          kind = fromPager ? 'pager' : 'jump';
-          write();
-        });
-
-        document.addEventListener('astro:after-swap', write);
-
-        Object.defineProperty(document, 'routeKindInitialized', { value: true });
-      }
-    </script>
-    <script>
-      if (!Object.prototype.hasOwnProperty.call(document, 'routeAnnouncerSweepInitialized')) {
-        /*
-         * Astro announces the new title from an `aria-live="assertive"` node it
-         * appends to <body> on every completed navigation, and never removes it.
-         * The focus handoff above already conveys the change, so the assertive
-         * announcement is a duplicate at best and an unbounded DOM leak at worst.
-         * It is created after `astro:page-load` fires, hence the defer.
-         *
-         * An earlier version also observed insertions with a `MutationObserver`.
-         * It was removed: it made three Firefox route-loader tests fail that had
-         * been passing, and the leak it guarded against is already closed by this
-         * sweep on every navigation the reader actually completes.
-         */
-        document.addEventListener('astro:page-load', () => {
-          setTimeout(() => {
-            for (const stale of document.querySelectorAll('.astro-route-announcer')) {
-              stale.remove();
-            }
-          }, 150);
-        });
-        Object.defineProperty(document, 'routeAnnouncerSweepInitialized', { value: true });
-      }
-    </script>
-    <script>
-      import { bindThemeController } from '../lib/theme-controller.mjs';
-
-      bindThemeController({ document });
-    </script>
-    <script>
-      import { bindReadingPrefs } from '../lib/reading-prefs-controller.mjs';
-
-      bindReadingPrefs({ document });
-    </script>
-    <script>
-      import { bindDisclosureController } from '../lib/disclosure-controller.mjs';
-
-      bindDisclosureController({ document });
-    </script>
-    <script>
-      import { bindDropdownDismiss } from '../lib/dropdown-dismiss.mjs';
-
-      bindDropdownDismiss({ document });
-    </script>
-    <script>
-      /*
-       * The title-block entrance plays once per document.
-       *
-       * `data-title-entrance` is written by the inline bootstrap in `<head>` and
-       * cleared here, on the first `astro:page-load` that is not the initial
-       * load. Clearing it after the first completed navigation — rather than
-       * before, or on `astro:before-swap` — keeps the first paint animated and
-       * every arrival after it at rest.
-       */
-      if (!Object.prototype.hasOwnProperty.call(document, 'titleEntranceInitialized')) {
-        let initial = true;
-        document.addEventListener('astro:page-load', () => {
-          if (initial) {
-            initial = false;
-            return;
-          }
-          delete document.documentElement.dataset['titleEntrance'];
-        });
-        Object.defineProperty(document, 'titleEntranceInitialized', { value: true });
-      }
+      import '../lib/client-init.mjs';
     </script>
   </body>
 </html>
