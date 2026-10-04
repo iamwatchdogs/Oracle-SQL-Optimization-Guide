@@ -9,6 +9,10 @@ against a toy schema you create yourself.
 
 **Read it at** <https://iamwatchdogs.github.io/Oracle-SQL-Optimization-Guide/>
 
+[![CI](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/ci.yml/badge.svg)](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/ci.yml)
+[![Deploy](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/deploy.yml/badge.svg)](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/deploy.yml)
+[![Bun](https://img.shields.io/badge/bun-1.4.2-black)](https://bun.sh)
+
 ---
 
 ## What is here
@@ -49,12 +53,21 @@ for. The source is one markdown file per page under [`contents/`](contents/).
 
 ## Building it locally
 
-Requires [Bun](https://bun.sh). Node also works, but every command below assumes
-Bun and the lockfile is Bun's.
+Requires [Bun](https://bun.sh) 1.4.2 (the version pinned in
+`packageManager` and CI). Node also works, but every command below assumes Bun
+and the lockfile is Bun's.
 
 ```sh
+git clone https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide.git
+cd Oracle-SQL-Optimization-Guide
 bun install
 bun run dev          # http://localhost:4321
+```
+
+To make the pre-commit and pre-push hooks run the same gates you see in CI:
+
+```sh
+bunx lefthook install
 ```
 
 `SITE_BASE` moves the deployment prefix. Leave it unset for GitHub Pages; set it
@@ -63,6 +76,29 @@ to `/` to build for a host that serves from the origin root.
 ```sh
 SITE_BASE=/ bun run build
 ```
+
+### Project layout
+
+| Path        | What lives there                                          |
+| ----------- | --------------------------------------------------------- |
+| `contents/` | The book: one markdown file per page, grouped by part     |
+| `src/`      | Layouts, the markdown/rehype pipeline, and page scripts   |
+| `public/`   | Static assets served as-is                                |
+| `test/`     | Vitest unit and integration suites, plus Playwright e2e   |
+| `scripts/`  | Asset generators (favicons, the social card)              |
+| `docs/`     | Working notes; the rendered book is the finished artifact |
+
+### Scripts
+
+| Command            | What it runs                                         |
+| ------------------ | ---------------------------------------------------- |
+| `bun run dev`      | Astro dev server                                     |
+| `bun run build`    | Production build into `dist/`                        |
+| `bun run quality`  | oxlint, prettier check, `astro check`, tsgo          |
+| `bun run test`     | Vitest unit and integration suites                   |
+| `bun run test:e2e` | Playwright against a fresh build (starts its server) |
+| `bun run verify`   | All of the above, plus a build                       |
+| `bun run icons`    | Regenerate the favicon set and social card           |
 
 ### Checks
 
