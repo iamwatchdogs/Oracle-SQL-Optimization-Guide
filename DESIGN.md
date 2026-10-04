@@ -187,7 +187,7 @@ Full swap under `[data-theme='light']`: paper `#f7f5f0`, ink `#1a1815`, accent `
 - **Display** (700, clamp 2.75–6rem, lh 1.05, tracking -0.03em): Home title block only.
 - **Title** (600, clamp 1.75–2.5rem, lh 1.2, tracking -0.025em): Page h1 on interior routes.
 - **Headline** (600, clamp 1.35–1.75rem): Section h2 with bottom hairline rule.
-- **Body** (400, 1.125rem, lh 1.65, measure 70ch): Long-form prose; `hyphens: auto`.
+- **Body** (400, 1.125rem, lh 1.65, measure 70ch): Long-form prose. No automatic hyphenation at any width — see the note above `.prose` in `src/styles/global.css` for why, which is a cost argument as much as a typography one.
 - **Label** (Inter 500, 0.875rem): Buttons, nav, TOC, jargon summaries, the breadcrumb trail.
 - **Mono / Meta** (JetBrains 400, 0.8125rem, tracking 0.02em, uppercase): Running heads, grade chips, tabular metadata — things that carry a value, never things that only carry a position.
 

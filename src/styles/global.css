@@ -1144,16 +1144,35 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
 }
 
 /*
- * Measure, not hyphenation, carries a narrow column.
+ * MEASURE, NOT HYPHENATION, CARRIES A COLUMN — at every width now.
  *
- * `hyphens: auto` is right at desktop measure, where a 68ch line has room to
- * absorb the extra characters. At 390px the shell is 358px — about 40ch — and
- * the long technical words in this corpus are short enough to fit unbroken, so
- * the hyphenator fires on nearly every line break and the page reads as broken
- * typesetting rather than as a rag: four breaks in five consecutive lines
- * ("ex-/otic", "ac-/cidental", "col-/umn", "fetch shape"). Turning the
- * hyphenator off below `sm` loses nothing — no word in the corpus exceeds the
- * measure — and hands the rag back to the line-breaker.
+ * This used to be a `max-width: 39.999rem` override. The chapter template asked
+ * for `hyphens: auto` above it, on the reasoning that auto is right at desktop
+ * measure, where a 68ch line has room to absorb the extra characters. It is not,
+ * for two reasons, and the second one is about cost rather than looks.
+ *
+ * The looks are the original argument, and it holds at every width: at 390px the
+ * shell is 358px — about 40ch — and the long technical words in this corpus fit
+ * unbroken, so the hyphenator fired on nearly every line break and the page read
+ * as broken typesetting rather than as a rag ("ex-/otic", "ac-/cidental",
+ * "col-/umn"). "No word in the corpus exceeds the measure" is true of the phone
+ * and is equally true of the 68ch line; the hyphenator was buying raggedness at
+ * both.
+ *
+ * The cost is why it is not a media query any more. Blink's hyphenator runs a
+ * pattern-matching pass over every text run at layout time, and `auto` also names
+ * a LANGUAGE whose dictionary is LAZY-LOADED — the dictionary arriving changes
+ * where lines break, a layout change invalidates the document, and the page
+ * reflows a second time. This book's heaviest chapter is 391 KB of article text,
+ * and each of the four `font-display: swap` faces arriving afterwards re-runs the
+ * pass over all of it. So the two `hyphens-auto` utilities are gone from
+ * `src/pages/[...slug].astro` and this rule is what the prose computes to
+ * everywhere, which is the initial `manual`.
+ *
+ * The `none` below is stated rather than inherited because `manual` and `none`
+ * are different words: `manual` hyphenates where the CONTENT asks, via a soft
+ * hyphen. All 37 content files contain none, so the two agree today — and `none`
+ * is the one that keeps agreeing if that ever changes.
  */
 @media (max-width: 39.999rem) {
   .prose,
