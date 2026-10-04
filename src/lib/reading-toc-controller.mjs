@@ -1,5 +1,6 @@
 import { findById } from './dom.mjs';
-import { inputsChanged, resolveActiveId } from './reading-toc-resolve.mjs';
+import { readDocumentHeight, resolveActiveId } from './reading-toc-resolve.mjs';
+import { observeSections } from './reading-toc-observe.mjs';
 import { closeMobileOnJump } from './reading-toc-jump.mjs';
 
 /*
@@ -84,60 +85,6 @@ function setActiveState(entries, id, currentLabel, cache) {
 }
 
 /*
- * Recompute on every scroll, coalesced to one read per frame. A passive,
- * rAF-throttled scroll handler is the standard way to keep a scroll-spy
- * honest; the observer is a second trigger for content-driven reflows, and
- * both skip the geometry scan when nothing that feeds it changed.
- */
-function observeSections(entries, onActive, ObserverRef, windowRef, documentRef) {
-  let frame = null;
-  let lastInputs = null;
-  const sync = () => {
-    const scrollY = windowRef?.scrollY ?? 0;
-    const innerHeight = windowRef?.innerHeight ?? 0;
-    const scrollHeight = documentRef?.documentElement?.scrollHeight ?? 0;
-    if (!inputsChanged(lastInputs, scrollY, innerHeight, scrollHeight)) {
-      return;
-    }
-    lastInputs = { scrollY, innerHeight, scrollHeight };
-    const id = resolveActiveId(entries, windowRef, documentRef);
-    if (id) {
-      onActive(id);
-    }
-  };
-  const onScroll = () => {
-    if (frame !== null) {
-      return;
-    }
-    frame = windowRef?.requestAnimationFrame?.(() => {
-      frame = null;
-      sync();
-    });
-  };
-  windowRef?.addEventListener?.('scroll', onScroll, { passive: true });
-
-  let observer = null;
-  if (typeof ObserverRef === 'function') {
-    observer = new ObserverRef(sync, {
-      rootMargin: '-15% 0px -65% 0px',
-      threshold: 0,
-    });
-    for (const entry of entries) {
-      observer.observe(entry.section);
-    }
-  }
-  return {
-    disconnect() {
-      windowRef?.removeEventListener?.('scroll', onScroll);
-      if (frame !== null) {
-        windowRef?.cancelAnimationFrame?.(frame);
-      }
-      observer?.disconnect();
-    },
-  };
-}
-
-/*
  * A hash that names no heading must not blank the whole list, and a
  * percent-encoded fragment has to be decoded before it can match an id.
  */
@@ -174,7 +121,7 @@ function createPageLoad({
       const target = decodeHashTarget(hash);
       initialId = entries.some((entry) => entry.id === target) ? target : undefined;
     } else {
-      initialId = resolveActiveId(entries, windowRef, documentRef);
+      initialId = resolveActiveId(entries, windowRef, readDocumentHeight(documentRef));
     }
     if (initialId) {
       setActiveState(entries, initialId, currentLabel, activeCache);
