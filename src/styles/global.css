@@ -796,9 +796,25 @@ html[data-reading-toc='collapsed'] .toc-rail-chevron {
      * is not inherited, so `*` is what would neutralise a smooth scroll on any scroll
      * container a future component adds, and a rule like this one is easy to
      * reintroduce by accident.
+     *
+     * TWO MORE DECLARATIONS USED TO SIT HERE, and they went for different reasons.
+     *
+     * `text-rendering: optimizeLegibility` turned kerning and optional ligatures on,
+     * which takes text layout off Blink's integer-metrics fast path and onto the
+     * full font-metrics path. It ran over every one of the 7,160 text nodes on the
+     * heaviest chapter, and re-ran on each of the four font swaps. Nothing in this
+     * corpus has a ligature worth that pass.
+     *
+     * `-webkit-text-size-adjust: 100%` is NOT GONE — Tailwind's preflight declares
+     * the same thing on `html, :host` in the same layer, so this line was a second
+     * copy of a declaration already there. Removing it de-duplicates; it does not
+     * change the behaviour, and it should not: the initial value is `auto`, which
+     * lets a mobile browser inflate type to its own idea of legibility, and pinning
+     * it at 100% is what stops that. Preflight's copy is doing that job.
+     * `text-rendering` had no such second source, so it is genuinely absent from the
+     * sheet now — and `test/integration/text-rendering.test.mjs` asserts that
+     * asymmetry rather than papering over it.
      */
-    -webkit-text-size-adjust: 100%;
-    text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
