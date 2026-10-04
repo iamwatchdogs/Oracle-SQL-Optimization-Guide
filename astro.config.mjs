@@ -4,7 +4,7 @@ import sitemap from '@astrojs/sitemap';
 import astroExpressiveCodePlugin from 'astro-expressive-code';
 import tailwindcss from '@tailwindcss/vite';
 import { markdownProcessor } from './src/lib/markdown-processor.mjs';
-import { resolveBase, SITE_ORIGIN } from './src/lib/site.mjs';
+import { COMPILED_ON, resolveBase, SITE_ORIGIN } from './src/lib/site.mjs';
 
 // https://astro.build/config
 export default defineConfig({
@@ -287,7 +287,7 @@ export default defineConfig({
       },
     }),
     mdx(),
-    sitemap(),
+    sitemap({ serialize: (item) => ({ ...item, lastmod: COMPILED_ON }) }),
   ],
   markdown: {
     // Astro 7 defaults to the Satteri (Rust) processor, which silently

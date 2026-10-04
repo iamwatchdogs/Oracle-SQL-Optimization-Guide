@@ -177,6 +177,10 @@ const proseClass = [
   description={description}
   sections={contributions}
   sectionPosition={sectionPosition}
+  section={currentSection?.title}
+  publishedTime={entry.data.date}
+  modifiedTime={entry.data.updated}
+  breadcrumbs={breadcrumbItems}
 >
   {isHome ? (
     <div transition:name="body-home">
