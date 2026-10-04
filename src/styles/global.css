@@ -1197,7 +1197,14 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   }
 }
 
-.prose ul:has(> .task-list-item) {
+/*
+ * `.task-list`, not `.prose ul:has(> .task-list-item)`.
+ *
+ * `rehypeCallouts` stamps the class on the `<ul>` at build time, which is the only
+ * place this could be answered without `:has()` re-deriving it during layout. See
+ * the note on `.prose > p.callout` below for why that is worth the plugin.
+ */
+.prose ul.task-list {
   list-style-type: none;
   padding-inline-start: 0;
 }
@@ -1268,7 +1275,22 @@ details.disclosure[data-disclosure-closing] .disclosure-content-inner,
   white-space: nowrap;
 }
 
-.prose > p:has(> strong:only-child) {
+/*
+ * `.callout`, not `.prose > p:has(> strong:only-child)`.
+ *
+ * A GFM callout is a paragraph whose only child is a `<strong>` — `> **Note:** …`
+ * arrives as `<p><strong>Note:</strong> …</p>` — so CSS could ask for it with
+ * `:has()`. It should not. `:has()` puts the element in Blink's
+ * ancestor-invalidation set, which means an attribute or class change on ANY of
+ * the 8,240 elements on the heaviest chapter schedules a walk up through the chain
+ * to re-derive an answer that was fixed when the markdown was parsed. This site
+ * mutates attributes in bulk — 84 `data-active` writes, 168 `aria-current` writes,
+ * 3,371 expressive-code token `style` attributes — so those walks were constant.
+ *
+ * `rehypeCallouts` answers it once, at build time. 347 callouts across the 36
+ * built pages carry the class.
+ */
+.prose > p.callout {
   padding: 1rem 1.25rem;
   background: var(--accent-soft);
   /* `--rule-strong`, not `--rule`. The tint is composited onto paper in both

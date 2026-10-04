@@ -131,14 +131,18 @@ test('the takeaway hairline is not the same value as the tint it frames', async 
    * 1.02:1 in light: the hairline the block is specified to carry was arithmetically
    * present and visually absent, leaving a borderless full-measure slab.
    */
+  /*
+   * The selector is `.prose > p.callout` and no longer the `:has()` form: the class
+   * is stamped at build time by `rehypeCallouts`, which is the whole point of it —
+   * see the note on that rule in `src/styles/global.css`. The CLAIM being guarded is
+   * the border value, not the selector, so the selector is spelled as it is now.
+   */
   const usesStrongRule =
-    /\.prose\s*>\s*p:has\(\s*>\s*strong:only-child\s*\)\s*\{[^}]*border-block:\s*1px solid var\(--rule-strong\)/u.test(
+    /\.prose\s*>\s*p\.callout\s*\{[^}]*border-block:\s*1px solid var\(--rule-strong\)/u.test(
       stylesheet,
     );
   const usesWeakRule =
-    /\.prose\s*>\s*p:has\(\s*>\s*strong:only-child\s*\)\s*\{[^}]*border-block:\s*1px solid var\(--rule\)/u.test(
-      stylesheet,
-    );
+    /\.prose\s*>\s*p\.callout\s*\{[^}]*border-block:\s*1px solid var\(--rule\)/u.test(stylesheet);
 
   expect(usesStrongRule).toBe(true);
   expect(usesWeakRule).toBe(false);

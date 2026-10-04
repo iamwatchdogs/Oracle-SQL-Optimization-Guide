@@ -74,7 +74,16 @@ export const tableGeometry = (page) =>
 /** The takeaway's frame and fill, so the hairline can be compared against them. */
 export const takeawayFrame = (page) =>
   page.evaluate(() => {
-    const block = document.querySelector('article.prose > p:has(> strong:only-child)');
+    /*
+     * `.callout`, not `:has( > strong:only-child)`. The class is stamped by
+     * `rehypeCallouts` at build time, which is what lets the stylesheet select a
+     * callout without putting `:has()` into Blink's ancestor-invalidation set — see
+     * the note on `.prose > p.callout` in `src/styles/global.css`. The shape query
+     * still identifies callouts correctly, so this is not a correctness fix; it is
+     * the same selector the sheet uses, so a divergence fails here rather than
+     * silently measuring some other paragraph.
+     */
+    const block = document.querySelector('article.prose > p.callout');
     if (block === null) {
       return null;
     }

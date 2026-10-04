@@ -113,7 +113,7 @@ const tocHeadings = headings
 const description = entry.data.description;
 const proseClass = [
   'max-w-measure',
-  '[&>*+*:not(h2):not(h3):not(h4):not(details):not(p:has(>strong:only-child)):not(pre):not(.expressive-code)]:mt-prose-sibling',
+  '[&>*+*:not(h2):not(h3):not(h4):not(details):not(.callout):not(pre):not(.expressive-code)]:mt-prose-sibling',
   'min-w-0',
   'font-serif',
   'text-body',
@@ -139,7 +139,7 @@ const proseClass = [
   'prose-h4:mt-prose-h4-top',
   'prose-h4:mb-prose-h4-bottom',
   'prose-h4:hyphens-none',
-  '[&>p:not(:has(>strong:only-child))]:mb-0',
+  '[&>p:not(.callout)]:mb-0',
   '[&_blockquote_p]:m-0',
   '[&_li_p]:m-0',
   '[&_td_p]:m-0',
