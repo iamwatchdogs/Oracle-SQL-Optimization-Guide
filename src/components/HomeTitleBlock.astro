@@ -96,6 +96,28 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
       28.8px of padding) inside 27.5rem, which lands the closed state within 3px
       of where it was and leaves 291px of slack below it for the panel to open
       into.
+
+      The summary's OWN row has to clear its content with room to spare, and that
+      is a separate budget from the track's. The row is a `nowrap` flex line of
+      `407px` holding the label, this hint and a 14px chevron; a text item wraps
+      the moment its box is narrower than its max-content, and flex-shrink will
+      happily hand it one, so "does the sum of the min-contents fit" is the wrong
+      question. At "Source strength, not a benchmark" the row held 380.7px of
+      text and won by ~26px locally — which reads like comfortable and is not:
+      Linux resolves the same webfonts ~9% wider, both spans dropped below their
+      max-content, `Evidence key` split across two lines, the summary grew
+      17.56px, and the contributions list below was shoved to 96.61px instead of
+      the 79.1px the panel budget is written against. `title-block.spec.mjs`
+      caught it on CI and passed locally for a month.
+      So the hint is now 24 characters and the row clears its content by ~48px,
+      which survives ~12% of metric drift — close to what Linux needs, so the
+      margin on its own is thin. `whitespace-nowrap` on the label and `truncate`
+      on the hint are what make the row's height a constant rather than a
+      function of the platform: neither can wrap, so the summary is one line
+      everywhere and the push is 79.1px on every engine. At 48px of slack the
+      ellipsis is not expected to appear — it is there so that the NEXT person to
+      lengthen this copy gets a visible truncation instead of a silent 17.56px
+      layout break.
     */}
     <div class="grid lg:grid-cols-[minmax(0,1fr)_var(--width-title-meta)] gap-8 lg:gap-16 items-start">
       <div class="min-w-0">
@@ -170,9 +192,9 @@ const sectionWord = contributions.length === 1 ? 'section' : 'sections';
         {showGrades && (
           <details id="evidence-key" class="disclosure group mt-5 text-left">
             <summary class="list-none [&::-webkit-details-marker]:hidden marker:content-none">
-              <span class="text-ink">Evidence key</span>
-              <span class="ml-auto font-mono text-mono text-ink-faint">
-                Source strength, not a benchmark
+              <span class="text-ink whitespace-nowrap">Evidence key</span>
+              <span class="ml-auto min-w-0 truncate font-mono text-mono text-ink-faint">
+                Strength, not a benchmark
               </span>
               <svg
                 class="disclosure-icon shrink-0 text-ink-faint transition-transform duration-[280ms] ease-[cubic-bezier(.22,1,.36,1)] group-open:rotate-45 motion-reduce:transition-none"
