@@ -38,6 +38,30 @@ function collectEntries(documentRef) {
   return [...byId.values()];
 }
 
+/*
+ * Skip a write that would not change anything.
+ *
+ * The server already renders every anchor `data-active="false"` with no `aria-current`
+ * (`ReadingToc.astro:66`, `:129`), and `resolveActiveId` returns `entries[0].id` at the
+ * top of the document — so a cold load, which is every cold load, asked 82 of its 84
+ * anchors to be told what they already said. Each anchor carries `transition-colors`
+ * and six `data-[active=true]:*` variants (`ReadingToc.astro:25-31`), so a redundant
+ * write still dirties style on an element the engine then has to re-evaluate.
+ * Comparing before writing is what `applyAttribute` in `reading-prefs-store.mjs:103`
+ * already does. `active` is a BOOLEAN, not the `data-active` value: `'false'` is truthy.
+ */
+function writeActiveState(anchor, active) {
+  const value = active ? 'true' : 'false';
+  if (anchor.dataset.active !== value) {
+    anchor.dataset.active = value;
+  }
+  if (!active && anchor.getAttribute?.('aria-current') !== null) {
+    anchor.removeAttribute?.('aria-current');
+  } else if (active && anchor.getAttribute?.('aria-current') !== 'location') {
+    anchor.setAttribute?.('aria-current', 'location');
+  }
+}
+
 function setActiveState(entries, id, currentLabel, cache) {
   if (cache?.lastId === id) {
     return;
@@ -46,18 +70,13 @@ function setActiveState(entries, id, currentLabel, cache) {
     cache.lastId = id;
   }
   for (const entry of entries) {
-    const match = entry.id === id;
+    const active = entry.id === id;
     for (const anchor of entry.links) {
-      anchor.dataset.active = match ? 'true' : 'false';
-      if (match) {
-        anchor.setAttribute?.('aria-current', 'location');
-      } else {
-        anchor.removeAttribute?.('aria-current');
-      }
+      writeActiveState(anchor, active);
     }
   }
-  const active = entries.find((entry) => entry.id === id);
-  const text = active?.links[0]?.lastElementChild?.textContent;
+  const current = entries.find((entry) => entry.id === id);
+  const text = current?.links[0]?.lastElementChild?.textContent;
   if (currentLabel && text) {
     currentLabel.textContent = text;
   }
