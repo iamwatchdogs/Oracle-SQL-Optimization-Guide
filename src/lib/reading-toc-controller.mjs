@@ -1,4 +1,5 @@
 import { findById } from './dom.mjs';
+import { inputsChanged, resolveActiveId } from './reading-toc-resolve.mjs';
 import { closeMobileOnJump } from './reading-toc-jump.mjs';
 
 /*
@@ -80,61 +81,6 @@ function setActiveState(entries, id, currentLabel, cache) {
   if (currentLabel && text) {
     currentLabel.textContent = text;
   }
-}
-
-/*
- * Resolve which section is current from geometry alone. Calling it on scroll
- * (coalesced to one frame) fixes the old IntersectionObserver-driven spy,
- * which lagged a programmatic scroll by a frame and, at the bottom of a page
- * whose last heading sits below the band, silently kept the FIRST section
- * marked current. An explicit page-bottom case: at the end of the document
- * the last section is the current one, because that is the text being read.
- */
-function resolveActiveId(entries, windowRef, documentRef) {
-  if (entries.length === 0) {
-    return null;
-  }
-  const viewportHeight = windowRef?.innerHeight ?? 0;
-  const scrollTop = windowRef?.scrollY ?? 0;
-  const maxScroll = Math.max(0, (documentRef?.documentElement?.scrollHeight ?? 0) - viewportHeight);
-  if (maxScroll > 0 && maxScroll - scrollTop <= 2) {
-    return entries.at(-1).id;
-  }
-  // The same reasoning at the other end: before the first heading the reader is
-  // at the start of the document, so the first section is the current one even
-  // though it is nowhere near the band.
-  if (scrollTop <= 2) {
-    return entries[0].id;
-  }
-  const bandTop = viewportHeight * 0.15;
-  const bandBottom = viewportHeight * 0.35;
-  let inBand;
-  let lastAbove;
-  for (const entry of entries) {
-    const rect = entry.section.getBoundingClientRect?.();
-    if (!rect) {
-      continue;
-    }
-    if (inBand === undefined && rect.top < bandBottom && rect.bottom > bandTop) {
-      inBand = entry.id;
-    }
-    if (rect.top <= bandTop) {
-      lastAbove = entry;
-    }
-  }
-  // Nothing in the band and nothing above it: the reader is above the first
-  // heading, so no section is current. Returning an id here would name a
-  // section that has not been reached.
-  return inBand ?? lastAbove?.id ?? null;
-}
-
-function inputsChanged(lastInputs, scrollY, innerHeight, scrollHeight) {
-  return (
-    lastInputs === null ||
-    lastInputs.scrollY !== scrollY ||
-    lastInputs.innerHeight !== innerHeight ||
-    lastInputs.scrollHeight !== scrollHeight
-  );
 }
 
 /*
