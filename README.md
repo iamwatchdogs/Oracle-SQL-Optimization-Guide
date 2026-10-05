@@ -138,13 +138,7 @@ The files are checked in. A normal build never rewrites a binary.
 
 ## Contributing
 
-Read [`AGENTS.md`](AGENTS.md) first. It holds the repository rules that every change must follow.
-
-Open an issue before you write code. Describe the symptom, not the fix. The maintainer assigns the issue to you.
-
-Send one pull request for one issue. Name the branch after the issue.
-
-Run `bun run verify` before you push.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md). It explains how to set the project up, and how to send a change.
 
 ## Deploying
 
