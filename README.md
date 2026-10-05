@@ -6,6 +6,7 @@ A short, free book that shows how to prove an Oracle SQL speed win before you sh
 
 [![CI](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/ci.yml/badge.svg)](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/ci.yml)
 [![Deploy](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/deploy.yml/badge.svg)](https://github.com/iamwatchdogs/Oracle-SQL-Optimization-Guide/actions/workflows/deploy.yml)
+[![License](https://img.shields.io/github/license/iamwatchdogs/Oracle-SQL-Optimization-Guide.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/bun-1.4.2-black)](https://bun.sh)
 
 [![Astro](https://img.shields.io/badge/astro-7.3.3-BC52FF.svg)](https://astro.build)
@@ -158,7 +159,9 @@ The two workflows run separately on purpose. The deploy workflow needs `pages: w
 
 A project site is served from `/<repo>/` rather than from `/`. The build sets `base` for this reason. Links in the prose are prefixed at render time.
 
-## Provenance
+## License and provenance
+
+The book and this repository use the [MIT License](LICENSE).
 
 This repository contains the book. The Oracle documentation and the papers named in the appendix belong to other people.
 
