@@ -1,9 +1,8 @@
 /*
  * Where the route swap's zones are declared in the source.
  *
- * Split from `design-metadata.test.mjs`, which covers the palette, the type tokens and the
- * Motion prose. This is the one question about the swap that is a question about the
- * TEMPLATES rather than about the stylesheet: which element carries which name.
+ * This is the one question about the swap that is a question about the TEMPLATES rather
+ * than about the stylesheet: which element carries which name.
  *
  * That distinction is load-bearing. Every assertion elsewhere in the swap's suite — the
  * ladders, the dead beat, the compositing, the coverage — was green while the swap was

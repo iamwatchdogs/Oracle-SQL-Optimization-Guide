@@ -1,7 +1,6 @@
 /*
  * The route swap's source-level contract, as the stylesheet states it.
  *
- * Split from `design-metadata.test.mjs`, which covers the palette and the type tokens.
  * These are about the one mechanism the swap rests on, and each of them was got wrong
  * at least once in a way that no test here would have caught:
  *
